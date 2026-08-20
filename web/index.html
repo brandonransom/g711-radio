@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>G.711 Radio</title>
+    <title>USDA Forest Service - Land Mobile Radio Streams</title>
     <style>
       :root {
         color-scheme: light;
@@ -345,11 +345,9 @@
   <body>
     <main>
       <div class="theme-header">
-        <h1>G.711 Radio</h1>
-      </div>
+       <h1>USDA Forest Service Land Mobile Radio Streams</h1>
       <p>
-        This page loads the configured stream groups from the Go server. Expand a group, then open
-        each feed in its own tab so the player only runs on a dedicated stream page.
+        Expand a group, then open each feed in its own tab so the player only runs on a dedicated stream page.
       </p>
 
       <div id="launchRoot"></div>
@@ -366,10 +364,7 @@
       </div>
 
       <p class="note">
-        Group names, stream names, and ports come from <code>config.local.json</code>. Every stream
-        is hard-coded for <code>PCMU</code> with a 12-byte header in front of each 160-byte audio
-        frame. Click a group to expand it, clicking <code>Listen</code> opens that feed in a new
-        tab, and <code>?stream=...</code> links auto-play on a page with a player.
+        This service is provided by the USDA Forest Service CIO - Land Mobile Radio Innovation Team. This is a very early alpha phase of testing. DO NOT use this webpage as your primary means of radio communications. Contact <a href="mailto:brandon.r.thomas@usda.gov"Brandon Thomas</a> with any questions or feedback.
       </p>
     </main>
 
