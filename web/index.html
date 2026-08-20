@@ -409,6 +409,64 @@
         font-size: 0.94rem;
       }
 
+      .transcript-panel {
+        margin-top: 18px;
+        padding: 18px 20px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+      }
+
+      .transcript-label {
+        display: block;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--muted);
+        margin-bottom: 10px;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .transcript-log {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 260px;
+        overflow-y: auto;
+        font-size: 0.96rem;
+        line-height: 1.5;
+      }
+
+      .transcript-entry {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .transcript-entry:last-child {
+        border-bottom: none;
+      }
+
+      .transcript-time {
+        color: var(--muted);
+        font-size: 0.88rem;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        padding-top: 1px;
+      }
+
+      .transcript-text {
+        color: var(--ink);
+      }
+
+      .transcript-empty {
+        color: var(--muted);
+        font-size: 0.94rem;
+        font-style: italic;
+      }
+
       code {
         font-family: "Aptos Mono", "Courier New", monospace;
         background: rgba(227, 76, 72, 0.1);
@@ -432,6 +490,11 @@
           <button id="disconnectBtn" class="secondary" type="button" disabled>Disconnect</button>
         </div>
         <audio id="player" controls autoplay playsinline></audio>
+      </div>
+
+      <div id="transcriptPanel" class="transcript-panel" hidden>
+        <strong class="transcript-label">Transcription</strong>
+        <div id="transcriptLog" class="transcript-log"></div>
       </div>
 
       <p class="note">
@@ -466,6 +529,8 @@
       const statusText = document.getElementById("statusText");
       const player = document.getElementById("player");
       const streamsRoot = document.getElementById("streams");
+      const transcriptPanel = document.getElementById("transcriptPanel");
+      const transcriptLog = document.getElementById("transcriptLog");
       const streamQueryParam = "stream";
 
       let streamGroups = [];
@@ -481,6 +546,75 @@
       let baseReconnectDelay = 1000;
       let currentConnectionState = "idle";
       const expandedGroups = new Set();
+
+      // Transcription
+      let recognition = null;
+
+      function formatTranscriptTime(date) {
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+      }
+
+      function appendTranscript(text) {
+        const empty = transcriptLog.querySelector(".transcript-empty");
+        if (empty) empty.remove();
+
+        const entry = document.createElement("div");
+        entry.className = "transcript-entry";
+
+        const time = document.createElement("span");
+        time.className = "transcript-time";
+        time.textContent = formatTranscriptTime(new Date());
+
+        const content = document.createElement("span");
+        content.className = "transcript-text";
+        content.textContent = text;
+
+        entry.append(time, content);
+        transcriptLog.append(entry);
+        transcriptLog.scrollTop = transcriptLog.scrollHeight;
+      }
+
+      function startTranscription() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          return;
+        }
+
+        transcriptPanel.hidden = false;
+        transcriptLog.innerHTML = `<span class="transcript-empty">Listening for speech...</span>`;
+
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event) => {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+              const text = event.results[i][0].transcript.trim();
+              if (text) appendTranscript(text);
+            }
+          }
+        };
+
+        recognition.onend = () => {
+          if (currentStreamId) {
+            recognition.start();
+          }
+        };
+
+        recognition.start();
+      }
+
+      function stopTranscription() {
+        if (recognition) {
+          recognition.onend = null;
+          recognition.stop();
+          recognition = null;
+        }
+        transcriptPanel.hidden = true;
+        transcriptLog.innerHTML = "";
+      }
 
       const connectionIndicators = {
         idle: "⚪",
@@ -812,6 +946,7 @@
 
       function disconnect(updateStatus = true, keepURL = false) {
         closeCurrentConnection();
+        stopTranscription();
         player.srcObject = null;
         currentStreamId = null;
         if (!keepURL) {
@@ -870,6 +1005,7 @@
           }
           try {
             await player.play();
+            startTranscription();
           } catch (error) {
             setStatus(`Connected, but autoplay was blocked: ${error.message}`);
           }
