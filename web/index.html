@@ -814,7 +814,9 @@
         closeCurrentConnection();
         player.srcObject = null;
         currentStreamId = null;
-        currentStreamName = "";
+        if (!keepURL) {
+          currentStreamName = "";
+        }
         if (!keepURL) {
           syncURL(null);
         }
