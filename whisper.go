@@ -20,6 +20,7 @@ type transcriptJob struct {
 
 // whisperConfig holds runtime configuration for the Whisper worker pool.
 type whisperConfig struct {
+	BinaryPath   string  `json:"binaryPath"`
 	ModelPath    string  `json:"modelPath"`
 	Workers      int     `json:"workers"`
 	VADThreshold float64 `json:"vadThreshold"`
@@ -137,8 +138,12 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	// -nt no timestamps in output
 	// -np no progress
 	// --language en
+	binary := p.cfg.BinaryPath
+	if binary == "" {
+		binary = "whisper-cli"
+	}
 	cmd := exec.Command(
-		"whisper-cli",
+		binary,
 		"-m", p.cfg.ModelPath,
 		"-f", tmp.Name(),
 		"-nt",
