@@ -686,7 +686,12 @@
             return;
           }
 
-          player.srcObject = event.streams[0];
+          if (event.streams && event.streams[0]) {
+            player.srcObject = event.streams[0];
+          } else {
+            const mediaStream = new MediaStream([event.track]);
+            player.srcObject = mediaStream;
+          }
           try {
             await player.play();
           } catch (error) {
