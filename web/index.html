@@ -576,17 +576,29 @@
 
       function startTranscription() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
+        if (!SpeechRecognition || !player.srcObject) {
           return;
         }
 
         transcriptPanel.hidden = false;
         transcriptLog.innerHTML = `<span class="transcript-empty">Listening for speech...</span>`;
 
+        // Route the WebRTC audio through Web Audio API so SpeechRecognition
+        // receives the stream audio rather than the microphone.
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(player.srcObject);
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(dest);
+
         recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = false;
         recognition.lang = "en-US";
+
+        // Attach the routed stream directly (Chrome/Edge support this)
+        if ("stream" in recognition) {
+          recognition.stream = dest.stream;
+        }
 
         recognition.onresult = (event) => {
           for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -597,9 +609,16 @@
           }
         };
 
+        recognition.onerror = (event) => {
+          if (event.error !== "no-speech" && event.error !== "aborted") {
+            appendTranscript(`[transcription error: ${event.error}]`);
+          }
+        };
+
         recognition.onend = () => {
+          audioCtx.close();
           if (currentStreamId) {
-            recognition.start();
+            startTranscription();
           }
         };
 
