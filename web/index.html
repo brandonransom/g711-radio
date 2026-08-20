@@ -232,6 +232,35 @@
         margin: 0;
       }
 
+      .stream-toggle {
+        width: min(100%, 320px);
+        min-height: 56px;
+        padding: 14px 24px;
+        border-radius: 14px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+      }
+
+      .stream-toggle.start {
+        background: var(--primary-0);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.28);
+      }
+
+      .stream-toggle.start:hover:not(:disabled) {
+        background: var(--primary-2);
+      }
+
+      .stream-toggle.started {
+        background: var(--complement-0);
+        box-shadow: 0 12px 24px rgba(9, 138, 17, 0.28);
+      }
+
+      .stream-toggle.started:hover:not(:disabled) {
+        background: var(--complement-2);
+      }
+
       .stream {
         display: grid;
         gap: 12px;
@@ -519,16 +548,20 @@
         header.append(title, meta);
 
         const button = document.createElement("button");
+        button.className = "stream-toggle";
         if (connectingStreamId) {
+          button.classList.add("start");
           button.textContent = connectingStreamId === stream.id ? "Connecting..." : "Busy";
           button.disabled = true;
         } else if (currentStreamId === stream.id && pc) {
-          button.textContent = "Listening";
+          button.classList.add("started");
+          button.textContent = "Stream Started";
           button.disabled = false;
           button.title = "Open this feed in a new tab";
           button.addEventListener("click", () => openStreamInNewTab(stream));
         } else {
-          button.textContent = "Listen";
+          button.classList.add("start");
+          button.textContent = "Start Stream";
           button.disabled = false;
           button.addEventListener("click", () => {
             if (sharePageStream) {
