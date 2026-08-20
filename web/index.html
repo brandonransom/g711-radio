@@ -386,7 +386,7 @@
       function updatePageTitle() {
         const indicator = connectionIndicators[currentConnectionState] || "⚪";
         if (currentStreamName) {
-          document.title = `${indicator} ${currentStreamName} - G.711 Radio`;
+          document.title = `${indicator} ${currentStreamName}`;
         } else {
           document.title = "G.711 Radio";
         }
