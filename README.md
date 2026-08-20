@@ -77,6 +77,45 @@ Transcription uses [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runni
    ```
 4. Set `modelPath` in `config.local.json` to the full path of `ggml-medium.bin`.
 
+### Install whisper.cpp on Linux
+
+1. Install build dependencies:
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install -y build-essential cmake git
+
+   # RHEL/Fedora
+   sudo dnf install -y gcc gcc-c++ cmake git
+   ```
+2. Clone and build whisper.cpp:
+   ```bash
+   git clone https://github.com/ggerganov/whisper.cpp
+   cd whisper.cpp
+   cmake -B build
+   cmake --build build --config Release -j$(nproc)
+   ```
+3. Download a model:
+   ```bash
+   bash models/download-ggml-model.sh medium
+   # Model will be at: models/ggml-medium.bin
+   ```
+4. Install the binary to your PATH:
+   ```bash
+   sudo cp build/bin/whisper-cli /usr/local/bin/
+   ```
+5. Set `modelPath` in `config.local.json` to the full path of `ggml-medium.bin`.
+
+#### Optional: GPU acceleration on Linux (NVIDIA)
+
+If your server has a CUDA-capable GPU, build with CUDA support for significantly faster transcription:
+
+```bash
+cmake -B build -DGGML_CUDA=ON
+cmake --build build --config Release -j$(nproc)
+```
+
+Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
+
 ### How transcription works
 
 - Each stream runs energy-based **Voice Activity Detection (VAD)** on the incoming audio
