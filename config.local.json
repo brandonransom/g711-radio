@@ -1,5 +1,13 @@
 {
   "httpPort": 8080,
+  "whisper": {
+    "modelPath": "/path/to/ggml-medium.bin",
+    "workers": 3,
+    "vadThreshold": 0.02,
+    "silenceMs": 600,
+    "minClipMs": 300,
+    "maxClipMs": 30000
+  },
   "regions": {
     "Alaska": {
       "Chugach NF": [
