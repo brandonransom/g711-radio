@@ -249,15 +249,194 @@
         margin-top: 18px;
         font-size: 0.94rem;
       }
+
+      /* Theme Settings Styles */
+      .theme-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      .theme-toggle-btn {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+      }
+
+      .theme-settings {
+        margin-top: 28px;
+        padding: 20px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+      }
+
+      .theme-settings h3 {
+        margin: 0 0 16px;
+        font-size: 1.1rem;
+        color: var(--ink);
+      }
+
+      .theme-presets {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .preset-button {
+        padding: 12px 18px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid var(--line);
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: all 160ms ease;
+        text-align: left;
+      }
+
+      .preset-button:hover {
+        background: rgba(255, 255, 255, 0.8);
+        transform: translateY(-1px);
+      }
+
+      .preset-button.active {
+        background: var(--accent);
+        color: #fffdf8;
+        border-color: var(--accent);
+      }
+
+      .color-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .color-input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .color-input-group label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .color-input-group input[type="color"] {
+        width: 100%;
+        height: 48px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .auto-reconnect-section {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+      }
+
+      .auto-reconnect-section h4 {
+        margin: 0 0 12px;
+        font-size: 0.95rem;
+        color: var(--ink);
+      }
+
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .checkbox-group input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+
+      .checkbox-group label {
+        cursor: pointer;
+        font-size: 0.95rem;
+      }
+
+      .settings-close {
+        text-align: right;
+        margin-top: 16px;
+      }
+
+      .settings-close button {
+        font-size: 0.85rem;
+        padding: 8px 16px;
+      }
     </style>
   </head>
   <body>
     <main>
-      <h1>G.711 Radio</h1>
+      <div class="theme-header">
+        <h1>G.711 Radio</h1>
+        <button id="settingsToggleBtn" class="secondary theme-toggle-btn" type="button" title="Theme settings">⚙️</button>
+      </div>
       <p>
         This page loads the configured stream groups from the Go server. Expand a group, then open
         each feed in its own tab so the player only runs on a dedicated stream page.
       </p>
+
+      <div id="themeSettings" class="theme-settings" hidden>
+        <h3>Theme & Settings</h3>
+        
+        <div>
+          <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Color Presets</strong>
+          <div class="theme-presets">
+            <button type="button" class="preset-button" data-preset="default">Default (Green)</button>
+            <button type="button" class="preset-button" data-preset="ocean">Ocean Blue</button>
+            <button type="button" class="preset-button" data-preset="sunset">Sunset Orange</button>
+            <button type="button" class="preset-button" data-preset="night">Night Purple</button>
+          </div>
+        </div>
+
+        <div>
+          <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Custom Colors</strong>
+          <div class="color-grid">
+            <div class="color-input-group">
+              <label for="bgColor">Background</label>
+              <input type="color" id="bgColor" title="Main background color" />
+            </div>
+            <div class="color-input-group">
+              <label for="accentColor">Accent</label>
+              <input type="color" id="accentColor" title="Button and accent color" />
+            </div>
+            <div class="color-input-group">
+              <label for="textColor">Text</label>
+              <input type="color" id="textColor" title="Primary text color" />
+            </div>
+            <div class="color-input-group">
+              <label for="mutedColor">Muted</label>
+              <input type="color" id="mutedColor" title="Secondary text color" />
+            </div>
+          </div>
+        </div>
+
+        <div class="auto-reconnect-section">
+          <h4>Connection Settings</h4>
+          <div class="checkbox-group">
+            <input type="checkbox" id="autoReconnectToggle" checked />
+            <label for="autoReconnectToggle">Enable auto-reconnect on disconnection</label>
+          </div>
+          <div style="margin-left: 30px; color: var(--muted); font-size: 0.9rem;">
+            <p style="margin: 6px 0;">Automatically reconnects with exponential backoff (1s → 30s max)</p>
+          </div>
+        </div>
+
+        <div class="settings-close">
+          <button id="closeSettingsBtn" class="secondary" type="button" style="font-size: 0.85rem;">Close</button>
+        </div>
+      </div>
 
       <div id="launchRoot"></div>
 
@@ -282,6 +461,183 @@
     </main>
 
     <script>
+      // Theme Color Presets
+      const colorPresets = {
+        default: {
+          bg: "#f4efe6",
+          accent: "#1b7f5a",
+          ink: "#1e241f",
+          muted: "#5f6d63",
+        },
+        ocean: {
+          bg: "#e6f2f7",
+          accent: "#0077be",
+          ink: "#1a1a2e",
+          muted: "#4a5f7f",
+        },
+        sunset: {
+          bg: "#ffe6d5",
+          accent: "#ff6b35",
+          ink: "#2d1810",
+          muted: "#8b5a3c",
+        },
+        night: {
+          bg: "#2a2a3e",
+          accent: "#8b5cf6",
+          ink: "#e0e0e0",
+          muted: "#9ca3af",
+        },
+      };
+
+      // Theme Management
+      const themeSettings = document.getElementById("themeSettings");
+      const settingsToggleBtn = document.getElementById("settingsToggleBtn");
+      const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+      const autoReconnectToggle = document.getElementById("autoReconnectToggle");
+      const bgColorInput = document.getElementById("bgColor");
+      const accentColorInput = document.getElementById("accentColor");
+      const textColorInput = document.getElementById("textColor");
+      const mutedColorInput = document.getElementById("mutedColor");
+
+      function saveTheme(themeName, colors) {
+        const themeData = { themeName, colors, timestamp: Date.now() };
+        localStorage.setItem("g711-theme", JSON.stringify(themeData));
+      }
+
+      function loadTheme() {
+        const saved = localStorage.getItem("g711-theme");
+        if (!saved) return null;
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return null;
+        }
+      }
+
+      function applyColorScheme(colors) {
+        document.documentElement.style.setProperty("--bg", colors.bg);
+        document.documentElement.style.setProperty("--accent", colors.accent);
+        document.documentElement.style.setProperty("--ink", colors.ink);
+        document.documentElement.style.setProperty("--muted", colors.muted);
+      }
+
+      function updateColorInputs(colors) {
+        bgColorInput.value = colors.bg;
+        accentColorInput.value = colors.accent;
+        textColorInput.value = colors.ink;
+        mutedColorInput.value = colors.muted;
+      }
+
+      function updatePresetButtons(activeName) {
+        document.querySelectorAll(".preset-button").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.preset === activeName);
+        });
+      }
+
+      function applyPreset(presetName) {
+        const colors = colorPresets[presetName];
+        if (!colors) return;
+        applyColorScheme(colors);
+        updateColorInputs(colors);
+        updatePresetButtons(presetName);
+        saveTheme(presetName, colors);
+      }
+
+      // Theme Color Input Listeners
+      bgColorInput.addEventListener("change", () => {
+        const colors = {
+          bg: bgColorInput.value,
+          accent: accentColorInput.value,
+          ink: textColorInput.value,
+          muted: mutedColorInput.value,
+        };
+        applyColorScheme(colors);
+        updatePresetButtons("custom");
+        saveTheme("custom", colors);
+      });
+
+      accentColorInput.addEventListener("change", () => {
+        const colors = {
+          bg: bgColorInput.value,
+          accent: accentColorInput.value,
+          ink: textColorInput.value,
+          muted: mutedColorInput.value,
+        };
+        applyColorScheme(colors);
+        updatePresetButtons("custom");
+        saveTheme("custom", colors);
+      });
+
+      textColorInput.addEventListener("change", () => {
+        const colors = {
+          bg: bgColorInput.value,
+          accent: accentColorInput.value,
+          ink: textColorInput.value,
+          muted: mutedColorInput.value,
+        };
+        applyColorScheme(colors);
+        updatePresetButtons("custom");
+        saveTheme("custom", colors);
+      });
+
+      mutedColorInput.addEventListener("change", () => {
+        const colors = {
+          bg: bgColorInput.value,
+          accent: accentColorInput.value,
+          ink: textColorInput.value,
+          muted: mutedColorInput.value,
+        };
+        applyColorScheme(colors);
+        updatePresetButtons("custom");
+        saveTheme("custom", colors);
+      });
+
+      // Preset Button Listeners
+      document.querySelectorAll(".preset-button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          applyPreset(btn.dataset.preset);
+        });
+      });
+
+      // Settings Panel Toggle
+      settingsToggleBtn.addEventListener("click", () => {
+        themeSettings.hidden = !themeSettings.hidden;
+      });
+
+      closeSettingsBtn.addEventListener("click", () => {
+        themeSettings.hidden = true;
+      });
+
+      // Auto-reconnect Settings
+      function saveAutoReconnectSetting(enabled) {
+        localStorage.setItem("g711-auto-reconnect", enabled ? "true" : "false");
+      }
+
+      function loadAutoReconnectSetting() {
+        const saved = localStorage.getItem("g711-auto-reconnect");
+        return saved === null ? true : saved === "true";
+      }
+
+      autoReconnectToggle.addEventListener("change", () => {
+        saveAutoReconnectSetting(autoReconnectToggle.checked);
+      });
+
+      // Initialize theme on load
+      window.addEventListener("DOMContentLoaded", () => {
+        const savedTheme = loadTheme();
+        if (savedTheme) {
+          applyColorScheme(savedTheme.colors);
+          updateColorInputs(savedTheme.colors);
+          updatePresetButtons(savedTheme.themeName);
+        } else {
+          applyPreset("default");
+        }
+
+        const autoReconnectEnabled = loadAutoReconnectSetting();
+        autoReconnectToggle.checked = autoReconnectEnabled;
+      });
+
+      // Stream connection logic
       const disconnectBtn = document.getElementById("disconnectBtn");
       const launchRoot = document.getElementById("launchRoot");
       const statusPanel = document.getElementById("statusPanel");
@@ -297,10 +653,22 @@
       let currentStreamName = "";
       let connectingStreamId = null;
       let sharePageStream = null;
+      let reconnectAttempts = 0;
+      let reconnectTimeout = null;
+      let maxReconnectAttempts = 10;
+      let baseReconnectDelay = 1000;
       const expandedGroups = new Set();
 
       function setStatus(text) {
         statusText.textContent = text;
+      }
+
+      function updatePageTitle() {
+        if (currentStreamName) {
+          document.title = `${currentStreamName} - G.711 Radio`;
+        } else {
+          document.title = "G.711 Radio";
+        }
       }
 
       function flattenStreamGroups(groups) {
@@ -394,6 +762,7 @@
           renderLaunchView();
           renderStreams();
           setStatus(getRootStatusText());
+          updatePageTitle();
         });
 
         actions.append(startButton, allStreamsButton);
@@ -466,7 +835,7 @@
         if (!streamGroups.length) {
           const empty = document.createElement("div");
           empty.className = "empty";
-          empty.textContent = "No streams are configured.";
+          empty.textContent = "No streams configured.";
           streamsRoot.append(empty);
           return;
         }
@@ -523,6 +892,33 @@
         }
       }
 
+      function scheduleReconnect(stream) {
+        if (!autoReconnectToggle.checked) {
+          return;
+        }
+
+        if (reconnectAttempts >= maxReconnectAttempts) {
+          setStatus(`Max reconnection attempts (${maxReconnectAttempts}) reached for ${currentStreamName}.`);
+          return;
+        }
+
+        reconnectAttempts++;
+        const delayMs = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
+        const delaySecs = (delayMs / 1000).toFixed(1);
+
+        setStatus(`${currentStreamName}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+        }
+
+        reconnectTimeout = setTimeout(() => {
+          if (autoReconnectToggle.checked && currentStreamId === stream.id) {
+            void connect(stream);
+          }
+        }, delayMs);
+      }
+
       function disconnect(updateStatus = true, keepURL = false) {
         closeCurrentConnection();
         player.srcObject = null;
@@ -533,8 +929,14 @@
         }
         connectingStreamId = null;
         disconnectBtn.disabled = true;
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+        reconnectAttempts = 0;
         renderLaunchView();
         renderStreams();
+        updatePageTitle();
 
         if (updateStatus) {
           if (showShareLanding()) {
@@ -547,6 +949,7 @@
 
       async function connect(stream) {
         disconnect(false, true);
+        reconnectAttempts = 0;
 
         currentStreamId = stream.id;
         currentStreamName = stream.streamName;
@@ -554,6 +957,7 @@
         syncURL(stream.id);
         renderLaunchView();
         renderStreams();
+        updatePageTitle();
         setStatus(`Creating peer connection for ${stream.streamName}...`);
 
         const connection = new RTCPeerConnection();
@@ -580,13 +984,18 @@
 
           setStatus(`${currentStreamName}: ${connection.connectionState}`);
           if (connection.connectionState === "connected") {
+            reconnectAttempts = 0;
             connectingStreamId = null;
             disconnectBtn.disabled = false;
             renderStreams();
           }
 
           if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
-            disconnect(false, Boolean(sharePageStream));
+            if (["failed", "disconnected"].includes(connection.connectionState)) {
+              scheduleReconnect(stream);
+            } else {
+              disconnect(false, Boolean(sharePageStream));
+            }
           }
         });
 
@@ -619,7 +1028,7 @@
           }
         } catch (error) {
           if (pc === connection) {
-            disconnect(false, Boolean(sharePageStream));
+            scheduleReconnect(stream);
           }
           setStatus(`Connection failed: ${error.message}`);
         }
