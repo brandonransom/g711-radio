@@ -424,7 +424,11 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 
 		// Run VAD if transcription is enabled.
 		if s.vad != nil {
-			s.vad.Push(DecodePCMU(frame), time.Now())
+			pcm := DecodePCMU(frame)
+			if packetsSeen%500 == 0 {
+				s.logger.Printf("%s: VAD energy=%.4f threshold=%.4f", s.info.StreamName, rmsEnergy(pcm), s.vad.threshold)
+			}
+			s.vad.Push(pcm, time.Now())
 		}
 
 		s.broadcast(media.Sample{
