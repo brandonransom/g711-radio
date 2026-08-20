@@ -7,11 +7,40 @@
     <style>
       :root {
         color-scheme: light;
+        /* Primary color palette */
+        --primary-1: #E34C48;
+        --primary-2: #D4211C;
+        --primary-0: #AF0F0B;
+        --primary-3: #910400;
+        --primary-4: #6B0300;
+        
+        /* Secondary color #1 palette */
+        --secondary1-1: #E3A648;
+        --secondary1-2: #D48B1C;
+        --secondary1-0: #AF6E0B;
+        --secondary1-3: #915800;
+        --secondary1-4: #6B4100;
+        
+        /* Secondary color #2 palette */
+        --secondary2-1: #376394;
+        --secondary2-2: #1C508A;
+        --secondary2-0: #103E72;
+        --secondary2-3: #07305E;
+        --secondary2-4: #032346;
+        
+        /* Complement color palette */
+        --complement-1: #39B341;
+        --complement-2: #16A720;
+        --complement-0: #098A11;
+        --complement-3: #007207;
+        --complement-4: #005406;
+        
+        /* Derived colors for UI */
         --bg: #f4efe6;
         --panel: rgba(255, 252, 246, 0.92);
         --ink: #1e241f;
         --muted: #5f6d63;
-        --accent: #1b7f5a;
+        --accent: var(--primary-0);
         --line: rgba(30, 36, 31, 0.12);
         --shadow: 0 20px 60px rgba(37, 45, 37, 0.14);
       }
@@ -27,11 +56,11 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
         color: var(--ink);
         background:
-          radial-gradient(circle at top left, rgba(217, 164, 65, 0.28), transparent 30%),
-          radial-gradient(circle at bottom right, rgba(27, 127, 90, 0.22), transparent 34%),
+          radial-gradient(circle at top left, rgba(227, 166, 72, 0.28), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(9, 138, 17, 0.22), transparent 34%),
           linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
         display: grid;
         place-items: center;
@@ -54,6 +83,7 @@
         line-height: 0.95;
         letter-spacing: -0.04em;
         font-weight: 700;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       p {
@@ -75,16 +105,18 @@
         border-radius: 999px;
         padding: 14px 22px;
         font: inherit;
-        font-weight: 700;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 600;
         cursor: pointer;
-        background: var(--accent);
+        background: var(--primary-0);
         color: #fffdf8;
         transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
-        box-shadow: 0 12px 24px rgba(27, 127, 90, 0.24);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.24);
       }
 
       button:hover:not(:disabled) {
         transform: translateY(-1px);
+        background: var(--primary-2);
       }
 
       button:disabled {
@@ -97,6 +129,10 @@
         color: var(--ink);
         border: 1px solid var(--line);
         box-shadow: none;
+      }
+
+      .secondary:hover:not(:disabled) {
+        background: rgba(227, 76, 72, 0.1);
       }
 
       .streams {
@@ -120,6 +156,7 @@
         padding: 18px 20px;
         cursor: pointer;
         list-style: none;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .group summary::-webkit-details-marker {
@@ -127,7 +164,7 @@
       }
 
       .group summary:hover {
-        background: rgba(255, 255, 255, 0.38);
+        background: rgba(227, 76, 72, 0.08);
       }
 
       .group-info {
@@ -138,6 +175,8 @@
       .group-title {
         margin: 0;
         font-size: 1.24rem;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 600;
       }
 
       .group-meta {
@@ -168,7 +207,7 @@
         padding: 24px;
         border-radius: 24px;
         background:
-          linear-gradient(135deg, rgba(27, 127, 90, 0.14), rgba(217, 164, 65, 0.16)),
+          linear-gradient(135deg, rgba(227, 166, 72, 0.14), rgba(9, 138, 17, 0.16)),
           rgba(255, 255, 255, 0.78);
         border: 1px solid var(--line);
       }
@@ -178,12 +217,15 @@
         text-transform: uppercase;
         letter-spacing: 0.14em;
         color: var(--muted);
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .launch h2 {
         margin: 0;
         font-size: clamp(1.8rem, 4vw, 2.6rem);
         line-height: 1;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 700;
       }
 
       .launch p {
@@ -209,6 +251,8 @@
       .stream h3 {
         margin: 0;
         font-size: 1.2rem;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 600;
       }
 
       .meta {
@@ -232,6 +276,7 @@
         letter-spacing: 0.14em;
         color: var(--muted);
         margin-bottom: 6px;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       #statusText {
@@ -275,6 +320,8 @@
         margin: 0 0 16px;
         font-size: 1.1rem;
         color: var(--ink);
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 600;
       }
 
       .theme-presets {
@@ -293,6 +340,7 @@
         font-weight: 600;
         transition: all 160ms ease;
         text-align: left;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .preset-button:hover {
@@ -301,9 +349,9 @@
       }
 
       .preset-button.active {
-        background: var(--accent);
+        background: var(--primary-0);
         color: #fffdf8;
-        border-color: var(--accent);
+        border-color: var(--primary-0);
       }
 
       .color-grid {
@@ -325,6 +373,7 @@
         color: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .color-input-group input[type="color"] {
@@ -345,6 +394,8 @@
         margin: 0 0 12px;
         font-size: 0.95rem;
         color: var(--ink);
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 600;
       }
 
       .checkbox-group {
@@ -358,11 +409,13 @@
         width: 18px;
         height: 18px;
         cursor: pointer;
+        accent-color: var(--primary-0);
       }
 
       .checkbox-group label {
         cursor: pointer;
         font-size: 0.95rem;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .settings-close {
@@ -373,6 +426,13 @@
       .settings-close button {
         font-size: 0.85rem;
         padding: 8px 16px;
+      }
+
+      code {
+        font-family: "Aptos Mono", "Courier New", monospace;
+        background: rgba(227, 76, 72, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
       }
     </style>
   </head>
@@ -393,31 +453,27 @@
         <div>
           <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Color Presets</strong>
           <div class="theme-presets">
-            <button type="button" class="preset-button" data-preset="default">Default (Green)</button>
-            <button type="button" class="preset-button" data-preset="ocean">Ocean Blue</button>
-            <button type="button" class="preset-button" data-preset="sunset">Sunset Orange</button>
-            <button type="button" class="preset-button" data-preset="night">Night Purple</button>
+            <button type="button" class="preset-button" data-preset="telex-default">Telex Default</button>
+            <button type="button" class="preset-button" data-preset="telex-warm">Telex Warm</button>
+            <button type="button" class="preset-button" data-preset="telex-cool">Telex Cool</button>
+            <button type="button" class="preset-button" data-preset="telex-natural">Telex Natural</button>
           </div>
         </div>
 
         <div>
-          <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Custom Colors</strong>
+          <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Telex Color Variations</strong>
           <div class="color-grid">
             <div class="color-input-group">
-              <label for="bgColor">Background</label>
-              <input type="color" id="bgColor" title="Main background color" />
+              <label for="primaryColor">Primary</label>
+              <input type="color" id="primaryColor" title="Primary color" />
             </div>
             <div class="color-input-group">
               <label for="accentColor">Accent</label>
-              <input type="color" id="accentColor" title="Button and accent color" />
+              <input type="color" id="accentColor" title="Accent color" />
             </div>
             <div class="color-input-group">
-              <label for="textColor">Text</label>
-              <input type="color" id="textColor" title="Primary text color" />
-            </div>
-            <div class="color-input-group">
-              <label for="mutedColor">Muted</label>
-              <input type="color" id="mutedColor" title="Secondary text color" />
+              <label for="complementColor">Complement</label>
+              <input type="color" id="complementColor" title="Complement color" />
             </div>
           </div>
         </div>
@@ -461,31 +517,27 @@
     </main>
 
     <script>
-      // Theme Color Presets
+      // Telex Color Palettes
       const colorPresets = {
-        default: {
-          bg: "#f4efe6",
-          accent: "#1b7f5a",
-          ink: "#1e241f",
-          muted: "#5f6d63",
+        "telex-default": {
+          primary: "#AF0F0B",
+          secondary: "#E3A648",
+          accent: "#098A11",
         },
-        ocean: {
-          bg: "#e6f2f7",
-          accent: "#0077be",
-          ink: "#1a1a2e",
-          muted: "#4a5f7f",
+        "telex-warm": {
+          primary: "#D4211C",
+          secondary: "#D48B1C",
+          accent: "#16A720",
         },
-        sunset: {
-          bg: "#ffe6d5",
-          accent: "#ff6b35",
-          ink: "#2d1810",
-          muted: "#8b5a3c",
+        "telex-cool": {
+          primary: "#1C508A",
+          secondary: "#376394",
+          accent: "#007207",
         },
-        night: {
-          bg: "#2a2a3e",
-          accent: "#8b5cf6",
-          ink: "#e0e0e0",
-          muted: "#9ca3af",
+        "telex-natural": {
+          primary: "#103E72",
+          secondary: "#E3A648",
+          accent: "#39B341",
         },
       };
 
@@ -494,10 +546,9 @@
       const settingsToggleBtn = document.getElementById("settingsToggleBtn");
       const closeSettingsBtn = document.getElementById("closeSettingsBtn");
       const autoReconnectToggle = document.getElementById("autoReconnectToggle");
-      const bgColorInput = document.getElementById("bgColor");
+      const primaryColorInput = document.getElementById("primaryColor");
       const accentColorInput = document.getElementById("accentColor");
-      const textColorInput = document.getElementById("textColor");
-      const mutedColorInput = document.getElementById("mutedColor");
+      const complementColorInput = document.getElementById("complementColor");
 
       function saveTheme(themeName, colors) {
         const themeData = { themeName, colors, timestamp: Date.now() };
@@ -515,17 +566,16 @@
       }
 
       function applyColorScheme(colors) {
-        document.documentElement.style.setProperty("--bg", colors.bg);
-        document.documentElement.style.setProperty("--accent", colors.accent);
-        document.documentElement.style.setProperty("--ink", colors.ink);
-        document.documentElement.style.setProperty("--muted", colors.muted);
+        document.documentElement.style.setProperty("--primary-0", colors.primary);
+        document.documentElement.style.setProperty("--accent", colors.primary);
+        document.documentElement.style.setProperty("--secondary1-0", colors.secondary);
+        document.documentElement.style.setProperty("--complement-0", colors.accent);
       }
 
       function updateColorInputs(colors) {
-        bgColorInput.value = colors.bg;
-        accentColorInput.value = colors.accent;
-        textColorInput.value = colors.ink;
-        mutedColorInput.value = colors.muted;
+        primaryColorInput.value = colors.primary;
+        accentColorInput.value = colors.secondary;
+        complementColorInput.value = colors.accent;
       }
 
       function updatePresetButtons(activeName) {
@@ -543,13 +593,12 @@
         saveTheme(presetName, colors);
       }
 
-      // Theme Color Input Listeners
-      bgColorInput.addEventListener("change", () => {
+      // Color Input Listeners
+      primaryColorInput.addEventListener("change", () => {
         const colors = {
-          bg: bgColorInput.value,
-          accent: accentColorInput.value,
-          ink: textColorInput.value,
-          muted: mutedColorInput.value,
+          primary: primaryColorInput.value,
+          secondary: accentColorInput.value,
+          accent: complementColorInput.value,
         };
         applyColorScheme(colors);
         updatePresetButtons("custom");
@@ -558,34 +607,20 @@
 
       accentColorInput.addEventListener("change", () => {
         const colors = {
-          bg: bgColorInput.value,
-          accent: accentColorInput.value,
-          ink: textColorInput.value,
-          muted: mutedColorInput.value,
+          primary: primaryColorInput.value,
+          secondary: accentColorInput.value,
+          accent: complementColorInput.value,
         };
         applyColorScheme(colors);
         updatePresetButtons("custom");
         saveTheme("custom", colors);
       });
 
-      textColorInput.addEventListener("change", () => {
+      complementColorInput.addEventListener("change", () => {
         const colors = {
-          bg: bgColorInput.value,
-          accent: accentColorInput.value,
-          ink: textColorInput.value,
-          muted: mutedColorInput.value,
-        };
-        applyColorScheme(colors);
-        updatePresetButtons("custom");
-        saveTheme("custom", colors);
-      });
-
-      mutedColorInput.addEventListener("change", () => {
-        const colors = {
-          bg: bgColorInput.value,
-          accent: accentColorInput.value,
-          ink: textColorInput.value,
-          muted: mutedColorInput.value,
+          primary: primaryColorInput.value,
+          secondary: accentColorInput.value,
+          accent: complementColorInput.value,
         };
         applyColorScheme(colors);
         updatePresetButtons("custom");
@@ -630,7 +665,7 @@
           updateColorInputs(savedTheme.colors);
           updatePresetButtons(savedTheme.themeName);
         } else {
-          applyPreset("default");
+          applyPreset("telex-default");
         }
 
         const autoReconnectEnabled = loadAutoReconnectSetting();
@@ -657,10 +692,9 @@
       let reconnectTimeout = null;
       let maxReconnectAttempts = 10;
       let baseReconnectDelay = 1000;
-      let currentConnectionState = "idle"; // idle, connecting, connected, reconnecting, disconnected
+      let currentConnectionState = "idle";
       const expandedGroups = new Set();
 
-      // Connection state indicators (emoji for visual feedback)
       const connectionIndicators = {
         idle: "⚪",
         connecting: "🟡",
