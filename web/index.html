@@ -141,11 +141,72 @@
         margin-top: 28px;
       }
 
+      .region {
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        overflow: hidden;
+      }
+
+      .region summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 20px;
+        cursor: pointer;
+        list-style: none;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: linear-gradient(135deg, rgba(227, 76, 72, 0.04), rgba(57, 179, 65, 0.04));
+      }
+
+      .region summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .region summary:hover {
+        background: linear-gradient(135deg, rgba(227, 76, 72, 0.12), rgba(57, 179, 65, 0.12));
+      }
+
+      .region-info {
+        display: grid;
+        gap: 4px;
+      }
+
+      .region-title {
+        margin: 0;
+        font-size: 1.32rem;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 700;
+      }
+
+      .region-meta {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .region-indicator {
+        color: var(--muted);
+        font-size: 1rem;
+        transition: transform 160ms ease;
+      }
+
+      .region[open] .region-indicator {
+        transform: rotate(180deg);
+      }
+
+      .region-body {
+        display: grid;
+        gap: 12px;
+        padding: 12px 18px 18px;
+      }
+
       .group {
         border-radius: 20px;
         background: rgba(255, 255, 255, 0.72);
         border: 1px solid var(--line);
         overflow: hidden;
+        margin-left: 12px;
       }
 
       .group summary {
@@ -153,7 +214,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 16px;
-        padding: 18px 20px;
+        padding: 14px 18px;
         cursor: pointer;
         list-style: none;
         font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -174,19 +235,19 @@
 
       .group-title {
         margin: 0;
-        font-size: 1.24rem;
+        font-size: 1.12rem;
         font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-weight: 600;
       }
 
       .group-meta {
         color: var(--muted);
-        font-size: 0.92rem;
+        font-size: 0.88rem;
       }
 
       .group-indicator {
         color: var(--muted);
-        font-size: 1rem;
+        font-size: 0.96rem;
         transition: transform 160ms ease;
       }
 
@@ -197,7 +258,7 @@
       .group-body {
         display: grid;
         gap: 12px;
-        padding: 0 18px 18px;
+        padding: 0 14px 14px;
       }
 
       .launch {
@@ -288,6 +349,31 @@
         font-size: 0.92rem;
       }
 
+      .stream button {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 14px;
+        padding: 12px 20px;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .stream button:not(:disabled) {
+        background: var(--primary-0);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.28);
+      }
+
+      .stream button:hover:not(:disabled) {
+        background: var(--primary-2);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.32);
+      }
+
+      .stream button:disabled {
+        background: var(--muted);
+        opacity: 0.7;
+      }
+
       .empty,
       .status {
         margin-top: 28px;
@@ -334,9 +420,6 @@
   <body>
     <main>
       <h1>USDA Forest Service Land Mobile Radio Streams</h1>
-      <p>
-        Expand a group, then open each feed in its own tab so the player only runs on a dedicated stream page.
-      </p>
 
       <div id="launchRoot"></div>
 
@@ -425,8 +508,10 @@
         updatePageTitle();
       }
 
-      function flattenStreamGroups(groups) {
-        return groups.flatMap((group) => group.streams);
+      function flattenStreamGroups(regionGroups) {
+        return regionGroups.flatMap((region) =>
+          region.subGroups.flatMap((group) => group.streams)
+        );
       }
 
       function getRootStatusText() {
@@ -606,47 +691,89 @@
           return;
         }
 
-        for (const group of streamGroups) {
-          const details = document.createElement("details");
-          details.className = "group";
-          details.open = expandedGroups.has(group.groupName);
-          details.addEventListener("toggle", () => {
-            if (details.open) {
-              expandedGroups.add(group.groupName);
+        for (const region of streamGroups) {
+          const regionDetails = document.createElement("details");
+          regionDetails.className = "region";
+          regionDetails.open = expandedGroups.has(region.regionName);
+          regionDetails.addEventListener("toggle", () => {
+            if (regionDetails.open) {
+              expandedGroups.add(region.regionName);
             } else {
-              expandedGroups.delete(group.groupName);
+              expandedGroups.delete(region.regionName);
             }
           });
 
-          const summary = document.createElement("summary");
+          const regionSummary = document.createElement("summary");
 
-          const info = document.createElement("div");
-          info.className = "group-info";
+          const regionInfo = document.createElement("div");
+          regionInfo.className = "region-info";
 
-          const title = document.createElement("h2");
-          title.className = "group-title";
-          title.textContent = group.groupName;
+          const regionTitle = document.createElement("h2");
+          regionTitle.className = "region-title";
+          regionTitle.textContent = region.regionName;
 
-          const meta = document.createElement("div");
-          meta.className = "group-meta";
-          meta.textContent = formatStreamCount(group.streams.length);
+          const totalStreamsInRegion = region.subGroups.reduce((sum, group) => sum + group.streams.length, 0);
+          const regionMeta = document.createElement("div");
+          regionMeta.className = "region-meta";
+          regionMeta.textContent = formatStreamCount(totalStreamsInRegion);
 
-          const indicator = document.createElement("div");
-          indicator.className = "group-indicator";
-          indicator.textContent = "▾";
+          const regionIndicator = document.createElement("div");
+          regionIndicator.className = "region-indicator";
+          regionIndicator.textContent = "▾";
 
-          info.append(title, meta);
-          summary.append(info, indicator);
-          details.append(summary);
+          regionInfo.append(regionTitle, regionMeta);
+          regionSummary.append(regionInfo, regionIndicator);
+          regionDetails.append(regionSummary);
 
-          const body = document.createElement("div");
-          body.className = "group-body";
-          for (const stream of group.streams) {
-            body.append(buildStreamCard(stream));
+          const regionBody = document.createElement("div");
+          regionBody.className = "region-body";
+
+          for (const group of region.subGroups) {
+            const groupDetails = document.createElement("details");
+            groupDetails.className = "group";
+            groupDetails.open = expandedGroups.has(`${region.regionName}/${group.groupName}`);
+            groupDetails.addEventListener("toggle", () => {
+              const key = `${region.regionName}/${group.groupName}`;
+              if (groupDetails.open) {
+                expandedGroups.add(key);
+              } else {
+                expandedGroups.delete(key);
+              }
+            });
+
+            const groupSummary = document.createElement("summary");
+
+            const groupInfo = document.createElement("div");
+            groupInfo.className = "group-info";
+
+            const groupTitle = document.createElement("h3");
+            groupTitle.className = "group-title";
+            groupTitle.textContent = group.groupName;
+
+            const groupMeta = document.createElement("div");
+            groupMeta.className = "group-meta";
+            groupMeta.textContent = formatStreamCount(group.streams.length);
+
+            const groupIndicator = document.createElement("div");
+            groupIndicator.className = "group-indicator";
+            groupIndicator.textContent = "▾";
+
+            groupInfo.append(groupTitle, groupMeta);
+            groupSummary.append(groupInfo, groupIndicator);
+            groupDetails.append(groupSummary);
+
+            const groupBody = document.createElement("div");
+            groupBody.className = "group-body";
+            for (const stream of group.streams) {
+              groupBody.append(buildStreamCard(stream));
+            }
+
+            groupDetails.append(groupBody);
+            regionBody.append(groupDetails);
           }
 
-          details.append(body);
-          streamsRoot.append(details);
+          regionDetails.append(regionBody);
+          streamsRoot.append(regionDetails);
         }
       }
 

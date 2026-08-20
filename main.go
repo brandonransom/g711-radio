@@ -35,10 +35,10 @@ const (
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort int                       `json:"httpPort"`
-	Streams  map[string][]streamConfig `json:"streams"`
+	HTTPPort int                                    `json:"httpPort"`
+	Regions  map[string]map[string][]streamConfig  `json:"regions"`
 
-	streamGroups []configuredStreamGroup
+	streamGroups []configuredRegion
 	totalStreams int
 }
 
@@ -48,20 +48,31 @@ type streamConfig struct {
 }
 
 type streamInfo struct {
+	RegionName string `json:"regionName"`
 	GroupName  string `json:"groupName"`
 	ID         string `json:"id"`
 	StreamName string `json:"streamName"`
 	UDPPort    int    `json:"udpPort"`
 }
 
-type streamGroup struct {
+type subGroup struct {
 	GroupName string       `json:"groupName"`
 	Streams   []streamInfo `json:"streams"`
 }
 
-type configuredStreamGroup struct {
+type regionGroup struct {
+	RegionName string     `json:"regionName"`
+	SubGroups  []subGroup `json:"subGroups"`
+}
+
+type configuredSubGroup struct {
 	GroupName string
 	Streams   []streamConfig
+}
+
+type configuredRegion struct {
+	RegionName string
+	SubGroups  []configuredSubGroup
 }
 
 type station struct {
@@ -89,7 +100,7 @@ type webrtcServer struct {
 	api          *webrtc.API
 	logger       *log.Logger
 	streams      map[string]*station
-	streamGroups []streamGroup
+	regionGroups []regionGroup
 }
 
 func main() {
@@ -118,67 +129,78 @@ func main() {
 		api:          api,
 		logger:       logger,
 		streams:      make(map[string]*station, config.totalStreams),
-		streamGroups: make([]streamGroup, 0, len(config.streamGroups)),
+		regionGroups: make([]regionGroup, 0, len(config.streamGroups)),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	for _, group := range config.streamGroups {
-		apiGroup := streamGroup{
-			GroupName: group.GroupName,
-			Streams:   make([]streamInfo, 0, len(group.Streams)),
+	for _, region := range config.streamGroups {
+		apiRegion := regionGroup{
+			RegionName: region.RegionName,
+			SubGroups:  make([]subGroup, 0, len(region.SubGroups)),
 		}
 
-		for _, cfg := range group.Streams {
-			info := streamInfo{
-				GroupName:  group.GroupName,
-				ID:         fmt.Sprintf("stream-%d", cfg.UDPPort),
-				StreamName: cfg.StreamName,
-				UDPPort:    cfg.UDPPort,
+		for _, sg := range region.SubGroups {
+			apiSubGroup := subGroup{
+				GroupName: sg.GroupName,
+				Streams:   make([]streamInfo, 0, len(sg.Streams)),
 			}
 
-			st := &station{
-				info:          info,
-				codec:         codec,
-				frameDuration: frameDuration,
-				logger:        logger,
-				subscribers:   make(map[string]*subscriber),
-			}
-
-			conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", cfg.UDPPort))
-			if err != nil {
-				logger.Fatalf("listen on UDP %d for %q: %v", cfg.UDPPort, cfg.StreamName, err)
-			}
-
-			server.streams[info.ID] = st
-			apiGroup.Streams = append(apiGroup.Streams, info)
-
-			logger.Printf(
-				"configured stream %q in group %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
-				info.StreamName,
-				info.GroupName,
-				info.UDPPort,
-				frameSizeBytes,
-				skipBytes,
-				frameDuration,
-			)
-
-			go func(st *station, conn net.PacketConn) {
-				<-ctx.Done()
-				_ = conn.Close()
-				st.closeSubscribers()
-			}(st, conn)
-
-			go func(st *station, conn net.PacketConn) {
-				if err := st.ingest(ctx, conn); err != nil {
-					logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
-					stop()
+			for _, cfg := range sg.Streams {
+				info := streamInfo{
+					RegionName: region.RegionName,
+					GroupName:  sg.GroupName,
+					ID:         fmt.Sprintf("stream-%d", cfg.UDPPort),
+					StreamName: cfg.StreamName,
+					UDPPort:    cfg.UDPPort,
 				}
-			}(st, conn)
+
+				st := &station{
+					info:          info,
+					codec:         codec,
+					frameDuration: frameDuration,
+					logger:        logger,
+					subscribers:   make(map[string]*subscriber),
+				}
+
+				conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", cfg.UDPPort))
+				if err != nil {
+					logger.Fatalf("listen on UDP %d for %q: %v", cfg.UDPPort, cfg.StreamName, err)
+				}
+
+				server.streams[info.ID] = st
+				apiSubGroup.Streams = append(apiSubGroup.Streams, info)
+
+				logger.Printf(
+					"configured stream %q in region %q, group %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+					info.StreamName,
+					region.RegionName,
+					sg.GroupName,
+					info.UDPPort,
+					frameSizeBytes,
+					skipBytes,
+					frameDuration,
+				)
+
+				go func(st *station, conn net.PacketConn) {
+					<-ctx.Done()
+					_ = conn.Close()
+					st.closeSubscribers()
+				}(st, conn)
+
+				go func(st *station, conn net.PacketConn) {
+					if err := st.ingest(ctx, conn); err != nil {
+						logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
+						stop()
+					}
+				}(st, conn)
+			}
+
+			apiRegion.SubGroups = append(apiRegion.SubGroups, apiSubGroup)
 		}
 
-		server.streamGroups = append(server.streamGroups, apiGroup)
+		server.regionGroups = append(server.regionGroups, apiRegion)
 	}
 
 	staticFS, err := fs.Sub(webFiles, "web")
@@ -228,77 +250,109 @@ func loadConfig(path string) (appConfig, error) {
 		return appConfig{}, fmt.Errorf("%s has invalid httpPort %d", path, config.HTTPPort)
 	}
 
-	streamGroups, totalStreams, err := normalizeConfiguredGroups(path, config.Streams)
+	regions, totalStreams, err := normalizeRegions(path, config.Regions)
 	if err != nil {
 		return appConfig{}, err
 	}
 
-	config.streamGroups = streamGroups
+	config.streamGroups = regions
 	config.totalStreams = totalStreams
 
 	return config, nil
 }
 
-func normalizeConfiguredGroups(path string, rawGroups map[string][]streamConfig) ([]configuredStreamGroup, int, error) {
-	if len(rawGroups) == 0 {
-		return nil, 0, fmt.Errorf("%s has no streams configured", path)
+func normalizeRegions(path string, rawRegions map[string]map[string][]streamConfig) ([]configuredRegion, int, error) {
+	if len(rawRegions) == 0 {
+		return nil, 0, fmt.Errorf("%s has no regions configured", path)
 	}
 
-	groupNames := make([]string, 0, len(rawGroups))
-	for groupName := range rawGroups {
-		groupNames = append(groupNames, groupName)
+	regionNames := make([]string, 0, len(rawRegions))
+	for regionName := range rawRegions {
+		regionNames = append(regionNames, regionName)
 	}
-	sort.Strings(groupNames)
+	sort.Strings(regionNames)
 
-	seenGroupNames := make(map[string]struct{}, len(groupNames))
+	seenRegionNames := make(map[string]struct{}, len(regionNames))
+	seenGroupNames := make(map[string]struct{})
 	seenPorts := make(map[int]struct{})
-	groups := make([]configuredStreamGroup, 0, len(groupNames))
+	regions := make([]configuredRegion, 0, len(regionNames))
 	totalStreams := 0
 
-	for _, sourceGroupName := range groupNames {
-		groupName := strings.TrimSpace(sourceGroupName)
-		if groupName == "" {
-			return nil, 0, fmt.Errorf("%s has an empty group name", path)
+	for _, sourceRegionName := range regionNames {
+		regionName := strings.TrimSpace(sourceRegionName)
+		if regionName == "" {
+			return nil, 0, fmt.Errorf("%s has an empty region name", path)
 		}
-		if _, exists := seenGroupNames[groupName]; exists {
-			return nil, 0, fmt.Errorf("%s has duplicate group name %q after trimming whitespace", path, groupName)
+		if _, exists := seenRegionNames[regionName]; exists {
+			return nil, 0, fmt.Errorf("%s has duplicate region name %q after trimming whitespace", path, regionName)
 		}
-		seenGroupNames[groupName] = struct{}{}
+		seenRegionNames[regionName] = struct{}{}
 
-		rawStreams := rawGroups[sourceGroupName]
-		if len(rawStreams) == 0 {
-			return nil, 0, fmt.Errorf("%s group %q has no streams configured", path, groupName)
-		}
-
-		group := configuredStreamGroup{
-			GroupName: groupName,
-			Streams:   make([]streamConfig, 0, len(rawStreams)),
+		rawSubGroups := rawRegions[sourceRegionName]
+		if len(rawSubGroups) == 0 {
+			return nil, 0, fmt.Errorf("%s region %q has no groups configured", path, regionName)
 		}
 
-		for i, stream := range rawStreams {
-			streamName := strings.TrimSpace(stream.StreamName)
-			if streamName == "" {
-				return nil, 0, fmt.Errorf("%s group %q entry %d is missing streamName", path, groupName, i)
+		region := configuredRegion{
+			RegionName: regionName,
+			SubGroups:  make([]configuredSubGroup, 0, len(rawSubGroups)),
+		}
+
+		groupNames := make([]string, 0, len(rawSubGroups))
+		for groupName := range rawSubGroups {
+			groupNames = append(groupNames, groupName)
+		}
+		sort.Strings(groupNames)
+
+		for _, sourceGroupName := range groupNames {
+			groupName := strings.TrimSpace(sourceGroupName)
+			if groupName == "" {
+				return nil, 0, fmt.Errorf("%s region %q has an empty group name", path, regionName)
 			}
-			if stream.UDPPort < 1 || stream.UDPPort > 65535 {
-				return nil, 0, fmt.Errorf("%s group %q entry %d has invalid udpPort %d", path, groupName, i, stream.UDPPort)
-			}
-			if _, exists := seenPorts[stream.UDPPort]; exists {
-				return nil, 0, fmt.Errorf("%s has duplicate udpPort %d", path, stream.UDPPort)
-			}
-			seenPorts[stream.UDPPort] = struct{}{}
 
-			group.Streams = append(group.Streams, streamConfig{
-				StreamName: streamName,
-				UDPPort:    stream.UDPPort,
-			})
+			compositeKey := regionName + "/" + groupName
+			if _, exists := seenGroupNames[compositeKey]; exists {
+				return nil, 0, fmt.Errorf("%s region %q has duplicate group name %q", path, regionName, groupName)
+			}
+			seenGroupNames[compositeKey] = struct{}{}
+
+			rawStreams := rawSubGroups[sourceGroupName]
+			if len(rawStreams) == 0 {
+				return nil, 0, fmt.Errorf("%s region %q group %q has no streams configured", path, regionName, groupName)
+			}
+
+			subGroup := configuredSubGroup{
+				GroupName: groupName,
+				Streams:   make([]streamConfig, 0, len(rawStreams)),
+			}
+
+			for i, stream := range rawStreams {
+				streamName := strings.TrimSpace(stream.StreamName)
+				if streamName == "" {
+					return nil, 0, fmt.Errorf("%s region %q group %q entry %d is missing streamName", path, regionName, groupName, i)
+				}
+				if stream.UDPPort < 1 || stream.UDPPort > 65535 {
+					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has invalid udpPort %d", path, regionName, groupName, i, stream.UDPPort)
+				}
+				if _, exists := seenPorts[stream.UDPPort]; exists {
+					return nil, 0, fmt.Errorf("%s has duplicate udpPort %d", path, stream.UDPPort)
+				}
+				seenPorts[stream.UDPPort] = struct{}{}
+
+				subGroup.Streams = append(subGroup.Streams, streamConfig{
+					StreamName: streamName,
+					UDPPort:    stream.UDPPort,
+				})
+			}
+
+			region.SubGroups = append(region.SubGroups, subGroup)
+			totalStreams += len(subGroup.Streams)
 		}
 
-		groups = append(groups, group)
-		totalStreams += len(group.Streams)
+		regions = append(regions, region)
 	}
 
-	return groups, totalStreams, nil
+	return regions, totalStreams, nil
 }
 
 func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
@@ -413,7 +467,7 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(s.streamGroups); err != nil {
+	if err := json.NewEncoder(w).Encode(s.regionGroups); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}
 }
