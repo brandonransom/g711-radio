@@ -232,6 +232,34 @@
         margin: 0;
       }
 
+      .stream-start-toggle {
+        width: min(100%, 340px);
+        min-height: 58px;
+        border-radius: 14px;
+        padding: 14px 26px;
+        font-size: 1.08rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .stream-start-toggle:not(.started) {
+        background: var(--primary-0);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.28);
+      }
+
+      .stream-start-toggle:not(.started):hover:not(:disabled) {
+        background: var(--primary-2);
+      }
+
+      .stream-start-toggle.started {
+        background: var(--complement-0);
+        box-shadow: 0 12px 24px rgba(9, 138, 17, 0.28);
+      }
+
+      .stream-start-toggle.started:hover:not(:disabled) {
+        background: var(--complement-2);
+      }
+
       .stream {
         display: grid;
         gap: 12px;
@@ -471,6 +499,25 @@
         const actions = document.createElement("div");
         actions.className = "row";
 
+        const startStreamButton = document.createElement("button");
+        startStreamButton.type = "button";
+        startStreamButton.className = "stream-start-toggle";
+        startStreamButton.textContent = "Start Stream";
+        startStreamButton.addEventListener("click", async () => {
+          if (!pc && !connectingStreamId && sharePageStream) {
+            void connect(sharePageStream);
+          }
+
+          try {
+            await player.play();
+          } catch (error) {
+            setStatus(`Unable to start playback yet: ${error.message}`);
+          }
+
+          startStreamButton.classList.add("started");
+          startStreamButton.textContent = "Stream Started";
+        });
+
         const allStreamsButton = document.createElement("button");
         allStreamsButton.type = "button";
         allStreamsButton.className = "secondary";
@@ -484,7 +531,7 @@
           setConnectionState("idle");
         });
 
-        actions.append(allStreamsButton);
+        actions.append(startStreamButton, allStreamsButton);
         card.append(eyebrow, title, description, actions);
         launchRoot.append(card);
       }
