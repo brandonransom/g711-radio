@@ -657,18 +657,34 @@
       let reconnectTimeout = null;
       let maxReconnectAttempts = 10;
       let baseReconnectDelay = 1000;
+      let currentConnectionState = "idle"; // idle, connecting, connected, reconnecting, disconnected
       const expandedGroups = new Set();
+
+      // Connection state indicators (emoji for visual feedback)
+      const connectionIndicators = {
+        idle: "⚪",
+        connecting: "🟡",
+        connected: "🟢",
+        reconnecting: "🟠",
+        disconnected: "🔴",
+      };
 
       function setStatus(text) {
         statusText.textContent = text;
       }
 
       function updatePageTitle() {
+        const indicator = connectionIndicators[currentConnectionState] || "⚪";
         if (currentStreamName) {
-          document.title = `${currentStreamName} - G.711 Radio`;
+          document.title = `${indicator} ${currentStreamName} - G.711 Radio`;
         } else {
           document.title = "G.711 Radio";
         }
+      }
+
+      function setConnectionState(state) {
+        currentConnectionState = state;
+        updatePageTitle();
       }
 
       function flattenStreamGroups(groups) {
@@ -762,7 +778,7 @@
           renderLaunchView();
           renderStreams();
           setStatus(getRootStatusText());
-          updatePageTitle();
+          setConnectionState("idle");
         });
 
         actions.append(startButton, allStreamsButton);
@@ -899,6 +915,7 @@
 
         if (reconnectAttempts >= maxReconnectAttempts) {
           setStatus(`Max reconnection attempts (${maxReconnectAttempts}) reached for ${currentStreamName}.`);
+          setConnectionState("disconnected");
           return;
         }
 
@@ -906,6 +923,7 @@
         const delayMs = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
         const delaySecs = (delayMs / 1000).toFixed(1);
 
+        setConnectionState("reconnecting");
         setStatus(`${currentStreamName}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
 
         if (reconnectTimeout) {
@@ -936,7 +954,7 @@
         reconnectAttempts = 0;
         renderLaunchView();
         renderStreams();
-        updatePageTitle();
+        setConnectionState("idle");
 
         if (updateStatus) {
           if (showShareLanding()) {
@@ -957,7 +975,7 @@
         syncURL(stream.id);
         renderLaunchView();
         renderStreams();
-        updatePageTitle();
+        setConnectionState("connecting");
         setStatus(`Creating peer connection for ${stream.streamName}...`);
 
         const connection = new RTCPeerConnection();
@@ -987,6 +1005,7 @@
             reconnectAttempts = 0;
             connectingStreamId = null;
             disconnectBtn.disabled = false;
+            setConnectionState("connected");
             renderStreams();
           }
 
