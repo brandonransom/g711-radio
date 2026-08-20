@@ -349,6 +349,31 @@
         font-size: 0.92rem;
       }
 
+      .stream button {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 14px;
+        padding: 12px 20px;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .stream button:not(:disabled) {
+        background: var(--primary-0);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.28);
+      }
+
+      .stream button:hover:not(:disabled) {
+        background: var(--primary-2);
+        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.32);
+      }
+
+      .stream button:disabled {
+        background: var(--muted);
+        opacity: 0.7;
+      }
+
       .empty,
       .status {
         margin-top: 28px;
