@@ -547,14 +547,15 @@
       let currentConnectionState = "idle";
       const expandedGroups = new Set();
 
-      // Transcription
-      let recognition = null;
+      // Transcription via server-sent events from the backend Whisper pool.
+      let transcriptSSE = null;
 
-      function formatTranscriptTime(date) {
+      function formatTranscriptTime(isoString) {
+        const date = new Date(isoString);
         return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
       }
 
-      function appendTranscript(text) {
+      function appendTranscript(text, isoTimestamp) {
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
 
@@ -563,7 +564,7 @@
 
         const time = document.createElement("span");
         time.className = "transcript-time";
-        time.textContent = formatTranscriptTime(new Date());
+        time.textContent = formatTranscriptTime(isoTimestamp);
 
         const content = document.createElement("span");
         content.className = "transcript-text";
@@ -574,62 +575,30 @@
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
       }
 
-      function startTranscription() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition || !player.srcObject) {
-          return;
-        }
+      function startTranscription(streamId) {
+        stopTranscription();
 
         transcriptPanel.hidden = false;
-        transcriptLog.innerHTML = `<span class="transcript-empty">Listening for speech...</span>`;
+        transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
 
-        // Route the WebRTC audio through Web Audio API so SpeechRecognition
-        // receives the stream audio rather than the microphone.
-        const audioCtx = new AudioContext();
-        const source = audioCtx.createMediaStreamSource(player.srcObject);
-        const dest = audioCtx.createMediaStreamDestination();
-        source.connect(dest);
+        transcriptSSE = new EventSource(`/transcripts?streamId=${encodeURIComponent(streamId)}`);
 
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = false;
-        recognition.lang = "en-US";
-
-        // Attach the routed stream directly (Chrome/Edge support this)
-        if ("stream" in recognition) {
-          recognition.stream = dest.stream;
-        }
-
-        recognition.onresult = (event) => {
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            if (event.results[i].isFinal) {
-              const text = event.results[i][0].transcript.trim();
-              if (text) appendTranscript(text);
-            }
-          }
+        transcriptSSE.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.text) appendTranscript(payload.text, payload.timestamp);
+          } catch (_) {}
         };
 
-        recognition.onerror = (event) => {
-          if (event.error !== "no-speech" && event.error !== "aborted") {
-            appendTranscript(`[transcription error: ${event.error}]`);
-          }
+        transcriptSSE.onerror = () => {
+          // SSE auto-reconnects on error; no action needed.
         };
-
-        recognition.onend = () => {
-          audioCtx.close();
-          if (currentStreamId) {
-            startTranscription();
-          }
-        };
-
-        recognition.start();
       }
 
       function stopTranscription() {
-        if (recognition) {
-          recognition.onend = null;
-          recognition.stop();
-          recognition = null;
+        if (transcriptSSE) {
+          transcriptSSE.close();
+          transcriptSSE = null;
         }
         transcriptPanel.hidden = true;
         transcriptLog.innerHTML = "";
@@ -1024,7 +993,6 @@
           }
           try {
             await player.play();
-            startTranscription();
           } catch (error) {
             setStatus(`Connected, but autoplay was blocked: ${error.message}`);
           }
@@ -1042,6 +1010,9 @@
             connectingStreamId = null;
             disconnectBtn.disabled = false;
             renderStreams();
+            if (isDedicatedStreamPage()) {
+              startTranscription(stream.id);
+            }
           }
 
           if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {

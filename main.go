@@ -35,11 +35,12 @@ const (
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort int                                    `json:"httpPort"`
+	HTTPPort int                                   `json:"httpPort"`
 	Regions  map[string]map[string][]streamConfig  `json:"regions"`
+	Whisper  *whisperConfig                        `json:"whisper"`
 
 	streamGroups []configuredRegion
-	totalStreams int
+	totalStreams  int
 }
 
 type streamConfig struct {
@@ -81,6 +82,10 @@ type station struct {
 	frameDuration time.Duration
 	logger        *log.Logger
 
+	// whisperPool is non-nil when transcription is enabled.
+	whisperPool *whisperPool
+	vad         *vadState
+
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
 	subscribers map[string]*subscriber
@@ -101,6 +106,7 @@ type webrtcServer struct {
 	logger       *log.Logger
 	streams      map[string]*station
 	regionGroups []regionGroup
+	hub          *transcriptHub
 }
 
 func main() {
@@ -125,11 +131,23 @@ func main() {
 	}
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
+
+	hub := newTranscriptHub(logger)
+
+	var pool *whisperPool
+	if config.Whisper != nil && config.Whisper.ModelPath != "" {
+		config.Whisper.setDefaults()
+		pool = newWhisperPool(*config.Whisper, hub, logger)
+		pool.Start()
+		logger.Printf("whisper transcription enabled: model=%s workers=%d", config.Whisper.ModelPath, config.Whisper.Workers)
+	}
+
 	server := &webrtcServer{
 		api:          api,
 		logger:       logger,
 		streams:      make(map[string]*station, config.totalStreams),
 		regionGroups: make([]regionGroup, 0, len(config.streamGroups)),
+		hub:          hub,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -162,7 +180,21 @@ func main() {
 					frameDuration: frameDuration,
 					logger:        logger,
 					subscribers:   make(map[string]*subscriber),
-				}
+						whisperPool:   pool,
+					}
+
+					if pool != nil {
+						wCfg := config.Whisper
+						st.vad = newVADState(
+							wCfg.VADThreshold,
+							time.Duration(wCfg.SilenceMs)*time.Millisecond,
+							time.Duration(wCfg.MinClipMs)*time.Millisecond,
+							time.Duration(wCfg.MaxClipMs)*time.Millisecond,
+							func(samples []int16, start time.Time) {
+								pool.Submit(transcriptJob{info: info, samples: samples, start: start})
+							},
+						)
+					}
 
 				conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", cfg.UDPPort))
 				if err != nil {
@@ -212,6 +244,7 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("/streams", server.handleStreams)
 	mux.HandleFunc("/offer", server.handleOffer)
+	mux.Handle("/transcripts", hub)
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.HTTPPort),
@@ -223,6 +256,9 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = httpServer.Shutdown(shutdownCtx)
+		if pool != nil {
+			pool.Close()
+		}
 	}()
 
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
@@ -385,6 +421,11 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			)
 		}
 		packetsSeen++
+
+		// Run VAD if transcription is enabled.
+		if s.vad != nil {
+			s.vad.Push(DecodePCMU(frame), time.Now())
+		}
 
 		s.broadcast(media.Sample{
 			Data:     frame,
