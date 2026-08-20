@@ -75,6 +75,7 @@ func (p *whisperPool) Start() {
 
 // Submit enqueues a clip for transcription. Non-blocking: drops if queue full.
 func (p *whisperPool) Submit(job transcriptJob) {
+	p.logger.Printf("whisper pool: submitting clip from %s (%d samples, %.1fs)", job.info.StreamName, len(job.samples), float64(len(job.samples))/8000.0)
 	select {
 	case p.jobs <- job:
 	default:
@@ -96,6 +97,7 @@ func (p *whisperPool) worker(id int) {
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
+			p.logger.Printf("whisper worker %d: empty result for %s (clip len=%d samples)", id, job.info.StreamName, len(job.samples))
 			continue
 		}
 		p.hub.Publish(transcriptEvent{
