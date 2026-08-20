@@ -324,36 +324,6 @@
         font-weight: 600;
       }
 
-      .theme-presets {
-        display: grid;
-        gap: 12px;
-        margin-bottom: 20px;
-      }
-
-      .preset-button {
-        padding: 12px 18px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.5);
-        border: 1px solid var(--line);
-        cursor: pointer;
-        font-size: 0.95rem;
-        font-weight: 600;
-        transition: all 160ms ease;
-        text-align: left;
-        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      .preset-button:hover {
-        background: rgba(255, 255, 255, 0.8);
-        transform: translateY(-1px);
-      }
-
-      .preset-button.active {
-        background: var(--primary-0);
-        color: #fffdf8;
-        border-color: var(--primary-0);
-      }
-
       .color-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -448,18 +418,8 @@
       </p>
 
       <div id="themeSettings" class="theme-settings" hidden>
-        <h3>Theme & Settings</h3>
+        <h3>Settings</h3>
         
-        <div>
-          <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Color Presets</strong>
-          <div class="theme-presets">
-            <button type="button" class="preset-button" data-preset="telex-default">Telex Default</button>
-            <button type="button" class="preset-button" data-preset="telex-warm">Telex Warm</button>
-            <button type="button" class="preset-button" data-preset="telex-cool">Telex Cool</button>
-            <button type="button" class="preset-button" data-preset="telex-natural">Telex Natural</button>
-          </div>
-        </div>
-
         <div>
           <strong style="color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Telex Color Variations</strong>
           <div class="color-grid">
@@ -516,28 +476,11 @@
     </main>
 
     <script>
-      // Telex Color Palettes
-      const colorPresets = {
-        "telex-default": {
-          primary: "#AF0F0B",
-          secondary: "#E3A648",
-          accent: "#098A11",
-        },
-        "telex-warm": {
-          primary: "#D4211C",
-          secondary: "#D48B1C",
-          accent: "#16A720",
-        },
-        "telex-cool": {
-          primary: "#1C508A",
-          secondary: "#376394",
-          accent: "#007207",
-        },
-        "telex-natural": {
-          primary: "#103E72",
-          secondary: "#E3A648",
-          accent: "#39B341",
-        },
+      // Telex Cool Color Scheme
+      const telexCoolColors = {
+        primary: "#1C508A",
+        secondary: "#376394",
+        accent: "#007207",
       };
 
       // Theme Management
@@ -549,8 +492,8 @@
       const accentColorInput = document.getElementById("accentColor");
       const complementColorInput = document.getElementById("complementColor");
 
-      function saveTheme(themeName, colors) {
-        const themeData = { themeName, colors, timestamp: Date.now() };
+      function saveTheme(colors) {
+        const themeData = { colors, timestamp: Date.now() };
         localStorage.setItem("g711-theme", JSON.stringify(themeData));
       }
 
@@ -577,21 +520,6 @@
         complementColorInput.value = colors.accent;
       }
 
-      function updatePresetButtons(activeName) {
-        document.querySelectorAll(".preset-button").forEach((btn) => {
-          btn.classList.toggle("active", btn.dataset.preset === activeName);
-        });
-      }
-
-      function applyPreset(presetName) {
-        const colors = colorPresets[presetName];
-        if (!colors) return;
-        applyColorScheme(colors);
-        updateColorInputs(colors);
-        updatePresetButtons(presetName);
-        saveTheme(presetName, colors);
-      }
-
       // Color Input Listeners
       primaryColorInput.addEventListener("change", () => {
         const colors = {
@@ -600,8 +528,7 @@
           accent: complementColorInput.value,
         };
         applyColorScheme(colors);
-        updatePresetButtons("custom");
-        saveTheme("custom", colors);
+        saveTheme(colors);
       });
 
       accentColorInput.addEventListener("change", () => {
@@ -611,8 +538,7 @@
           accent: complementColorInput.value,
         };
         applyColorScheme(colors);
-        updatePresetButtons("custom");
-        saveTheme("custom", colors);
+        saveTheme(colors);
       });
 
       complementColorInput.addEventListener("change", () => {
@@ -622,15 +548,7 @@
           accent: complementColorInput.value,
         };
         applyColorScheme(colors);
-        updatePresetButtons("custom");
-        saveTheme("custom", colors);
-      });
-
-      // Preset Button Listeners
-      document.querySelectorAll(".preset-button").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          applyPreset(btn.dataset.preset);
-        });
+        saveTheme(colors);
       });
 
       // Settings Panel Toggle
@@ -662,9 +580,10 @@
         if (savedTheme) {
           applyColorScheme(savedTheme.colors);
           updateColorInputs(savedTheme.colors);
-          updatePresetButtons(savedTheme.themeName);
         } else {
-          applyPreset("telex-default");
+          applyColorScheme(telexCoolColors);
+          updateColorInputs(telexCoolColors);
+          saveTheme(telexCoolColors);
         }
 
         const autoReconnectEnabled = loadAutoReconnectSetting();
