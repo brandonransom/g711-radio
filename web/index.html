@@ -494,7 +494,7 @@
         title.textContent = sharePageStream.streamName;
 
         const description = document.createElement("p");
-        description.textContent = `UDP ${sharePageStream.udpPort}. Stream is auto-starting...`;
+        description.textContent = `UDP ${sharePageStream.udpPort}. Ready to connect.`;
 
         const actions = document.createElement("div");
         actions.className = "row";
@@ -834,8 +834,7 @@
           sharePageStream = requestedStream;
           renderLaunchView();
           renderStreams();
-          setStatus(`Auto-starting ${requestedStream.streamName}...`);
-          void connect(requestedStream);
+          setStatus(`Ready to start ${requestedStream.streamName}. Click "Start Stream" to connect.`);
           return;
         }
 
