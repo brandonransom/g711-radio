@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -134,7 +135,7 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	}
 	tmp.Close()
 
-	// Run whisper.cpp main binary.
+	// Run whisper.cpp main binary with a 60-second timeout.
 	// -m  model path
 	// -f  input file
 	// -nt no timestamps in output
@@ -144,7 +145,10 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	if binary == "" {
 		binary = "whisper-cli"
 	}
-	cmd := exec.Command(
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(
+		ctx,
 		binary,
 		"-m", p.cfg.ModelPath,
 		"-f", tmp.Name(),
@@ -159,9 +163,11 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 
+	p.logger.Printf("whisper: running %s on %d samples", binary, len(samples))
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("whisper-cli: %w\nstderr: %s", err, errBuf.String())
 	}
+	p.logger.Printf("whisper: stdout=%q stderr=%q", strings.TrimSpace(out.String()), strings.TrimSpace(errBuf.String()))
 
 	return cleanWhisperOutput(out.String()), nil
 }
