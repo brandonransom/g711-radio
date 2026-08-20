@@ -511,8 +511,7 @@
         Group names, stream names, and ports come from <code>config.local.json</code>. Every stream
         is hard-coded for <code>PCMU</code> with a 12-byte header in front of each 160-byte audio
         frame. Click a group to expand it, clicking <code>Listen</code> opens that feed in a new
-        tab, and <code>?stream=...</code> links stop on a page with a
-        <code>Start Stream</code> button instead of autoplaying.
+        tab, and <code>?stream=...</code> links auto-play on a page with a player.
       </p>
     </main>
 
@@ -790,17 +789,10 @@
         title.textContent = sharePageStream.streamName;
 
         const description = document.createElement("p");
-        description.textContent = `UDP ${sharePageStream.udpPort}. Start the stream when you're ready.`;
+        description.textContent = `UDP ${sharePageStream.udpPort}. Stream is auto-starting...`;
 
         const actions = document.createElement("div");
         actions.className = "row";
-
-        const startButton = document.createElement("button");
-        startButton.type = "button";
-        startButton.textContent = "Start Stream";
-        startButton.addEventListener("click", () => {
-          void connect(sharePageStream);
-        });
 
         const allStreamsButton = document.createElement("button");
         allStreamsButton.type = "button";
@@ -815,7 +807,7 @@
           setConnectionState("idle");
         });
 
-        actions.append(startButton, allStreamsButton);
+        actions.append(allStreamsButton);
         card.append(eyebrow, title, description, actions);
         launchRoot.append(card);
       }
@@ -998,148 +990,3 @@
           }
         }
       }
-
-      async function connect(stream) {
-        disconnect(false, true);
-        reconnectAttempts = 0;
-
-        currentStreamId = stream.id;
-        currentStreamName = stream.streamName;
-        connectingStreamId = stream.id;
-        syncURL(stream.id);
-        renderLaunchView();
-        renderStreams();
-        setConnectionState("connecting");
-        setStatus(`Creating peer connection for ${stream.streamName}...`);
-
-        const connection = new RTCPeerConnection();
-        pc = connection;
-        connection.addTransceiver("audio", { direction: "recvonly" });
-
-        connection.addEventListener("track", async (event) => {
-          if (pc !== connection) {
-            return;
-          }
-
-          player.srcObject = event.streams[0];
-          try {
-            await player.play();
-          } catch (error) {
-            setStatus(`Connected, but autoplay was blocked: ${error.message}`);
-          }
-        });
-
-        connection.addEventListener("connectionstatechange", () => {
-          if (pc !== connection) {
-            return;
-          }
-
-          setStatus(`${currentStreamName}: ${connection.connectionState}`);
-          if (connection.connectionState === "connected") {
-            reconnectAttempts = 0;
-            connectingStreamId = null;
-            disconnectBtn.disabled = false;
-            setConnectionState("connected");
-            renderStreams();
-          }
-
-          if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
-            if (["failed", "disconnected"].includes(connection.connectionState)) {
-              scheduleReconnect(stream);
-            } else {
-              disconnect(false, Boolean(sharePageStream));
-            }
-          }
-        });
-
-        try {
-          const offer = await connection.createOffer();
-          await connection.setLocalDescription(offer);
-          await waitForIceGatheringComplete(connection);
-
-          setStatus(`Sending offer for ${stream.streamName}...`);
-          const response = await fetch("/offer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              streamId: stream.id,
-              offer: connection.localDescription,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(await response.text());
-          }
-
-          const answer = await response.json();
-          await connection.setRemoteDescription(answer);
-
-          if (pc === connection) {
-            connectingStreamId = null;
-            renderStreams();
-            setStatus(`Waiting for ${stream.streamName} audio...`);
-          }
-        } catch (error) {
-          if (pc === connection) {
-            scheduleReconnect(stream);
-          }
-          setStatus(`Connection failed: ${error.message}`);
-        }
-      }
-
-      async function loadStreams() {
-        setStatus("Loading streams...");
-
-        const response = await fetch("/streams");
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-
-        streamGroups = await response.json();
-        streams = flattenStreamGroups(streamGroups);
-        renderStreams();
-
-        const requestedStreamId = getRequestedStreamId();
-        if (requestedStreamId) {
-          const requestedStream = streams.find((stream) => stream.id === requestedStreamId);
-          if (!requestedStream) {
-            setStatus(`This link points to an unknown stream: ${requestedStreamId}`);
-            return null;
-          }
-
-          sharePageStream = requestedStream;
-          renderLaunchView();
-          renderStreams();
-          setStatus(`Ready to start ${requestedStream.streamName}.`);
-          return null;
-        }
-
-        if (!streams.length) {
-          renderLaunchView();
-          setStatus("No streams configured.");
-          return null;
-        }
-
-        renderLaunchView();
-        setStatus(getRootStatusText());
-        return null;
-      }
-
-      disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
-
-      renderPageChrome();
-
-      window.addEventListener("load", async () => {
-        try {
-          await loadStreams();
-        } catch (error) {
-          streamGroups = [];
-          streams = [];
-          renderLaunchView();
-          renderStreams();
-          setStatus(`Failed to load streams: ${error.message}`);
-        }
-      });
-    </script>
-  </body>
-</html>
