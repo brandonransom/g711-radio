@@ -1,5 +1,6 @@
 {
   "httpPort": 80,
+  "audioLogDir": "audio",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
     "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-tiny.en.bin",
