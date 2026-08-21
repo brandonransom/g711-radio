@@ -1,12 +1,14 @@
 {
-  "httpPort": 8080,
+  "httpPort": 80,
   "whisper": {
-    "modelPath": "/path/to/ggml-medium.bin",
+    "binaryPath": "/path/to/whisper-cli",
+    "modelPath": "/path/to/ggml-base.en.bin",
     "workers": 3,
     "vadThreshold": 0.02,
     "silenceMs": 600,
     "minClipMs": 300,
-    "maxClipMs": 30000
+    "maxClipMs": 10000,
+    "timeoutMs": 300000
   },
   "regions": {
     "Alaska": {
