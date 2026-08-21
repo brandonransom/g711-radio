@@ -1,14 +1,14 @@
 {
   "httpPort": 80,
   "whisper": {
-    "binaryPath": "/path/to/whisper-cli",
-    "modelPath": "/path/to/ggml-base.en.bin",
+    "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
+    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-tiny.en.bin",
     "workers": 3,
+    "timeoutMs": 3600000,
     "vadThreshold": 0.02,
     "silenceMs": 600,
-    "minClipMs": 300,
-    "maxClipMs": 10000,
-    "timeoutMs": 300000
+    "minClipMs": 1500,
+    "maxClipMs": 10000
   },
   "regions": {
     "Alaska": {
