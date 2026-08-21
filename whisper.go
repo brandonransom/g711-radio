@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
 // transcriptJob is submitted by VAD when a transmission clip is ready.
 type transcriptJob struct {
 	info     streamInfo
+	clipID   string    // unique ID correlating the clip event with its later transcript
 	wavPath  string    // path to the already-saved 8kHz WAV file on disk
 	audioURL string    // relative URL served to browsers (e.g. /audio/...)
 	start    time.Time
@@ -53,67 +55,112 @@ func (c *whisperConfig) setDefaults() {
 	}
 }
 
-// whisperPool manages a job queue and a fixed number of worker goroutines
-// that each call whisper.cpp to transcribe audio clips.
+// whisperPool is defined below with its unbounded queue fields.
+
+// whisperPool manages an unbounded FIFO job queue and a fixed number of worker
+// goroutines that each call whisper.cpp to transcribe audio clips.
 type whisperPool struct {
 	cfg    whisperConfig
-	jobs   chan transcriptJob
+	mu     sync.Mutex
+	queue  []transcriptJob
+	ready  chan struct{}
 	hub    *transcriptHub
 	logger *log.Logger
+	done   chan struct{}
 }
 
 func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *whisperPool {
 	return &whisperPool{
 		cfg:    cfg,
-		jobs:   make(chan transcriptJob, 128),
+		ready:  make(chan struct{}, 1),
 		hub:    hub,
 		logger: logger,
+		done:   make(chan struct{}),
 	}
 }
 
-// Start launches worker goroutines. They run until ctx is cancelled via the
-// jobs channel being closed.
+// Start launches worker goroutines.
 func (p *whisperPool) Start() {
 	for i := 0; i < p.cfg.Workers; i++ {
 		go p.worker(i)
 	}
 }
 
-// Submit enqueues a clip for transcription. Non-blocking: drops if queue full.
+// Submit enqueues a clip for transcription. Never drops — unbounded FIFO.
 func (p *whisperPool) Submit(job transcriptJob) {
-	select {
-	case p.jobs <- job:
-	default:
-		p.logger.Printf("whisper pool: queue full, dropping clip from %s", job.info.StreamName)
+	p.mu.Lock()
+	p.queue = append(p.queue, job)
+	qlen := len(p.queue)
+	p.mu.Unlock()
+	if qlen == 1 {
+		select {
+		case p.ready <- struct{}{}:
+		default:
+		}
 	}
+	p.logger.Printf("whisper pool: queued clip from %s (queue depth: %d)", job.info.StreamName, qlen)
 }
 
-// Close signals workers to stop after draining the queue.
+func (p *whisperPool) dequeue() (transcriptJob, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.queue) == 0 {
+		return transcriptJob{}, false
+	}
+	job := p.queue[0]
+	p.queue = p.queue[1:]
+	return job, true
+}
+
+// Close signals workers to stop.
 func (p *whisperPool) Close() {
-	close(p.jobs)
+	close(p.done)
 }
 
 func (p *whisperPool) worker(id int) {
-	for job := range p.jobs {
-		text, err := p.transcribe(job.wavPath)
-		if err != nil {
-			p.logger.Printf("whisper worker %d: transcribe %s: %v", id, job.info.StreamName, err)
-			continue
+	for {
+		select {
+		case <-p.done:
+			return
+		case <-p.ready:
 		}
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
+		for {
+			job, ok := p.dequeue()
+			if !ok {
+				break
+			}
+			text, err := p.transcribe(job.wavPath)
+			if err != nil {
+				p.logger.Printf("whisper worker %d: transcribe %s: %v", id, job.info.StreamName, err)
+				continue
+			}
+			text = strings.TrimSpace(text)
+			if text == "" {
+				continue
+			}
+			p.hub.Publish(transcriptEvent{
+				Type:       "transcript",
+				ClipID:     job.clipID,
+				StreamID:   job.info.ID,
+				StreamName: job.info.StreamName,
+				RegionName: job.info.RegionName,
+				GroupName:  job.info.GroupName,
+				Text:       text,
+				AudioURL:   job.audioURL,
+				Timestamp:  job.start,
+			})
+			p.logger.Printf("whisper worker %d: [%s] %s", id, job.info.StreamName, text)
 		}
-		p.hub.Publish(transcriptEvent{
-			StreamID:   job.info.ID,
-			StreamName: job.info.StreamName,
-			RegionName: job.info.RegionName,
-			GroupName:  job.info.GroupName,
-			Text:       text,
-			AudioURL:   job.audioURL,
-			Timestamp:  job.start,
-		})
-		p.logger.Printf("whisper worker %d: [%s] %s", id, job.info.StreamName, text)
+		// Signal other workers there may still be items.
+		p.mu.Lock()
+		remaining := len(p.queue)
+		p.mu.Unlock()
+		if remaining > 0 {
+			select {
+			case p.ready <- struct{}{}:
+			default:
+			}
+		}
 	}
 }
 

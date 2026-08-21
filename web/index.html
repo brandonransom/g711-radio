@@ -462,6 +462,11 @@
         color: var(--ink);
       }
 
+      .transcript-pending {
+        color: var(--muted);
+        font-style: italic;
+      }
+
       .transcript-play {
         background: none;
         border: 1px solid var(--line);
@@ -574,20 +579,21 @@
         return `${datePart} ${timePart}`;
       }
 
-      function appendTranscript(text, isoTimestamp, audioUrl) {
+      function appendClip(clipId, isoTimestamp, audioUrl) {
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
 
         const entry = document.createElement("div");
         entry.className = "transcript-entry";
+        entry.dataset.clipId = clipId;
 
         const time = document.createElement("span");
         time.className = "transcript-time";
         time.textContent = formatTranscriptTime(isoTimestamp);
 
         const content = document.createElement("span");
-        content.className = "transcript-text";
-        content.textContent = text;
+        content.className = "transcript-text transcript-pending";
+        content.textContent = audioUrl ? "Recording received, transcribing..." : "";
 
         if (audioUrl) {
           const playBtn = document.createElement("button");
@@ -611,6 +617,36 @@
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
       }
 
+      function updateTranscript(clipId, text) {
+        const entry = transcriptLog.querySelector(`[data-clip-id="${clipId}"]`);
+        if (entry) {
+          const content = entry.querySelector(".transcript-text");
+          if (content) {
+            content.textContent = text;
+            content.classList.remove("transcript-pending");
+          }
+        } else {
+          // Clip not in view (e.g. arrived before page load) — append as a plain entry.
+          appendClip(clipId, null, null);
+          updateTranscript(clipId, text);
+        }
+      }
+
+      function appendTranscript(text, isoTimestamp, audioUrl, clipId) {
+        // Used for history entries which have both clip and text already.
+        appendClip(clipId || `hist-${isoTimestamp}`, isoTimestamp, audioUrl);
+        if (text) {
+          const entry = transcriptLog.querySelector(`[data-clip-id="${clipId || `hist-${isoTimestamp}`}"]`);
+          if (entry) {
+            const content = entry.querySelector(".transcript-text");
+            if (content) {
+              content.textContent = text;
+              content.classList.remove("transcript-pending");
+            }
+          }
+        }
+      }
+
       function startTranscription(streamId) {
         stopTranscription();
 
@@ -622,10 +658,25 @@
           .then(r => r.json())
           .then(events => {
             transcriptLog.innerHTML = "";
-            if (events.length === 0) {
+            // Merge clip + transcript events by clipId before rendering.
+            const merged = new Map();
+            events.forEach(ev => {
+              const id = ev.clipId || `hist-${ev.timestamp}`;
+              if (!merged.has(id)) merged.set(id, { clipId: id });
+              const entry = merged.get(id);
+              if (ev.type === "clip" || !ev.type) {
+                entry.timestamp = ev.timestamp;
+                entry.audioUrl = ev.audioUrl;
+              }
+              if (ev.type === "transcript" || !ev.type) {
+                if (ev.text) entry.text = ev.text;
+                if (!entry.timestamp) entry.timestamp = ev.timestamp;
+              }
+            });
+            if (merged.size === 0) {
               transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
             } else {
-              events.forEach(ev => appendTranscript(ev.text, ev.timestamp, ev.audioUrl));
+              merged.forEach(ev => appendTranscript(ev.text || "", ev.timestamp, ev.audioUrl, ev.clipId));
             }
           })
           .catch(() => {
@@ -637,7 +688,11 @@
         transcriptSSE.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
-            if (payload.text) appendTranscript(payload.text, payload.timestamp, payload.audioUrl);
+            if (payload.type === "clip") {
+              appendClip(payload.clipId, payload.timestamp, payload.audioUrl);
+            } else if (payload.type === "transcript") {
+              updateTranscript(payload.clipId, payload.text);
+            }
           } catch (_) {}
         };
 

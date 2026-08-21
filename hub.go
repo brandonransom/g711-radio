@@ -16,12 +16,16 @@ import (
 var unsafeChars = regexp.MustCompile(`[^a-zA-Z0-9_\-]`)
 
 // transcriptEvent is the JSON payload sent to SSE subscribers.
+// When Type == "clip", the audio is ready but text may be empty (pending transcription).
+// When Type == "transcript", the text has been filled in for a prior clip (matched by ClipID).
 type transcriptEvent struct {
+	Type       string    `json:"type"` // "clip" or "transcript"
+	ClipID     string    `json:"clipId"`
 	StreamID   string    `json:"streamId"`
 	StreamName string    `json:"streamName"`
 	RegionName string    `json:"regionName"`
 	GroupName  string    `json:"groupName"`
-	Text       string    `json:"text"`
+	Text       string    `json:"text,omitempty"`
 	AudioURL   string    `json:"audioUrl,omitempty"`
 	Timestamp  time.Time `json:"timestamp"`
 }
