@@ -155,7 +155,6 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 		"-nt",
 		"-np",
 		"--language", "en",
-		"--no-prints",
 	)
 
 	var out bytes.Buffer
