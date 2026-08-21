@@ -579,7 +579,22 @@
         stopTranscription();
 
         transcriptPanel.hidden = false;
-        transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
+        transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
+
+        // Load the last 25 hours of history first, then stream live events.
+        fetch(`/transcripts/history?streamId=${encodeURIComponent(streamId)}`)
+          .then(r => r.json())
+          .then(events => {
+            transcriptLog.innerHTML = "";
+            if (events.length === 0) {
+              transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
+            } else {
+              events.forEach(ev => appendTranscript(ev.text, ev.timestamp));
+            }
+          })
+          .catch(() => {
+            transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
+          });
 
         transcriptSSE = new EventSource(`/transcripts?streamId=${encodeURIComponent(streamId)}`);
 
@@ -591,7 +606,6 @@
         };
 
         transcriptSSE.onerror = () => {
-          // EventSource auto-reconnects; show a status note so the user knows.
           const existing = transcriptLog.querySelector(".transcript-reconnecting");
           if (!existing) {
             const note = document.createElement("span");
