@@ -25,6 +25,12 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media"
 )
 
+var globalClipID atomic.Uint64
+
+func nextClipID() string {
+	return fmt.Sprintf("clip-%d", globalClipID.Add(1))
+}
+
 const (
 	frameSizeBytes = 160
 	sampleRateHz   = 8000
@@ -203,6 +209,7 @@ func main() {
 							time.Duration(wCfg.MinClipMs)*time.Millisecond,
 							time.Duration(wCfg.MaxClipMs)*time.Millisecond,
 							func(samples []int16, start time.Time) {
+								clipID := nextClipID()
 								var wavPath, audioURL string
 								if captureAudioLogDir != "" {
 									var err error
@@ -211,6 +218,17 @@ func main() {
 										logger.Printf("audio log: %v", err)
 									}
 								}
+								// Publish clip event immediately so the UI shows the recording.
+								hub.Publish(transcriptEvent{
+									Type:       "clip",
+									ClipID:     clipID,
+									StreamID:   captureInfo.ID,
+									StreamName: captureInfo.StreamName,
+									RegionName: captureInfo.RegionName,
+									GroupName:  captureInfo.GroupName,
+									AudioURL:   audioURL,
+									Timestamp:  start,
+								})
 								if pool != nil {
 									if wavPath == "" {
 										// No audio log dir — write a temp file for whisper.
@@ -223,7 +241,7 @@ func main() {
 										}
 									}
 									if wavPath != "" {
-										pool.Submit(transcriptJob{info: captureInfo, wavPath: wavPath, audioURL: audioURL, start: start})
+										pool.Submit(transcriptJob{info: captureInfo, clipID: clipID, wavPath: wavPath, audioURL: audioURL, start: start})
 									}
 								}
 							},
