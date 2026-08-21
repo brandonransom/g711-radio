@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -21,15 +24,20 @@ type transcriptEvent struct {
 
 // transcriptHub fans out transcript events to SSE subscribers.
 type transcriptHub struct {
-	mu     sync.RWMutex
-	subs   map[string]chan transcriptEvent // keyed by arbitrary subscriber ID
-	nextID uint64
-	logger *log.Logger
+	mu      sync.RWMutex
+	subs    map[string]chan transcriptEvent // keyed by arbitrary subscriber ID
+	nextID  uint64
+	logDir  string
+	logger  *log.Logger
 }
 
-func newTranscriptHub(logger *log.Logger) *transcriptHub {
+func newTranscriptHub(logDir string, logger *log.Logger) *transcriptHub {
+	if logDir != "" {
+		_ = os.MkdirAll(logDir, 0755)
+	}
 	return &transcriptHub{
 		subs:   make(map[string]chan transcriptEvent),
+		logDir: logDir,
 		logger: logger,
 	}
 }
@@ -53,8 +61,13 @@ func (h *transcriptHub) unsubscribe(id string) {
 	}
 }
 
-// Publish sends an event to all subscribers. Slow subscribers are dropped.
+// Publish sends an event to all subscribers and appends it to the stream log.
 func (h *transcriptHub) Publish(event transcriptEvent) {
+	// Write to per-stream log file.
+	if h.logDir != "" {
+		h.appendLog(event)
+	}
+
 	h.mu.RLock()
 	targets := make(map[string]chan transcriptEvent, len(h.subs))
 	for id, ch := range h.subs {
@@ -70,6 +83,47 @@ func (h *transcriptHub) Publish(event transcriptEvent) {
 			h.unsubscribe(id)
 		}
 	}
+}
+
+// appendLog writes one transcript event as a JSON line to the stream's log file.
+func (h *transcriptHub) appendLog(event transcriptEvent) {
+	path := filepath.Join(h.logDir, event.StreamID+".log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		h.logger.Printf("transcript log: open %s: %v", path, err)
+		return
+	}
+	defer f.Close()
+	if err := json.NewEncoder(f).Encode(event); err != nil {
+		h.logger.Printf("transcript log: write %s: %v", path, err)
+	}
+}
+
+// History returns transcript events for a stream within the last maxAge duration.
+func (h *transcriptHub) History(streamID string, maxAge time.Duration) ([]transcriptEvent, error) {
+	path := filepath.Join(h.logDir, streamID+".log")
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	cutoff := time.Now().Add(-maxAge)
+	var events []transcriptEvent
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var ev transcriptEvent
+		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+			continue
+		}
+		if ev.Timestamp.After(cutoff) {
+			events = append(events, ev)
+		}
+	}
+	return events, scanner.Err()
 }
 
 // ServeHTTP handles GET /transcripts as a Server-Sent Events stream.

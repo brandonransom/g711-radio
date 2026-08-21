@@ -132,7 +132,7 @@ func main() {
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
 
-	hub := newTranscriptHub(logger)
+	hub := newTranscriptHub("transcripts", logger)
 
 	var pool *whisperPool
 	if config.Whisper != nil && config.Whisper.ModelPath != "" {
@@ -245,6 +245,24 @@ func main() {
 	mux.HandleFunc("/streams", server.handleStreams)
 	mux.HandleFunc("/offer", server.handleOffer)
 	mux.Handle("/transcripts", hub)
+	mux.HandleFunc("/transcripts/history", func(w http.ResponseWriter, r *http.Request) {
+		streamID := r.URL.Query().Get("streamId")
+		if streamID == "" {
+			http.Error(w, "streamId required", http.StatusBadRequest)
+			return
+		}
+		events, err := hub.History(streamID, 25*time.Hour)
+		if err != nil {
+			http.Error(w, "failed to read history", http.StatusInternalServerError)
+			logger.Printf("transcript history: %v", err)
+			return
+		}
+		if events == nil {
+			events = []transcriptEvent{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(events)
+	})
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.HTTPPort),
