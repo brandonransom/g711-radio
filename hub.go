@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 )
+
+var unsafeChars = regexp.MustCompile(`[^a-zA-Z0-9_\-]`)
 
 // transcriptEvent is the JSON payload sent to SSE subscribers.
 type transcriptEvent struct {
@@ -85,9 +88,15 @@ func (h *transcriptHub) Publish(event transcriptEvent) {
 	}
 }
 
+// logFilename returns a safe filename derived from the stream name.
+func logFilename(streamName string) string {
+	safe := unsafeChars.ReplaceAllString(streamName, "_")
+	return safe + ".log"
+}
+
 // appendLog writes one transcript event as a JSON line to the stream's log file.
 func (h *transcriptHub) appendLog(event transcriptEvent) {
-	path := filepath.Join(h.logDir, event.StreamID+".log")
+	path := filepath.Join(h.logDir, logFilename(event.StreamName))
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		h.logger.Printf("transcript log: open %s: %v", path, err)
@@ -100,30 +109,55 @@ func (h *transcriptHub) appendLog(event transcriptEvent) {
 }
 
 // History returns transcript events for a stream within the last maxAge duration.
+// streamID is used to look up the stream name via the event's StreamID field,
+// but the file is keyed by stream name. The caller passes the streamID and we
+// scan for a matching log by checking all files — or the caller can pass streamName directly.
+// For simplicity we accept either streamID or streamName as the lookup key.
 func (h *transcriptHub) History(streamID string, maxAge time.Duration) ([]transcriptEvent, error) {
-	path := filepath.Join(h.logDir, streamID+".log")
-	f, err := os.Open(path)
+	// Try to find a log file whose events match this streamID.
+	// We scan all .log files in the dir and return the first match.
+	entries, err := os.ReadDir(h.logDir)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
 	cutoff := time.Now().Add(-maxAge)
 	var events []transcriptEvent
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var ev transcriptEvent
-		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".log" {
 			continue
 		}
-		if ev.Timestamp.After(cutoff) {
-			events = append(events, ev)
+		path := filepath.Join(h.logDir, entry.Name())
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		scanner := bufio.NewScanner(f)
+		matched := false
+		var fileEvents []transcriptEvent
+		for scanner.Scan() {
+			var ev transcriptEvent
+			if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+				continue
+			}
+			if ev.StreamID == streamID {
+				matched = true
+				if ev.Timestamp.After(cutoff) {
+					fileEvents = append(fileEvents, ev)
+				}
+			}
+		}
+		f.Close()
+		if matched {
+			events = fileEvents
+			break
 		}
 	}
-	return events, scanner.Err()
+	return events, nil
 }
 
 // ServeHTTP handles GET /transcripts as a Server-Sent Events stream.
