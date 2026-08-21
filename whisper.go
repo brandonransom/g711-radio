@@ -28,6 +28,7 @@ type whisperConfig struct {
 	SilenceMs    int     `json:"silenceMs"`
 	MinClipMs    int     `json:"minClipMs"`
 	MaxClipMs    int     `json:"maxClipMs"`
+	TimeoutMs    int     `json:"timeoutMs"`
 }
 
 func (c *whisperConfig) setDefaults() {
@@ -45,6 +46,9 @@ func (c *whisperConfig) setDefaults() {
 	}
 	if c.MaxClipMs <= 0 {
 		c.MaxClipMs = 30000
+	}
+	if c.TimeoutMs <= 0 {
+		c.TimeoutMs = 60000
 	}
 }
 
@@ -149,7 +153,7 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	if binary == "" {
 		binary = "whisper-cli"
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.cfg.TimeoutMs)*time.Millisecond)
 	defer cancel()
 	cmd := exec.CommandContext(
 		ctx,
