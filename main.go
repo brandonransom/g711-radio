@@ -196,17 +196,35 @@ func main() {
 							wCfg.setDefaults()
 						}
 						captureInfo := info
+						captureAudioLogDir := config.AudioLogDir
 						st.vad = newVADState(
 							wCfg.VADThreshold,
 							time.Duration(wCfg.SilenceMs)*time.Millisecond,
 							time.Duration(wCfg.MinClipMs)*time.Millisecond,
 							time.Duration(wCfg.MaxClipMs)*time.Millisecond,
 							func(samples []int16, start time.Time) {
-								if pool != nil {
-									pool.Submit(transcriptJob{info: captureInfo, samples: samples, start: start})
+								var wavPath, audioURL string
+								if captureAudioLogDir != "" {
+									var err error
+									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
+									if err != nil {
+										logger.Printf("audio log: %v", err)
+									}
 								}
-								if config.AudioLogDir != "" {
-									go saveAudioClip(config.AudioLogDir, captureInfo, samples, start, logger)
+								if pool != nil {
+									if wavPath == "" {
+										// No audio log dir — write a temp file for whisper.
+										wav, _ := encodePCM16WAV(samples, vadSampleRate)
+										tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
+										if err == nil {
+											tmp.Write(wav)
+											tmp.Close()
+											wavPath = tmp.Name()
+										}
+									}
+									if wavPath != "" {
+										pool.Submit(transcriptJob{info: captureInfo, wavPath: wavPath, audioURL: audioURL, start: start})
+									}
 								}
 							},
 						)
@@ -279,6 +297,10 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(events)
 	})
+	if config.AudioLogDir != "" {
+		mux.Handle("/audio/", http.StripPrefix("/audio/", http.FileServer(http.Dir(config.AudioLogDir))))
+		logger.Printf("audio log directory: %s (served at /audio/)", config.AudioLogDir)
+	}
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.HTTPPort),
@@ -468,30 +490,33 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 	}
 }
 
-// saveAudioClip writes a VAD clip as a 8kHz mono WAV file under audioLogDir.
+// saveAudioClip writes a VAD clip as an 8kHz mono WAV file under audioLogDir.
+// Returns the absolute file path and the relative URL path for browser playback.
 // Path: <audioLogDir>/<region>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
-func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) {
+func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) (string, string, error) {
 	safe := func(s string) string {
 		return unsafeChars.ReplaceAllString(s, "_")
 	}
-	dir := filepath.Join(audioLogDir, safe(info.RegionName), safe(info.GroupName), safe(info.StreamName))
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		logger.Printf("audio log: mkdir %s: %v", dir, err)
-		return
+	relDir := filepath.Join(safe(info.RegionName), safe(info.GroupName), safe(info.StreamName))
+	absDir := filepath.Join(audioLogDir, relDir)
+	if err := os.MkdirAll(absDir, 0755); err != nil {
+		return "", "", fmt.Errorf("mkdir %s: %w", absDir, err)
 	}
 	// ISO 8601 UTC — colons replaced with underscores for Windows filename safety.
 	ts := start.UTC().Format("2006-01-02T15_04_05Z")
 	filename := fmt.Sprintf("%s_%s.wav", safe(info.StreamName), ts)
-	path := filepath.Join(dir, filename)
+	absPath := filepath.Join(absDir, filename)
 
 	wav, err := encodePCM16WAV(samples, vadSampleRate)
 	if err != nil {
-		logger.Printf("audio log: encode %s: %v", path, err)
-		return
+		return "", "", fmt.Errorf("encode %s: %w", absPath, err)
 	}
-	if err := os.WriteFile(path, wav, 0644); err != nil {
-		logger.Printf("audio log: write %s: %v", path, err)
+	if err := os.WriteFile(absPath, wav, 0644); err != nil {
+		return "", "", fmt.Errorf("write %s: %w", absPath, err)
 	}
+	// Build a URL-style relative path using forward slashes.
+	relURL := "/audio/" + safe(info.RegionName) + "/" + safe(info.GroupName) + "/" + safe(info.StreamName) + "/" + filename
+	return absPath, relURL, nil
 }
 
 func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {

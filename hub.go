@@ -22,6 +22,7 @@ type transcriptEvent struct {
 	RegionName string    `json:"regionName"`
 	GroupName  string    `json:"groupName"`
 	Text       string    `json:"text"`
+	AudioURL   string    `json:"audioUrl,omitempty"`
 	Timestamp  time.Time `json:"timestamp"`
 }
 
