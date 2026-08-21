@@ -439,10 +439,11 @@
 
       .transcript-entry {
         display: grid;
-        grid-template-columns: 5.5rem 1fr;
+        grid-template-columns: 5.5rem 1fr auto;
         gap: 10px;
         padding: 6px 0;
         border-bottom: 1px solid var(--line);
+        align-items: start;
       }
 
       .transcript-entry:last-child {
@@ -459,6 +460,22 @@
 
       .transcript-text {
         color: var(--ink);
+      }
+
+      .transcript-play {
+        background: none;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        line-height: 1;
+        min-height: unset;
+      }
+      .transcript-play:hover {
+        color: var(--ink);
+        border-color: var(--ink);
       }
 
       .transcript-empty {
@@ -555,7 +572,7 @@
         return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
       }
 
-      function appendTranscript(text, isoTimestamp) {
+      function appendTranscript(text, isoTimestamp, audioUrl) {
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
 
@@ -570,7 +587,24 @@
         content.className = "transcript-text";
         content.textContent = text;
 
-        entry.append(time, content);
+        if (audioUrl) {
+          const playBtn = document.createElement("button");
+          playBtn.type = "button";
+          playBtn.className = "transcript-play";
+          playBtn.title = "Play recording";
+          playBtn.textContent = "▶";
+          playBtn.addEventListener("click", () => {
+            const audio = new Audio(audioUrl);
+            audio.play();
+            playBtn.textContent = "◼";
+            audio.addEventListener("ended", () => { playBtn.textContent = "▶"; });
+            audio.addEventListener("pause", () => { playBtn.textContent = "▶"; });
+          });
+          entry.append(time, content, playBtn);
+        } else {
+          entry.append(time, content);
+        }
+
         transcriptLog.append(entry);
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
       }
@@ -589,7 +623,7 @@
             if (events.length === 0) {
               transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
             } else {
-              events.forEach(ev => appendTranscript(ev.text, ev.timestamp));
+              events.forEach(ev => appendTranscript(ev.text, ev.timestamp, ev.audioUrl));
             }
           })
           .catch(() => {
@@ -601,7 +635,7 @@
         transcriptSSE.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
-            if (payload.text) appendTranscript(payload.text, payload.timestamp);
+            if (payload.text) appendTranscript(payload.text, payload.timestamp, payload.audioUrl);
           } catch (_) {}
         };
 
