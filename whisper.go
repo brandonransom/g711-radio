@@ -80,7 +80,6 @@ func (p *whisperPool) Start() {
 
 // Submit enqueues a clip for transcription. Non-blocking: drops if queue full.
 func (p *whisperPool) Submit(job transcriptJob) {
-	p.logger.Printf("whisper pool: submitting clip from %s (%d samples, %.1fs)", job.info.StreamName, len(job.samples), float64(len(job.samples))/8000.0)
 	select {
 	case p.jobs <- job:
 	default:
@@ -102,7 +101,6 @@ func (p *whisperPool) worker(id int) {
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
-			p.logger.Printf("whisper worker %d: empty result for %s (clip len=%d samples)", id, job.info.StreamName, len(job.samples))
 			continue
 		}
 		p.hub.Publish(transcriptEvent{
@@ -131,24 +129,15 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create temp wav: %w", err)
 	}
+	defer os.Remove(tmp.Name())
 
 	if _, err := tmp.Write(wav); err != nil {
 		tmp.Close()
-		os.Remove(tmp.Name())
 		return "", fmt.Errorf("write temp wav: %w", err)
 	}
 	tmp.Close()
 	wavPath := tmp.Name()
-	p.logger.Printf("whisper: WAV written to %s (%d bytes, %d samples)", wavPath, len(wav), len(samples))
-	// Intentionally NOT removing temp file so it can be inspected manually.
-	// Re-add defer os.Remove(wavPath) once transcription is confirmed working.
 
-	// Run whisper.cpp main binary with a 60-second timeout.
-	// -m  model path
-	// -f  input file
-	// -nt no timestamps in output
-	// -np no progress
-	// --language en
 	binary := p.cfg.BinaryPath
 	if binary == "" {
 		binary = "whisper-cli"
@@ -170,11 +159,9 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 
-	p.logger.Printf("whisper: running %s on %d samples", binary, len(samples))
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("whisper-cli: %w\nstderr: %s", err, errBuf.String())
 	}
-	p.logger.Printf("whisper: stdout=%q stderr=%q", strings.TrimSpace(out.String()), strings.TrimSpace(errBuf.String()))
 
 	return cleanWhisperOutput(out.String()), nil
 }
