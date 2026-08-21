@@ -678,18 +678,24 @@
         statusPanel.hidden = !showPlayerUI;
       }
 
-      function buildStreamURL(streamId) {
+      function buildStreamURL(streamId, streamName) {
         const url = new URL(window.location.href);
         if (streamId) {
           url.searchParams.set(streamQueryParam, streamId);
+          if (streamName) {
+            url.searchParams.set("name", streamName);
+          } else {
+            url.searchParams.delete("name");
+          }
         } else {
           url.searchParams.delete(streamQueryParam);
+          url.searchParams.delete("name");
         }
         return url;
       }
 
-      function syncURL(streamId) {
-        window.history.replaceState(null, "", buildStreamURL(streamId).toString());
+      function syncURL(streamId, streamName) {
+        window.history.replaceState(null, "", buildStreamURL(streamId, streamName).toString());
         renderPageChrome();
       }
 
@@ -698,7 +704,7 @@
       }
 
       function openStreamInNewTab(stream) {
-        window.open(buildStreamURL(stream.id).toString(), "_blank", "noopener,noreferrer");
+        window.open(buildStreamURL(stream.id, stream.streamName).toString(), "_blank", "noopener,noreferrer");
       }
 
       function isDedicatedStreamPage() {
@@ -995,7 +1001,7 @@
         currentStreamName = stream.streamName;
         connectingStreamId = stream.id;
         reconnectAttempts = 0;
-        syncURL(stream.id);
+        syncURL(stream.id, stream.streamName);
         renderLaunchView();
         renderStreams();
         setConnectionState("connecting");
