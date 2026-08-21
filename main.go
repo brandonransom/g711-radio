@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -35,9 +36,10 @@ const (
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort int                                   `json:"httpPort"`
-	Regions  map[string]map[string][]streamConfig  `json:"regions"`
-	Whisper  *whisperConfig                        `json:"whisper"`
+	HTTPPort     int                                  `json:"httpPort"`
+	Regions      map[string]map[string][]streamConfig `json:"regions"`
+	Whisper      *whisperConfig                       `json:"whisper"`
+	AudioLogDir  string                               `json:"audioLogDir"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -81,6 +83,7 @@ type station struct {
 	codec         webrtc.RTPCodecCapability
 	frameDuration time.Duration
 	logger        *log.Logger
+	audioLogDir   string
 
 	// whisperPool is non-nil when transcription is enabled.
 	whisperPool *whisperPool
@@ -179,19 +182,32 @@ func main() {
 					codec:         codec,
 					frameDuration: frameDuration,
 					logger:        logger,
-					subscribers:   make(map[string]*subscriber),
+						audioLogDir:   config.AudioLogDir,
+						subscribers:   make(map[string]*subscriber),
 						whisperPool:   pool,
 					}
 
-					if pool != nil {
-						wCfg := config.Whisper
+					if pool != nil || config.AudioLogDir != "" {
+						wCfg := &whisperConfig{}
+						if config.Whisper != nil {
+							wCfg = config.Whisper
+							wCfg.setDefaults()
+						} else {
+							wCfg.setDefaults()
+						}
+						captureInfo := info
 						st.vad = newVADState(
 							wCfg.VADThreshold,
 							time.Duration(wCfg.SilenceMs)*time.Millisecond,
 							time.Duration(wCfg.MinClipMs)*time.Millisecond,
 							time.Duration(wCfg.MaxClipMs)*time.Millisecond,
 							func(samples []int16, start time.Time) {
-								pool.Submit(transcriptJob{info: info, samples: samples, start: start})
+								if pool != nil {
+									pool.Submit(transcriptJob{info: captureInfo, samples: samples, start: start})
+								}
+								if config.AudioLogDir != "" {
+									go saveAudioClip(config.AudioLogDir, captureInfo, samples, start, logger)
+								}
 							},
 						)
 					}
@@ -449,6 +465,32 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			Data:     frame,
 			Duration: s.frameDuration,
 		})
+	}
+}
+
+// saveAudioClip writes a VAD clip as a 8kHz mono WAV file under audioLogDir.
+// Path: <audioLogDir>/<region>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
+func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) {
+	safe := func(s string) string {
+		return unsafeChars.ReplaceAllString(s, "_")
+	}
+	dir := filepath.Join(audioLogDir, safe(info.RegionName), safe(info.GroupName), safe(info.StreamName))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		logger.Printf("audio log: mkdir %s: %v", dir, err)
+		return
+	}
+	// ISO 8601 UTC — colons replaced with underscores for Windows filename safety.
+	ts := start.UTC().Format("2006-01-02T15_04_05Z")
+	filename := fmt.Sprintf("%s_%s.wav", safe(info.StreamName), ts)
+	path := filepath.Join(dir, filename)
+
+	wav, err := encodePCM16WAV(samples, vadSampleRate)
+	if err != nil {
+		logger.Printf("audio log: encode %s: %v", path, err)
+		return
+	}
+	if err := os.WriteFile(path, wav, 0644); err != nil {
+		logger.Printf("audio log: write %s: %v", path, err)
 	}
 }
 
