@@ -127,13 +127,17 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create temp wav: %w", err)
 	}
-	defer os.Remove(tmp.Name())
 
 	if _, err := tmp.Write(wav); err != nil {
 		tmp.Close()
+		os.Remove(tmp.Name())
 		return "", fmt.Errorf("write temp wav: %w", err)
 	}
 	tmp.Close()
+	wavPath := tmp.Name()
+	p.logger.Printf("whisper: WAV written to %s (%d bytes, %d samples)", wavPath, len(wav), len(samples))
+	// Intentionally NOT removing temp file so it can be inspected manually.
+	// Re-add defer os.Remove(wavPath) once transcription is confirmed working.
 
 	// Run whisper.cpp main binary with a 60-second timeout.
 	// -m  model path
@@ -151,7 +155,7 @@ func (p *whisperPool) transcribe(samples []int16) (string, error) {
 		ctx,
 		binary,
 		"-m", p.cfg.ModelPath,
-		"-f", tmp.Name(),
+		"-f", wavPath,
 		"-nt",
 		"-np",
 		"--language", "en",
