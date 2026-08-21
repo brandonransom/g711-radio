@@ -285,7 +285,7 @@ func main() {
 			http.Error(w, "streamId required", http.StatusBadRequest)
 			return
 		}
-		events, err := hub.History(streamID, 25*time.Hour)
+		events, err := hub.History(streamID, 72*time.Hour)
 		if err != nil {
 			http.Error(w, "failed to read history", http.StatusInternalServerError)
 			logger.Printf("transcript history: %v", err)
@@ -314,6 +314,24 @@ func main() {
 		_ = httpServer.Shutdown(shutdownCtx)
 		if pool != nil {
 			pool.Close()
+		}
+	}()
+
+	// Background cleanup: delete audio WAV files and prune transcript logs older than 72h.
+	const retentionPeriod = 72 * time.Hour
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if config.AudioLogDir != "" {
+					pruneOldFiles(config.AudioLogDir, retentionPeriod, logger)
+				}
+				pruneTranscriptLogs(hub.logDir, retentionPeriod, logger)
+			}
 		}
 	}()
 
@@ -517,6 +535,77 @@ func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start t
 	// Build a URL-style relative path using forward slashes.
 	relURL := "/audio/" + safe(info.RegionName) + "/" + safe(info.GroupName) + "/" + safe(info.StreamName) + "/" + filename
 	return absPath, relURL, nil
+}
+
+// pruneOldFiles walks dir and removes regular files older than maxAge.
+// Empty directories left behind are also removed.
+func pruneOldFiles(dir string, maxAge time.Duration, logger *log.Logger) {
+	cutoff := time.Now().Add(-maxAge)
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		if info.ModTime().Before(cutoff) {
+			if removeErr := os.Remove(path); removeErr == nil {
+				logger.Printf("pruned old audio: %s", path)
+			}
+		}
+		return nil
+	})
+	// Remove empty leaf directories.
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, _ error) error {
+		if path == dir || !d.IsDir() {
+			return nil
+		}
+		entries, _ := os.ReadDir(path)
+		if len(entries) == 0 {
+			os.Remove(path)
+		}
+		return nil
+	})
+}
+
+// pruneTranscriptLogs rewrites each .log file in dir, keeping only entries
+// newer than maxAge.
+func pruneTranscriptLogs(dir string, maxAge time.Duration, logger *log.Logger) {
+	if dir == "" {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-maxAge)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".log" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var kept []byte
+		for _, line := range bytes.Split(data, []byte("\n")) {
+			if len(line) == 0 {
+				continue
+			}
+			var ev struct {
+				Timestamp time.Time `json:"timestamp"`
+			}
+			if err := json.Unmarshal(line, &ev); err != nil || ev.Timestamp.After(cutoff) {
+				kept = append(kept, line...)
+				kept = append(kept, '\n')
+			}
+		}
+		if err := os.WriteFile(path, kept, 0644); err != nil {
+			logger.Printf("pruning transcript log %s: %v", path, err)
+		}
+	}
 }
 
 func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
