@@ -39,7 +39,7 @@ func (h *transcriptHub) subscribe() (string, chan transcriptEvent) {
 	defer h.mu.Unlock()
 	h.nextID++
 	id := fmt.Sprintf("sub-%d", h.nextID)
-	ch := make(chan transcriptEvent, 32)
+	ch := make(chan transcriptEvent, 256)
 	h.subs[id] = ch
 	return id, ch
 }
@@ -100,7 +100,7 @@ func (h *transcriptHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	subID, ch := h.subscribe()
 	defer h.unsubscribe(subID)
 
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {

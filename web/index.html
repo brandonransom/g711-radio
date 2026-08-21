@@ -591,7 +591,18 @@
         };
 
         transcriptSSE.onerror = () => {
-          // SSE auto-reconnects on error; no action needed.
+          // EventSource auto-reconnects; show a status note so the user knows.
+          const existing = transcriptLog.querySelector(".transcript-reconnecting");
+          if (!existing) {
+            const note = document.createElement("span");
+            note.className = "transcript-empty transcript-reconnecting";
+            note.textContent = "Reconnecting transcript feed...";
+            transcriptLog.appendChild(note);
+          }
+        };
+        transcriptSSE.onopen = () => {
+          const note = transcriptLog.querySelector(".transcript-reconnecting");
+          if (note) note.remove();
         };
       }
 
