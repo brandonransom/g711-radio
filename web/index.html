@@ -439,7 +439,7 @@
 
       .transcript-entry {
         display: grid;
-        grid-template-columns: 5.5rem 1fr auto;
+        grid-template-columns: 8rem 1fr auto;
         gap: 10px;
         padding: 6px 0;
         border-bottom: 1px solid var(--line);
@@ -569,7 +569,9 @@
 
       function formatTranscriptTime(isoString) {
         const date = new Date(isoString);
-        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+        const datePart = date.toLocaleDateString([], { month: "2-digit", day: "2-digit" });
+        const timePart = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+        return `${datePart} ${timePart}`;
       }
 
       function appendTranscript(text, isoTimestamp, audioUrl) {
@@ -999,11 +1001,11 @@
 
       function disconnect(updateStatus = true, keepURL = false) {
         closeCurrentConnection();
-        stopTranscription();
         player.srcObject = null;
         currentStreamId = null;
         if (!keepURL) {
           currentStreamName = "";
+          stopTranscription();
         }
         if (!keepURL) {
           syncURL(null);
@@ -1075,9 +1077,6 @@
             connectingStreamId = null;
             disconnectBtn.disabled = false;
             renderStreams();
-            if (isDedicatedStreamPage()) {
-              startTranscription(stream.id);
-            }
           }
 
           if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
@@ -1155,6 +1154,7 @@
           renderLaunchView();
           renderStreams();
           setStatus(`Ready to start ${requestedStream.streamName}. Click "Start Stream" to connect.`);
+          startTranscription(requestedStream.id);
           return;
         }
 
