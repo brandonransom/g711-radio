@@ -227,6 +227,7 @@ func main() {
 									RegionName: captureInfo.RegionName,
 									GroupName:  captureInfo.GroupName,
 									AudioURL:   audioURL,
+									DurationMs: len(samples) * 1000 / vadSampleRate,
 									Timestamp:  start,
 								})
 								if pool != nil {
