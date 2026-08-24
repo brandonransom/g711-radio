@@ -564,13 +564,13 @@
       let sharePageStream = null;
       let reconnectAttempts = 0;
       let reconnectTimeout = null;
-      let maxReconnectAttempts = 10;
       let baseReconnectDelay = 1000;
       let currentConnectionState = "idle";
       const expandedGroups = new Set();
 
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
+      let sseWatchdogTimer = null;
 
       function formatTranscriptTime(isoString) {
         const date = new Date(isoString);
@@ -685,7 +685,23 @@
 
         transcriptSSE = new EventSource(`/transcripts?streamId=${encodeURIComponent(streamId)}`);
 
+        // Watchdog: if no message arrives for 20s, the connection may have silently stalled
+        // (common on iOS when the app is backgrounded). Close and reopen.
+        let sseLastActivity = Date.now();
+        sseWatchdogTimer = setInterval(() => {
+          if (transcriptSSE && Date.now() - sseLastActivity > 20000) {
+            transcriptSSE.close();
+            transcriptSSE = null;
+            clearInterval(sseWatchdogTimer);
+            sseWatchdogTimer = null;
+            if (currentStreamId) startTranscription(currentStreamId);
+          }
+        }, 5000);
+
+        const resetSseWatchdog = () => { sseLastActivity = Date.now(); };
+
         transcriptSSE.onmessage = (event) => {
+          resetSseWatchdog();
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === "clip") {
@@ -696,7 +712,12 @@
           } catch (_) {}
         };
 
+        // Server sends keep-alive comments (":\n\n") which trigger onerror=no, onmessage=no
+        // but DO trigger the generic event listener. Listen for any event to reset watchdog.
+        transcriptSSE.addEventListener("message", resetSseWatchdog);
+
         transcriptSSE.onerror = () => {
+          resetSseWatchdog(); // onerror means the browser is handling reconnect — still alive
           const existing = transcriptLog.querySelector(".transcript-reconnecting");
           if (!existing) {
             const note = document.createElement("span");
@@ -706,12 +727,17 @@
           }
         };
         transcriptSSE.onopen = () => {
+          resetSseWatchdog();
           const note = transcriptLog.querySelector(".transcript-reconnecting");
           if (note) note.remove();
         };
       }
 
       function stopTranscription() {
+        if (sseWatchdogTimer) {
+          clearInterval(sseWatchdogTimer);
+          sseWatchdogTimer = null;
+        }
         if (transcriptSSE) {
           transcriptSSE.close();
           transcriptSSE = null;
@@ -1030,18 +1056,12 @@
       }
 
       function scheduleReconnect(stream) {
-        if (reconnectAttempts >= maxReconnectAttempts) {
-          setStatus(`Max reconnection attempts (${maxReconnectAttempts}) reached for ${currentStreamName}.`);
-          setConnectionState("disconnected");
-          return;
-        }
-
         reconnectAttempts++;
         const delayMs = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
         const delaySecs = (delayMs / 1000).toFixed(1);
 
         setConnectionState("reconnecting");
-        setStatus(`${currentStreamName}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+        setStatus(`${currentStreamName}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts})...`);
 
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout);
@@ -1224,6 +1244,48 @@
       }
 
       disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
+
+      // Mobile persistence: reconnect WebRTC and SSE when the tab becomes visible again
+      // (covers app-switching on iOS/Android, screen lock, and bfcache restores).
+      function handleVisibilityRestore() {
+        if (document.visibilityState !== "visible") return;
+        // Reconnect SSE if it died while hidden.
+        if (transcriptSSE && transcriptSSE.readyState === EventSource.CLOSED && currentStreamId) {
+          startTranscription(currentStreamId);
+        }
+        // Reconnect WebRTC if we have a stream but the peer connection is gone/failed.
+        if (sharePageStream && currentStreamId) {
+          const state = pc ? pc.connectionState : null;
+          if (!pc || ["failed", "closed", "disconnected"].includes(state)) {
+            if (reconnectTimeout) {
+              clearTimeout(reconnectTimeout);
+              reconnectTimeout = null;
+            }
+            reconnectAttempts = 0;
+            void connect(sharePageStream);
+          }
+        }
+      }
+
+      document.addEventListener("visibilitychange", handleVisibilityRestore);
+
+      // iOS bfcache: page is restored from cache without a full reload.
+      window.addEventListener("pageshow", (e) => {
+        if (e.persisted) {
+          reconnectAttempts = 0;
+          handleVisibilityRestore();
+        }
+      });
+
+      // Reconnect immediately when the device regains network connectivity.
+      window.addEventListener("online", () => {
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+        reconnectAttempts = 0;
+        handleVisibilityRestore();
+      });
 
       renderPageChrome();
 
