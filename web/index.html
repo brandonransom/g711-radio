@@ -467,6 +467,16 @@
         font-style: italic;
       }
 
+      .transcript-duration {
+        font-size: 0.75em;
+        color: var(--muted);
+        background: var(--surface2);
+        border-radius: 3px;
+        padding: 1px 4px;
+        margin-left: 4px;
+        vertical-align: middle;
+      }
+
       .transcript-play {
         background: none;
         border: 1px solid var(--line);
@@ -579,7 +589,15 @@
         return `${datePart} ${timePart}`;
       }
 
-      function appendClip(clipId, isoTimestamp, audioUrl) {
+      function formatDuration(ms) {
+        if (!ms) return "";
+        const totalSec = Math.round(ms / 1000);
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        return m > 0 ? `${m}m${s.toString().padStart(2, "0")}s` : `${s}s`;
+      }
+
+      function appendClip(clipId, isoTimestamp, audioUrl, durationMs) {
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
 
@@ -590,6 +608,15 @@
         const time = document.createElement("span");
         time.className = "transcript-time";
         time.textContent = formatTranscriptTime(isoTimestamp);
+
+        const durStr = formatDuration(durationMs);
+        if (durStr) {
+          const dur = document.createElement("span");
+          dur.className = "transcript-duration";
+          dur.textContent = durStr;
+          time.textContent += " ";
+          time.appendChild(dur);
+        }
 
         const content = document.createElement("span");
         content.className = "transcript-text transcript-pending";
@@ -627,14 +654,14 @@
           }
         } else {
           // Clip not in view (e.g. arrived before page load) — append as a plain entry.
-          appendClip(clipId, null, null);
+          appendClip(clipId, null, null, 0);
           updateTranscript(clipId, text);
         }
       }
 
-      function appendTranscript(text, isoTimestamp, audioUrl, clipId) {
+      function appendTranscript(text, isoTimestamp, audioUrl, clipId, durationMs) {
         // Used for history entries which have both clip and text already.
-        appendClip(clipId || `hist-${isoTimestamp}`, isoTimestamp, audioUrl);
+        appendClip(clipId || `hist-${isoTimestamp}`, isoTimestamp, audioUrl, durationMs);
         if (text) {
           const entry = transcriptLog.querySelector(`[data-clip-id="${clipId || `hist-${isoTimestamp}`}"]`);
           if (entry) {
@@ -667,6 +694,7 @@
               if (ev.type === "clip" || !ev.type) {
                 entry.timestamp = ev.timestamp;
                 entry.audioUrl = ev.audioUrl;
+                if (ev.durationMs) entry.durationMs = ev.durationMs;
               }
               if (ev.type === "transcript" || !ev.type) {
                 if (ev.text) entry.text = ev.text;
@@ -676,7 +704,7 @@
             if (merged.size === 0) {
               transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
             } else {
-              merged.forEach(ev => appendTranscript(ev.text || "", ev.timestamp, ev.audioUrl, ev.clipId));
+              merged.forEach(ev => appendTranscript(ev.text || "", ev.timestamp, ev.audioUrl, ev.clipId, ev.durationMs));
             }
           })
           .catch(() => {
@@ -705,7 +733,7 @@
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === "clip") {
-              appendClip(payload.clipId, payload.timestamp, payload.audioUrl);
+              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs);
             } else if (payload.type === "transcript") {
               updateTranscript(payload.clipId, payload.text);
             }
