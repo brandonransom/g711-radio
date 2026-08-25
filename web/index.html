@@ -653,7 +653,7 @@
               const res = await fetch("/transcripts/request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ clipId }),
+                body: JSON.stringify({ clipId, audioUrl }),
               });
               if (!res.ok) throw new Error("request failed");
               transcribeBtn.textContent = "Queued";
