@@ -6,6 +6,7 @@
     "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-tiny.en.bin",
     "workers": 3,
     "timeoutMs": 3600000,
+    "autoTranscribeMinClipMs": 0,
     "vadThreshold": 0.02,
     "silenceMs": 600,
     "minClipMs": 1500,

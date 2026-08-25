@@ -597,7 +597,7 @@
         return m > 0 ? `${m}m${s.toString().padStart(2, "0")}s` : `${s}s`;
       }
 
-      function appendClip(clipId, isoTimestamp, audioUrl, durationMs) {
+      function appendClip(clipId, isoTimestamp, audioUrl, durationMs, canTranscribe) {
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
 
@@ -620,7 +620,7 @@
 
         const content = document.createElement("span");
         content.className = "transcript-text transcript-pending";
-        content.textContent = audioUrl ? "Recording received, transcribing..." : "";
+        content.textContent = audioUrl ? "Recording received." : "";
 
         if (audioUrl) {
           const playBtn = document.createElement("button");
@@ -640,6 +640,31 @@
           entry.append(time, content);
         }
 
+        if (canTranscribe) {
+          const transcribeBtn = document.createElement("button");
+          transcribeBtn.type = "button";
+          transcribeBtn.className = "transcript-play";
+          transcribeBtn.title = "Request transcription";
+          transcribeBtn.textContent = "Transcribe";
+          transcribeBtn.addEventListener("click", async () => {
+            transcribeBtn.disabled = true;
+            transcribeBtn.textContent = "Queued";
+            try {
+              const res = await fetch("/transcripts/request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clipId }),
+              });
+              if (!res.ok) throw new Error("request failed");
+              transcribeBtn.textContent = "Queued";
+            } catch (_) {
+              transcribeBtn.disabled = false;
+              transcribeBtn.textContent = "Transcribe";
+            }
+          });
+          entry.appendChild(transcribeBtn);
+        }
+
         transcriptLog.append(entry);
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
       }
@@ -654,14 +679,14 @@
           }
         } else {
           // Clip not in view (e.g. arrived before page load) — append as a plain entry.
-          appendClip(clipId, null, null, 0);
+          appendClip(clipId, null, null, 0, true);
           updateTranscript(clipId, text);
         }
       }
 
       function appendTranscript(text, isoTimestamp, audioUrl, clipId, durationMs) {
         // Used for history entries which have both clip and text already.
-        appendClip(clipId || `hist-${isoTimestamp}`, isoTimestamp, audioUrl, durationMs);
+        appendClip(clipId || `hist-${isoTimestamp}`, isoTimestamp, audioUrl, durationMs, true);
         if (text) {
           const entry = transcriptLog.querySelector(`[data-clip-id="${clipId || `hist-${isoTimestamp}`}"]`);
           if (entry) {
@@ -733,7 +758,7 @@
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === "clip") {
-              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs);
+              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs, true);
             } else if (payload.type === "transcript") {
               updateTranscript(payload.clipId, payload.text);
             }
