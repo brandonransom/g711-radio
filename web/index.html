@@ -525,7 +525,7 @@
       </div>
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
-        <strong class="transcript-label">Transcription</strong>
+        <strong class="transcript-label">Recordings &amp; Transcripts</strong>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
 
@@ -885,12 +885,32 @@
         return Boolean(isDedicatedStreamPage() && !pc && !connectingStreamId);
       }
 
+      let launchViewStreamId = null;
+
       function renderLaunchView() {
-        launchRoot.innerHTML = "";
         launchRoot.hidden = !showShareLanding();
         if (launchRoot.hidden) {
+          launchRoot.innerHTML = "";
+          launchViewStreamId = null;
           return;
         }
+
+        // If the card is already built for this stream, only update button state.
+        if (launchViewStreamId === sharePageStream.id) {
+          const btn = launchRoot.querySelector(".stream-start-toggle");
+          if (btn && (currentConnectionState === "connected" || currentConnectionState === "connecting" || currentConnectionState === "reconnecting")) {
+            btn.classList.add("started");
+            btn.textContent = currentConnectionState === "connected" ? "Stream Started" : "Connecting...";
+          } else if (btn && currentConnectionState === "idle") {
+            btn.classList.remove("started");
+            btn.textContent = "Start Stream";
+          }
+          return;
+        }
+
+        // Full rebuild — stream changed or first render.
+        launchRoot.innerHTML = "";
+        launchViewStreamId = sharePageStream.id;
 
         const card = document.createElement("section");
         card.className = "launch";
@@ -932,6 +952,7 @@
         allStreamsButton.textContent = "All Streams";
         allStreamsButton.addEventListener("click", () => {
           sharePageStream = null;
+          launchViewStreamId = null;
           syncURL(null);
           renderLaunchView();
           renderStreams();
@@ -941,6 +962,8 @@
 
         actions.append(startStreamButton, allStreamsButton);
         card.append(eyebrow, title, description, actions);
+        launchRoot.append(card);
+      }
         launchRoot.append(card);
       }
 

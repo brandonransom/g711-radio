@@ -276,7 +276,6 @@ func main() {
 								clipID := nextClipID()
 								var wavPath, audioURL string
 								durationMs := len(samples) * 1000 / vadSampleRate
-								var requestWavPath string
 								if captureAudioLogDir != "" {
 									var err error
 
@@ -285,22 +284,23 @@ func main() {
 										logger.Printf("audio log: %v", err)
 									}
 								}
-								if pool != nil {
-									if wavPath != "" {
-										requestWavPath = wavPath
-									} else {
-										wav, _ := encodePCM16WAV(samples, vadSampleRate)
-										tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
-										if err == nil {
-											if _, err := tmp.Write(wav); err == nil {
-												_ = tmp.Close()
-												requestWavPath = tmp.Name()
-											} else {
-												_ = tmp.Close()
-												_ = os.Remove(tmp.Name())
-											}
+								// requestWavPath is the file used for on-demand transcription.
+								// Prefer the persisted audio log file; fall back to a temp file.
+								var requestWavPath string
+								if wavPath != "" {
+									requestWavPath = wavPath
+								} else if pool != nil {
+									wav, _ := encodePCM16WAV(samples, vadSampleRate)
+									tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
+									if err == nil {
+										if _, err := tmp.Write(wav); err == nil {
+											_ = tmp.Close()
+											requestWavPath = tmp.Name()
+										} else {
+											_ = tmp.Close()
+											_ = os.Remove(tmp.Name())
 										}
-									}
+								}
 								}
 								// Publish clip event immediately so the UI shows the recording.
 								hub.Publish(transcriptEvent{
