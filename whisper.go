@@ -20,6 +20,7 @@ type transcriptJob struct {
 	wavPath  string    // path to the already-saved 8kHz WAV file on disk
 	audioURL string    // relative URL served to browsers (e.g. /audio/...)
 	start    time.Time
+	manual   bool
 }
 
 // whisperConfig holds runtime configuration for the Whisper worker pool.
@@ -32,6 +33,7 @@ type whisperConfig struct {
 	MinClipMs    int     `json:"minClipMs"`
 	MaxClipMs    int     `json:"maxClipMs"`
 	TimeoutMs    int     `json:"timeoutMs"`
+	AutoTranscribeMinClipMs int `json:"autoTranscribeMinClipMs"`
 }
 
 func (c *whisperConfig) setDefaults() {
@@ -52,6 +54,9 @@ func (c *whisperConfig) setDefaults() {
 	}
 	if c.TimeoutMs <= 0 {
 		c.TimeoutMs = 60000
+	}
+	if c.AutoTranscribeMinClipMs < 0 {
+		c.AutoTranscribeMinClipMs = 0
 	}
 }
 

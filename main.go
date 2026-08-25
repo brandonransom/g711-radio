@@ -31,6 +31,10 @@ func nextClipID() string {
 	return fmt.Sprintf("clip-%d", globalClipID.Add(1))
 }
 
+func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
+	return cfg != nil && cfg.AutoTranscribeMinClipMs > 0 && durationMs >= cfg.AutoTranscribeMinClipMs
+}
+
 const (
 	frameSizeBytes = 160
 	sampleRateHz   = 8000
@@ -100,6 +104,15 @@ type station struct {
 	subscribers map[string]*subscriber
 }
 
+type clipRecord struct {
+	clipID   string
+	info     streamInfo
+	wavPath  string
+	audioURL string
+	start    time.Time
+	duration int
+}
+
 type subscriber struct {
 	pc    *webrtc.PeerConnection
 	track *webrtc.TrackLocalStaticSample
@@ -116,6 +129,55 @@ type webrtcServer struct {
 	streams      map[string]*station
 	regionGroups []regionGroup
 	hub          *transcriptHub
+	clips        map[string]clipRecord
+	clipMu       sync.RWMutex
+	whisperPool  *whisperPool
+}
+
+func (s *webrtcServer) storeClip(rec clipRecord) {
+	s.clipMu.Lock()
+	s.clips[rec.clipID] = rec
+	s.clipMu.Unlock()
+}
+
+func (s *webrtcServer) requestClipTranscription(clipID string) bool {
+	s.clipMu.RLock()
+	rec, ok := s.clips[clipID]
+	s.clipMu.RUnlock()
+	if !ok || s.whisperPool == nil {
+		return false
+	}
+	if rec.wavPath == "" {
+		return false
+	}
+	s.whisperPool.Submit(transcriptJob{
+		info:     rec.info,
+		clipID:   rec.clipID,
+		wavPath:  rec.wavPath,
+		audioURL: rec.audioURL,
+		start:    rec.start,
+		manual:   true,
+	})
+	return true
+}
+
+func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ClipID string `json:"clipId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClipID == "" {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if !s.requestClipTranscription(req.ClipID) {
+		http.Error(w, "clip not found or transcription unavailable", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func main() {
@@ -157,6 +219,8 @@ func main() {
 		streams:      make(map[string]*station, config.totalStreams),
 		regionGroups: make([]regionGroup, 0, len(config.streamGroups)),
 		hub:          hub,
+		clips:        make(map[string]clipRecord),
+		whisperPool:  pool,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -211,11 +275,31 @@ func main() {
 							func(samples []int16, start time.Time) {
 								clipID := nextClipID()
 								var wavPath, audioURL string
+								durationMs := len(samples) * 1000 / vadSampleRate
+								var requestWavPath string
 								if captureAudioLogDir != "" {
 									var err error
+
 									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
 									if err != nil {
 										logger.Printf("audio log: %v", err)
+									}
+								}
+								if pool != nil {
+									if wavPath != "" {
+										requestWavPath = wavPath
+									} else {
+										wav, _ := encodePCM16WAV(samples, vadSampleRate)
+										tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
+										if err == nil {
+											if _, err := tmp.Write(wav); err == nil {
+												_ = tmp.Close()
+												requestWavPath = tmp.Name()
+											} else {
+												_ = tmp.Close()
+												_ = os.Remove(tmp.Name())
+											}
+										}
 									}
 								}
 								// Publish clip event immediately so the UI shows the recording.
@@ -227,23 +311,19 @@ func main() {
 									RegionName: captureInfo.RegionName,
 									GroupName:  captureInfo.GroupName,
 									AudioURL:   audioURL,
-									DurationMs: len(samples) * 1000 / vadSampleRate,
+									DurationMs: durationMs,
 									Timestamp:  start,
 								})
-								if pool != nil {
-									if wavPath == "" {
-										// No audio log dir — write a temp file for whisper.
-										wav, _ := encodePCM16WAV(samples, vadSampleRate)
-										tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
-										if err == nil {
-											tmp.Write(wav)
-											tmp.Close()
-											wavPath = tmp.Name()
-										}
-									}
-									if wavPath != "" {
-										pool.Submit(transcriptJob{info: captureInfo, clipID: clipID, wavPath: wavPath, audioURL: audioURL, start: start})
-									}
+								server.storeClip(clipRecord{
+									clipID:   clipID,
+									info:     captureInfo,
+									wavPath:  requestWavPath,
+									audioURL: audioURL,
+									start:    start,
+									duration: durationMs,
+								})
+								if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
+									server.requestClipTranscription(clipID)
 								}
 							},
 						)
@@ -297,6 +377,7 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("/streams", server.handleStreams)
 	mux.HandleFunc("/offer", server.handleOffer)
+	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
 	mux.Handle("/transcripts", hub)
 	mux.HandleFunc("/transcripts/history", func(w http.ResponseWriter, r *http.Request) {
 		streamID := r.URL.Query().Get("streamId")
