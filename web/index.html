@@ -699,18 +699,78 @@
         }
       }
 
-      function startTranscription(streamId) {
-        stopTranscription();
+      let transcriptionStreamId = null;
 
+      function openSseConnection(streamId) {
+        if (sseWatchdogTimer) { clearInterval(sseWatchdogTimer); sseWatchdogTimer = null; }
+        if (transcriptSSE) { transcriptSSE.close(); transcriptSSE = null; }
+
+        transcriptSSE = new EventSource(`/transcripts?streamId=${encodeURIComponent(streamId)}`);
+
+        let sseLastActivity = Date.now();
+        sseWatchdogTimer = setInterval(() => {
+          if (transcriptSSE && Date.now() - sseLastActivity > 20000) {
+            transcriptSSE.close();
+            transcriptSSE = null;
+            clearInterval(sseWatchdogTimer);
+            sseWatchdogTimer = null;
+            // Reconnect SSE only — do NOT reload history or wipe the log.
+            if (transcriptionStreamId) openSseConnection(transcriptionStreamId);
+          }
+        }, 5000);
+
+        const resetSseWatchdog = () => { sseLastActivity = Date.now(); };
+
+        transcriptSSE.onmessage = (event) => {
+          resetSseWatchdog();
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === "clip") {
+              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs, true);
+            } else if (payload.type === "transcript") {
+              updateTranscript(payload.clipId, payload.text);
+            }
+          } catch (_) {}
+        };
+
+        transcriptSSE.addEventListener("message", resetSseWatchdog);
+
+        transcriptSSE.onerror = () => {
+          resetSseWatchdog();
+          const existing = transcriptLog.querySelector(".transcript-reconnecting");
+          if (!existing) {
+            const note = document.createElement("span");
+            note.className = "transcript-empty transcript-reconnecting";
+            note.textContent = "Reconnecting transcript feed...";
+            transcriptLog.appendChild(note);
+          }
+        };
+        transcriptSSE.onopen = () => {
+          resetSseWatchdog();
+          const note = transcriptLog.querySelector(".transcript-reconnecting");
+          if (note) note.remove();
+        };
+      }
+
+      function startTranscription(streamId) {
+        // If already showing this stream, just ensure SSE is alive — do not wipe the log.
+        if (transcriptionStreamId === streamId) {
+          if (!transcriptSSE || transcriptSSE.readyState === EventSource.CLOSED) {
+            openSseConnection(streamId);
+          }
+          return;
+        }
+
+        // New stream — full init.
+        stopTranscription();
+        transcriptionStreamId = streamId;
         transcriptPanel.hidden = false;
         transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
 
-        // Load the last 25 hours of history first, then stream live events.
         fetch(`/transcripts/history?streamId=${encodeURIComponent(streamId)}`)
           .then(r => r.json())
           .then(events => {
             transcriptLog.innerHTML = "";
-            // Merge clip + transcript events by clipId before rendering.
             const merged = new Map();
             events.forEach(ev => {
               const id = ev.clipId || `hist-${ev.timestamp}`;
@@ -736,65 +796,13 @@
             transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
           });
 
-        transcriptSSE = new EventSource(`/transcripts?streamId=${encodeURIComponent(streamId)}`);
-
-        // Watchdog: if no message arrives for 20s, the connection may have silently stalled
-        // (common on iOS when the app is backgrounded). Close and reopen.
-        let sseLastActivity = Date.now();
-        sseWatchdogTimer = setInterval(() => {
-          if (transcriptSSE && Date.now() - sseLastActivity > 20000) {
-            transcriptSSE.close();
-            transcriptSSE = null;
-            clearInterval(sseWatchdogTimer);
-            sseWatchdogTimer = null;
-            if (currentStreamId) startTranscription(currentStreamId);
-          }
-        }, 5000);
-
-        const resetSseWatchdog = () => { sseLastActivity = Date.now(); };
-
-        transcriptSSE.onmessage = (event) => {
-          resetSseWatchdog();
-          try {
-            const payload = JSON.parse(event.data);
-            if (payload.type === "clip") {
-              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs, true);
-            } else if (payload.type === "transcript") {
-              updateTranscript(payload.clipId, payload.text);
-            }
-          } catch (_) {}
-        };
-
-        // Server sends keep-alive comments (":\n\n") which trigger onerror=no, onmessage=no
-        // but DO trigger the generic event listener. Listen for any event to reset watchdog.
-        transcriptSSE.addEventListener("message", resetSseWatchdog);
-
-        transcriptSSE.onerror = () => {
-          resetSseWatchdog(); // onerror means the browser is handling reconnect — still alive
-          const existing = transcriptLog.querySelector(".transcript-reconnecting");
-          if (!existing) {
-            const note = document.createElement("span");
-            note.className = "transcript-empty transcript-reconnecting";
-            note.textContent = "Reconnecting transcript feed...";
-            transcriptLog.appendChild(note);
-          }
-        };
-        transcriptSSE.onopen = () => {
-          resetSseWatchdog();
-          const note = transcriptLog.querySelector(".transcript-reconnecting");
-          if (note) note.remove();
-        };
+        openSseConnection(streamId);
       }
 
       function stopTranscription() {
-        if (sseWatchdogTimer) {
-          clearInterval(sseWatchdogTimer);
-          sseWatchdogTimer = null;
-        }
-        if (transcriptSSE) {
-          transcriptSSE.close();
-          transcriptSSE = null;
-        }
+        if (sseWatchdogTimer) { clearInterval(sseWatchdogTimer); sseWatchdogTimer = null; }
+        if (transcriptSSE) { transcriptSSE.close(); transcriptSSE = null; }
+        transcriptionStreamId = null;
         transcriptPanel.hidden = true;
         transcriptLog.innerHTML = "";
       }
@@ -1323,9 +1331,9 @@
       // (covers app-switching on iOS/Android, screen lock, and bfcache restores).
       function handleVisibilityRestore() {
         if (document.visibilityState !== "visible") return;
-        // Reconnect SSE if it died while hidden.
-        if (transcriptSSE && transcriptSSE.readyState === EventSource.CLOSED && currentStreamId) {
-          startTranscription(currentStreamId);
+        // Reconnect SSE if it died while hidden — startTranscription is idempotent for same stream.
+        if (transcriptionStreamId && (!transcriptSSE || transcriptSSE.readyState === EventSource.CLOSED)) {
+          startTranscription(transcriptionStreamId);
         }
         // Reconnect WebRTC if we have a stream but the peer connection is gone/failed.
         if (sharePageStream && currentStreamId) {
