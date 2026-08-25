@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -169,36 +168,9 @@ func (p *whisperPool) worker(id int) {
 	}
 }
 
-// transcribe reads a saved 8kHz WAV, upsamples to 16kHz, and runs whisper-cli.
-func (p *whisperPool) transcribe(wavPath8k string) (string, error) {
-	// Read the saved 8kHz WAV and decode its PCM samples.
-	raw, err := os.ReadFile(wavPath8k)
-	if err != nil {
-		return "", fmt.Errorf("read wav: %w", err)
-	}
-	samples, err := decodePCM16WAV(raw)
-	if err != nil {
-		return "", fmt.Errorf("decode wav: %w", err)
-	}
-
-	// whisper.cpp expects 16kHz mono WAV. Upsample by duplicating each sample.
-	upsampled := upsample8to16kHz(samples)
-	wav16k, err := encodePCM16WAV(upsampled, 16000)
-	if err != nil {
-		return "", fmt.Errorf("encode 16kHz wav: %w", err)
-	}
-
-	tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
-	if err != nil {
-		return "", fmt.Errorf("create temp wav: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(wav16k); err != nil {
-		tmp.Close()
-		return "", fmt.Errorf("write temp wav: %w", err)
-	}
-	tmp.Close()
-
+// transcribe passes the saved WAV file directly to whisper-cli with --convert,
+// letting whisper handle any resampling. This avoids a fragile re-encode step.
+func (p *whisperPool) transcribe(wavPath string) (string, error) {
 	binary := p.cfg.BinaryPath
 	if binary == "" {
 		binary = "whisper-cli"
@@ -209,7 +181,8 @@ func (p *whisperPool) transcribe(wavPath8k string) (string, error) {
 		ctx,
 		binary,
 		"-m", p.cfg.ModelPath,
-		"-f", tmp.Name(),
+		"-f", wavPath,
+		"--convert",
 		"-nt",
 		"-np",
 		"--language", "en",
@@ -227,15 +200,6 @@ func (p *whisperPool) transcribe(wavPath8k string) (string, error) {
 	return cleanWhisperOutput(out.String()), nil
 }
 
-// upsample8to16kHz duplicates every sample to double the sample rate.
-func upsample8to16kHz(in []int16) []int16 {
-	out := make([]int16, len(in)*2)
-	for i, s := range in {
-		out[i*2] = s
-		out[i*2+1] = s
-	}
-	return out
-}
 
 // encodePCM16WAV encodes int16 samples into a standard WAV byte slice.
 func encodePCM16WAV(samples []int16, sampleRate int) ([]byte, error) {
@@ -273,24 +237,6 @@ func encodePCM16WAV(samples []int16, sampleRate int) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// decodePCM16WAV reads a PCM16 WAV byte slice and returns the raw int16 samples.
-// It skips the 44-byte standard WAV header.
-func decodePCM16WAV(data []byte) ([]int16, error) {
-	const headerSize = 44
-	if len(data) < headerSize {
-		return nil, fmt.Errorf("WAV too short (%d bytes)", len(data))
-	}
-	pcm := data[headerSize:]
-	if len(pcm)%2 != 0 {
-		pcm = pcm[:len(pcm)-1]
-	}
-	samples := make([]int16, len(pcm)/2)
-	for i := range samples {
-		samples[i] = int16(binary.LittleEndian.Uint16(pcm[i*2:]))
-	}
-	return samples, nil
 }
 
 // cleanWhisperOutput strips bracketed timestamps and whitespace from whisper output.
