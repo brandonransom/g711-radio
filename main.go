@@ -144,21 +144,13 @@ func (s *webrtcServer) storeClip(rec clipRecord) {
 func (s *webrtcServer) requestClipTranscription(clipID string) bool {
 	s.clipMu.RLock()
 	rec, ok := s.clips[clipID]
-	nClips := len(s.clips)
 	s.clipMu.RUnlock()
-	if !ok {
-		s.logger.Printf("transcribe: clip %q not found (registry has %d clips)", clipID, nClips)
-		return false
-	}
-	if s.whisperPool == nil {
-		s.logger.Printf("transcribe: clip %q found but whisperPool is nil", clipID)
+	if !ok || s.whisperPool == nil {
 		return false
 	}
 	if rec.wavPath == "" {
-		s.logger.Printf("transcribe: clip %q found but wavPath is empty", clipID)
 		return false
 	}
-	s.logger.Printf("transcribe: queuing clip %q wav=%s", clipID, rec.wavPath)
 	s.whisperPool.Submit(transcriptJob{
 		info:     rec.info,
 		clipID:   rec.clipID,
@@ -346,7 +338,6 @@ func main() {
 									DurationMs: durationMs,
 									Timestamp:  start,
 								})
-								logger.Printf("clip %s: storing wavPath=%q audioURL=%q", clipID, requestWavPath, audioURL)
 								server.storeClip(clipRecord{
 									clipID:   clipID,
 									info:     captureInfo,
