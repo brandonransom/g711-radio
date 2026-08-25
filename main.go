@@ -132,6 +132,7 @@ type webrtcServer struct {
 	clips        map[string]clipRecord
 	clipMu       sync.RWMutex
 	whisperPool  *whisperPool
+	audioLogDir  string
 }
 
 func (s *webrtcServer) storeClip(rec clipRecord) {
@@ -175,17 +176,39 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 	var req struct {
-		ClipID string `json:"clipId"`
+		ClipID   string `json:"clipId"`
+		AudioURL string `json:"audioUrl"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClipID == "" {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	if !s.requestClipTranscription(req.ClipID) {
-		http.Error(w, "clip not found or transcription unavailable", http.StatusNotFound)
+	// Try registry first (clips from current server run).
+	if s.requestClipTranscription(req.ClipID) {
+		w.WriteHeader(http.StatusAccepted)
 		return
 	}
-	w.WriteHeader(http.StatusAccepted)
+	// Fallback: derive wavPath from audioUrl for clips from before a server restart.
+	if req.AudioURL != "" && s.audioLogDir != "" && s.whisperPool != nil {
+		// audioUrl is /audio/<region>/<group>/<stream>/<file>.wav
+		// Strip the leading /audio/ prefix and convert to a local path.
+		rel := strings.TrimPrefix(req.AudioURL, "/audio/")
+		wavPath := filepath.Join(s.audioLogDir, filepath.FromSlash(rel))
+		if _, err := os.Stat(wavPath); err == nil {
+			s.logger.Printf("transcribe: clip %q not in registry, using audioUrl fallback wav=%s", req.ClipID, wavPath)
+			s.whisperPool.Submit(transcriptJob{
+				clipID:   req.ClipID,
+				wavPath:  wavPath,
+				audioURL: req.AudioURL,
+				start:    time.Now(),
+				manual:   true,
+			})
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		s.logger.Printf("transcribe: clip %q audioUrl fallback wav=%s not found on disk", req.ClipID, wavPath)
+	}
+	http.Error(w, "clip not found or transcription unavailable", http.StatusNotFound)
 }
 
 func main() {
@@ -229,6 +252,7 @@ func main() {
 		hub:          hub,
 		clips:        make(map[string]clipRecord),
 		whisperPool:  pool,
+		audioLogDir:  config.AudioLogDir,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
