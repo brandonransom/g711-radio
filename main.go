@@ -46,11 +46,13 @@ const (
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort     int                                  `json:"httpPort"`
-	Regions      map[string]map[string][]streamConfig `json:"regions"`
-	Whisper      *whisperConfig                       `json:"whisper"`
-	AudioLogDir  string                               `json:"audioLogDir"`
-	CertDir      string                               `json:"certDir"`
+	HTTPPort      int                                  `json:"httpPort"`
+	Regions       map[string]map[string][]streamConfig `json:"regions"`
+	Whisper       *whisperConfig                       `json:"whisper"`
+	AudioLogDir   string                               `json:"audioLogDir"`
+	CertDir       string                               `json:"certDir"`
+	CertFile      string                               `json:"certFile"`
+	KeyFile       string                               `json:"keyFile"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -467,9 +469,17 @@ func main() {
 	if config.CertDir != "" {
 		logger.Printf("cert directory: %s", config.CertDir)
 	}
-	logger.Printf("serving WebRTC client on http://localhost:%d", config.HTTPPort)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Fatal(err)
+
+	if config.CertFile != "" && config.KeyFile != "" {
+		logger.Printf("serving WebRTC client on https://localhost:%d", config.HTTPPort)
+		if err := httpServer.ListenAndServeTLS(config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal(err)
+		}
+	} else {
+		logger.Printf("serving WebRTC client on http://localhost:%d", config.HTTPPort)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal(err)
+		}
 	}
 }
 
