@@ -173,7 +173,7 @@ func (p *whisperPool) worker(id int) {
 func (p *whisperPool) transcribe(wavPath string) (string, error) {
 	binary := p.cfg.BinaryPath
 	if binary == "" {
-		binary = "whisper-cli"
+		binary = "WhisperCLI.exe"
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.cfg.TimeoutMs)*time.Millisecond)
 	defer cancel()

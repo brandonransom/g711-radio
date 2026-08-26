@@ -50,6 +50,7 @@ type appConfig struct {
 	Regions      map[string]map[string][]streamConfig `json:"regions"`
 	Whisper      *whisperConfig                       `json:"whisper"`
 	AudioLogDir  string                               `json:"audioLogDir"`
+	CertDir      string                               `json:"certDir"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -231,6 +232,9 @@ func main() {
 	var pool *whisperPool
 	if config.Whisper != nil && config.Whisper.ModelPath != "" {
 		config.Whisper.setDefaults()
+		if config.Whisper.BinaryPath == "" {
+			config.Whisper.BinaryPath = "WhisperCLI.exe"
+		}
 		pool = newWhisperPool(*config.Whisper, hub, logger)
 		pool.Start()
 		logger.Printf("whisper transcription enabled: model=%s workers=%d", config.Whisper.ModelPath, config.Whisper.Workers)
@@ -460,6 +464,9 @@ func main() {
 	}()
 
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
+	if config.CertDir != "" {
+		logger.Printf("cert directory: %s", config.CertDir)
+	}
 	logger.Printf("serving WebRTC client on http://localhost:%d", config.HTTPPort)
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal(err)
