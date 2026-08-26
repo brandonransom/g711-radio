@@ -1,17 +1,16 @@
 {
   "httpPort": 80,
   "audioLogDir": "audio",
-  "certDir": "C:\\Certs",
   "whisper": {
-    "binaryPath": "C:\\Certs\\WhisperCLI.exe",
-    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-tiny.en.bin",
+    "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
+    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-medium.bin",
     "workers": 3,
     "timeoutMs": 3600000,
-    "autoTranscribeMinClipMs": 0,
+    "autoTranscribeMinClipMs": 20000,
     "vadThreshold": 0.02,
-    "silenceMs": 600,
-    "minClipMs": 1500,
-    "maxClipMs": 10000
+    "silenceMs": 900,
+    "minClipMs": 1000,
+    "maxClipMs": 30000
   },
   "regions": {
     "Alaska": {
@@ -35,6 +34,11 @@
         { "streamName": "Admin Net", "udpPort": 51110 },
         { "streamName": "Forest Net", "udpPort": 51160 },
         { "streamName": "Service Net", "udpPort": 51170 }
+      ],
+      "San Bernardino NF": [
+        { "streamName": "Pine Cove South Ops", "udpPort": 51240 },
+        { "streamName": "Keller South Ops", "udpPort": 51250 },
+        { "streamName": "Admin ATB", "udpPort": 51200 }
       ],
       "Tahoe NF": [
         { "streamName": "Fire East Net", "udpPort": 51790 },
@@ -102,6 +106,14 @@
       "Willamette NF": [
         { "streamName": "Placeholder 3", "udpPort": 2277 },
         { "streamName": "Placeholder 4", "udpPort": 2278 }
+      ]
+      },
+    "ZZ Radio Test": {
+      "Radio Test": [
+        { "streamName": "Test Base", "udpPort": 9999 },
+        { "streamName": "KD Reflector", "udpPort": 9990 },
+        { "streamName": "JM Reflector", "udpPort": 9991 },
+        { "streamName": "Test Base via Unicast", "udpPort": 10001 }
       ]
     }
   }
