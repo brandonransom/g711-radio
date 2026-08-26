@@ -2,6 +2,8 @@
   "httpPort": 80,
   "audioLogDir": "audio",
   "certDir": "C:\\Certs",
+  "certFile": "C:\\Certs\\radiostreams_27.cert",
+  "keyFile": "C:\\Certs\\radiostreams_27.key",
   "whisper": {
     "binaryPath": "C:\\Certs\\WhisperCLI.exe",
     "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-tiny.en.bin",
