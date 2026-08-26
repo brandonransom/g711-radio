@@ -1,5 +1,5 @@
 {
-  "httpPort": 80,
+  "httpPort": 443,
   "audioLogDir": "audio",
 <<<<<<< HEAD
   "certDir": "C:\\Certs",
