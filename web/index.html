@@ -330,6 +330,26 @@
         border: 1px solid var(--line);
       }
 
+      .stream-notice {
+        font-size: 0.85rem;
+        padding: 6px 10px;
+        border-radius: 8px;
+        display: none;
+      }
+
+      .stream-notice.quiet {
+        display: block;
+        background: rgba(0,0,0,0.06);
+        color: var(--muted);
+      }
+
+      .stream-notice.conflict {
+        display: block;
+        background: rgba(200, 50, 0, 0.10);
+        color: #b03000;
+        font-weight: 600;
+      }
+
       .stream header {
         display: flex;
         align-items: baseline;
@@ -993,6 +1013,7 @@
       function buildStreamCard(stream) {
         const card = document.createElement("section");
         card.className = "stream";
+        card.dataset.streamId = stream.id;
 
         const header = document.createElement("header");
         const title = document.createElement("h3");
@@ -1001,6 +1022,14 @@
         meta.className = "meta";
         meta.textContent = `UDP ${stream.udpPort}`;
         header.append(title, meta);
+
+        const quietNotice = document.createElement("div");
+        quietNotice.className = "stream-notice quiet";
+        quietNotice.textContent = `Nothing heard from "${stream.streamName}" today`;
+
+        const conflictNotice = document.createElement("div");
+        conflictNotice.className = "stream-notice conflict";
+        conflictNotice.textContent = `⚠ Multiple audio sources detected on UDP ${stream.udpPort} — this will cause audio problems`;
 
         const button = document.createElement("button");
         if (connectingStreamId) {
@@ -1024,7 +1053,7 @@
           });
         }
 
-        card.append(header, button);
+        card.append(header, quietNotice, conflictNotice, button);
         return card;
       }
 
@@ -1327,6 +1356,24 @@
 
       disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
 
+      async function pollStreamStatus() {
+        try {
+          const resp = await fetch("/stream-status");
+          if (!resp.ok) return;
+          const statuses = await resp.json();
+          for (const s of statuses) {
+            const card = document.querySelector(`.stream[data-stream-id="${s.id}"]`);
+            if (!card) continue;
+            const quiet = card.querySelector(".stream-notice.quiet");
+            const conflict = card.querySelector(".stream-notice.conflict");
+            if (quiet) quiet.style.display = s.heardToday ? "none" : "block";
+            if (conflict) conflict.style.display = s.hasConflict ? "block" : "none";
+          }
+        } catch (_) { /* ignore network errors between polls */ }
+      }
+
+      setInterval(pollStreamStatus, 30_000);
+
       // Mobile persistence: reconnect WebRTC and SSE when the tab becomes visible again
       // (covers app-switching on iOS/Android, screen lock, and bfcache restores).
       function handleVisibilityRestore() {
@@ -1374,6 +1421,7 @@
       window.addEventListener("load", async () => {
         try {
           await loadStreams();
+          await pollStreamStatus();
         } catch (error) {
           streamGroups = [];
           streams = [];
