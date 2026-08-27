@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -10,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -115,9 +117,10 @@ type station struct {
 	subscribers map[string]*subscriber
 
 	// packet health tracking (protected by mu)
-	lastPacketAt time.Time
-	sourceAddr   string // first/expected source IP:port
-	conflictAddr string // non-empty when a second source IP is detected
+	lastPacketAt        time.Time
+	sourceAddr          string // first/expected source IP:port
+	conflictAddr        string // non-empty when a second source IP is detected
+	conflictClearCount  int    // packets from a single source seen after a conflict
 }
 
 type clipRecord struct {
@@ -220,7 +223,27 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 }
 
 func main() {
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	// Determine log file path (same directory as the executable).
+	logFilePath, logFileErr := resolveLogFilePath()
+
+	var logWriter io.Writer = os.Stdout
+	var logFile *os.File
+	if logFileErr == nil {
+		f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err == nil {
+			logFile = f
+			logWriter = io.MultiWriter(os.Stdout, f)
+		} else {
+			logFileErr = err
+		}
+	}
+	logger := log.New(logWriter, "", log.LstdFlags)
+	if logFileErr != nil {
+		logger.Printf("WARNING: could not open log file: %v", logFileErr)
+	} else {
+		logger.Printf("logging to file: %s", logFilePath)
+		defer logFile.Close()
+	}
 
 	config, err := loadConfig(configPath)
 	if err != nil {
@@ -461,8 +484,10 @@ func main() {
 		}
 	}()
 
-	// Background cleanup: delete audio WAV files and prune transcript logs older than 72h.
+	// Background cleanup: delete audio WAV files, prune transcript logs older than 72h,
+	// and prune the server log file (entries older than 90 days).
 	const retentionPeriod = 72 * time.Hour
+	const logRetentionPeriod = 90 * 24 * time.Hour
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
@@ -475,6 +500,9 @@ func main() {
 					pruneOldFiles(config.AudioLogDir, retentionPeriod, logger)
 				}
 				pruneTranscriptLogs(hub.logDir, retentionPeriod, logger)
+				if logFileErr == nil {
+					pruneLogFile(logFilePath, logRetentionPeriod, logger)
+				}
 			}
 		}
 	}()
@@ -795,12 +823,33 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 		} else if addrStr != s.sourceAddr && s.conflictAddr != addrStr {
 			// New conflicting source detected.
 			s.conflictAddr = addrStr
+			s.conflictClearCount = 0
 			s.mu.Unlock()
 			s.logger.Printf(
 				"WARNING: %s (UDP %d) is receiving packets from multiple sources: expected %s, also receiving from %s — this will cause audio problems",
 				s.info.StreamName, s.info.UDPPort, s.sourceAddr, addrStr,
 			)
 			s.mu.Lock()
+		} else if s.conflictAddr != "" {
+			// Conflict is active — check if it has naturally resolved (only one source for 50 packets).
+			if addrStr == s.sourceAddr || addrStr == s.conflictAddr {
+				if addrStr == s.sourceAddr {
+					s.conflictClearCount++
+				} else {
+					s.conflictClearCount = 0
+				}
+				if s.conflictClearCount >= 50 {
+					cleared := s.conflictAddr
+					s.conflictAddr = ""
+					s.conflictClearCount = 0
+					s.mu.Unlock()
+					s.logger.Printf(
+						"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
+						s.info.StreamName, s.info.UDPPort, s.sourceAddr, cleared,
+					)
+					s.mu.Lock()
+				}
+			}
 		}
 		s.mu.Unlock()
 
@@ -925,6 +974,51 @@ func pruneTranscriptLogs(dir string, maxAge time.Duration, logger *log.Logger) {
 		if err := os.WriteFile(path, kept, 0644); err != nil {
 			logger.Printf("pruning transcript log %s: %v", path, err)
 		}
+	}
+}
+
+// resolveLogFilePath returns the path to the server log file (g711-radio.log)
+// in the same directory as the running executable.
+func resolveLogFilePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(exe)
+	return filepath.Join(dir, "g711-radio.log"), nil
+}
+
+// pruneLogFile removes lines from the plain-text log file that are older than maxAge.
+// Log lines are expected to start with the standard log prefix: "YYYY/MM/DD HH:MM:SS ".
+func pruneLogFile(path string, maxAge time.Duration, logger *log.Logger) {
+	f, err := os.OpenFile(path, os.O_RDWR, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	cutoff := time.Now().Add(-maxAge)
+	var kept []byte
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		// Standard log prefix is "2006/01/02 15:04:05 " (20 chars).
+		if len(line) >= 20 {
+			t, err := time.ParseInLocation("2006/01/02 15:04:05", string(line[:19]), time.Local)
+			if err == nil && t.Before(cutoff) {
+				continue // drop old line
+			}
+		}
+		kept = append(kept, line...)
+		kept = append(kept, '\n')
+	}
+
+	if err := f.Truncate(0); err != nil {
+		logger.Printf("pruning log file %s (truncate): %v", path, err)
+		return
+	}
+	if _, err := f.WriteAt(kept, 0); err != nil {
+		logger.Printf("pruning log file %s (write): %v", path, err)
 	}
 }
 
