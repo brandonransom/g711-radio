@@ -119,9 +119,9 @@ type station struct {
 
 	// packet health tracking (protected by mu)
 	lastPacketAt        time.Time
-	sourceAddr          string // first/expected source IP:port
+	sourceAddr          string // first/expected source IP (no port)
 	conflictAddr        string // non-empty when a second source IP is detected
-	conflictClearCount  int    // packets from a single source seen after a conflict
+	conflictClearCount  int    // consecutive packets from a single source seen after a conflict
 }
 
 type clipRecord struct {
@@ -827,41 +827,51 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 		}
 
 		addrStr := remoteAddr.String()
+		// Extract just the IP for conflict detection — port changes on the same
+		// encoder are normal and should not be treated as a conflict.
+		sourceIP, _, ipErr := net.SplitHostPort(addrStr)
+		if ipErr != nil {
+			sourceIP = addrStr // fallback: use full string if parsing fails
+		}
 		now := time.Now()
 
 		s.mu.Lock()
 		s.lastPacketAt = now
 		if packetsSeen == 0 {
-			s.sourceAddr = addrStr
-		} else if addrStr != s.sourceAddr && s.conflictAddr != addrStr {
-			// New conflicting source detected.
-			s.conflictAddr = addrStr
+			s.sourceAddr = sourceIP
+		} else if sourceIP != s.sourceAddr && s.conflictAddr != sourceIP {
+			// New conflicting source IP detected.
+			s.conflictAddr = sourceIP
 			s.conflictClearCount = 0
 			s.mu.Unlock()
 			s.logger.Printf(
 				"WARNING: %s (UDP %d) is receiving packets from multiple sources: expected %s, also receiving from %s — this will cause audio problems",
-				s.info.StreamName, s.info.UDPPort, s.sourceAddr, addrStr,
+				s.info.StreamName, s.info.UDPPort, s.sourceAddr, sourceIP,
 			)
 			s.mu.Lock()
 		} else if s.conflictAddr != "" {
 			// Conflict is active — check if it has naturally resolved (only one source for 50 packets).
-			if addrStr == s.sourceAddr || addrStr == s.conflictAddr {
-				if addrStr == s.sourceAddr {
-					s.conflictClearCount++
-				} else {
-					s.conflictClearCount = 0
-				}
+			if sourceIP == s.sourceAddr {
+				s.conflictClearCount++
+			} else if sourceIP == s.conflictAddr {
+				// The conflicting source is now the dominant one — reset primary to it.
+				s.conflictClearCount++
 				if s.conflictClearCount >= 50 {
-					cleared := s.conflictAddr
-					s.conflictAddr = ""
-					s.conflictClearCount = 0
-					s.mu.Unlock()
-					s.logger.Printf(
-						"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
-						s.info.StreamName, s.info.UDPPort, s.sourceAddr, cleared,
-					)
-					s.mu.Lock()
+					s.sourceAddr = s.conflictAddr
 				}
+			} else {
+				s.conflictClearCount = 0
+			}
+			if s.conflictClearCount >= 50 {
+				cleared := s.conflictAddr
+				s.conflictAddr = ""
+				s.conflictClearCount = 0
+				s.mu.Unlock()
+				s.logger.Printf(
+					"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
+					s.info.StreamName, s.info.UDPPort, s.sourceAddr, cleared,
+				)
+				s.mu.Lock()
 			}
 		}
 		s.mu.Unlock()
