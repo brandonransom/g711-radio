@@ -850,28 +850,25 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			)
 			s.mu.Lock()
 		} else if s.conflictAddr != "" {
-			// Conflict is active — check if it has naturally resolved (only one source for 50 packets).
-			if sourceIP == s.sourceAddr {
+			// Conflict is active. Only count consecutive packets from the primary source.
+			// Any packet from the conflicting source resets the counter.
+			// Require 500 consecutive primary-only packets (~10s at 50pps) before clearing.
+			if sourceIP == s.conflictAddr {
+				// Still seeing the conflicting source — reset the clear counter.
+				s.conflictClearCount = 0
+			} else if sourceIP == s.sourceAddr {
 				s.conflictClearCount++
-			} else if sourceIP == s.conflictAddr {
-				// The conflicting source is now the dominant one — reset primary to it.
-				s.conflictClearCount++
-				if s.conflictClearCount >= 50 {
-					s.sourceAddr = s.conflictAddr
+				if s.conflictClearCount >= 500 {
+					cleared := s.conflictAddr
+					s.conflictAddr = ""
+					s.conflictClearCount = 0
+					s.mu.Unlock()
+					s.logger.Printf(
+						"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
+						s.info.StreamName, s.info.UDPPort, s.sourceAddr, cleared,
+					)
+					s.mu.Lock()
 				}
-			} else {
-				s.conflictClearCount = 0
-			}
-			if s.conflictClearCount >= 50 {
-				cleared := s.conflictAddr
-				s.conflictAddr = ""
-				s.conflictClearCount = 0
-				s.mu.Unlock()
-				s.logger.Printf(
-					"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
-					s.info.StreamName, s.info.UDPPort, s.sourceAddr, cleared,
-				)
-				s.mu.Lock()
 			}
 		}
 		s.mu.Unlock()
