@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"encoding/json"
 	"encoding/pem"
@@ -515,6 +516,12 @@ func main() {
 		}
 		if tlsCert.PrivateKey == nil {
 			logger.Fatalf("no certificate in PFX matches the private key")
+		}
+		logger.Printf("TLS chain: %d cert(s) loaded", len(tlsCert.Certificate))
+		for idx, der := range tlsCert.Certificate {
+			if c, e := x509.ParseCertificate(der); e == nil {
+				logger.Printf("  [%d] Subject=%s  Issuer=%s  IsCA=%v", idx, c.Subject.CommonName, c.Issuer.CommonName, c.IsCA)
+			}
 		}
 		httpServer.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{tlsCert},
