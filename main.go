@@ -63,6 +63,7 @@ type appConfig struct {
 	KeyFile          string                               `json:"keyFile"`
 	PFXFile          string                               `json:"pfxFile"`
 	PFXPassword      string                               `json:"pfxPassword"`
+	PFXKeyPassword   string                               `json:"pfxKeyPassword"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -545,7 +546,7 @@ func main() {
 	}
 
 	if config.PFXFile != "" {
-		tlsCert, tlsErr := buildTLSCertFromPFX(config.PFXFile, config.PFXPassword, logger)
+		tlsCert, tlsErr := buildTLSCertFromPFX(config.PFXFile, config.PFXPassword, config.PFXKeyPassword, logger)
 		if tlsErr != nil {
 			startHTTP(tlsErr.Error())
 		} else {
@@ -573,15 +574,23 @@ func main() {
 	}
 }
 
-func buildTLSCertFromPFX(pfxFile, password string, logger *log.Logger) (tls.Certificate, error) {
+func buildTLSCertFromPFX(pfxFile, pfxPassword, keyPassword string, logger *log.Logger) (tls.Certificate, error) {
 	pfxData, err := os.ReadFile(pfxFile)
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("read PFX: %w", err)
 	}
-	blocks, err := pkcs12.ToPEM(pfxData, password)
+	
+	// Try to decode with the PFX password first. If that fails and a separate key password
+	// is provided, try again with the key password (some CAs use separate passwords).
+	blocks, err := pkcs12.ToPEM(pfxData, pfxPassword)
+	if err != nil && keyPassword != "" && keyPassword != pfxPassword {
+		logger.Printf("TLS: initial PFX decode failed, retrying with keyPassword")
+		blocks, err = pkcs12.ToPEM(pfxData, keyPassword)
+	}
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("decode PFX: %w", err)
 	}
+	
 	var keyPEM []byte
 	var certPEMs [][]byte
 	for _, b := range blocks {
@@ -667,15 +676,19 @@ func loadConfig(path string) (appConfig, error) {
 	if sf, err := os.Open(secretsPath); err == nil {
 		defer sf.Close()
 		var secrets struct {
-			PFXPassword string `json:"pfxPassword"`
-			CertFile    string `json:"certFile"`
-			KeyFile     string `json:"keyFile"`
+			PFXPassword    string `json:"pfxPassword"`
+			PFXKeyPassword string `json:"pfxKeyPassword"`
+			CertFile       string `json:"certFile"`
+			KeyFile        string `json:"keyFile"`
 		}
 		if err := json.NewDecoder(sf).Decode(&secrets); err != nil {
 			return appConfig{}, fmt.Errorf("decode %s: %w", secretsPath, err)
 		}
 		if secrets.PFXPassword != "" {
 			config.PFXPassword = secrets.PFXPassword
+		}
+		if secrets.PFXKeyPassword != "" {
+			config.PFXKeyPassword = secrets.PFXKeyPassword
 		}
 		if secrets.CertFile != "" {
 			config.CertFile = secrets.CertFile
