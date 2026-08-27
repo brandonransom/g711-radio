@@ -991,13 +991,13 @@ func pruneTranscriptLogs(dir string, maxAge time.Duration, logger *log.Logger) {
 }
 
 // resolveLogFilePath returns the path to the server log file (g711-radio.log)
-// in the same directory as the running executable.
+// in the current working directory, so it works consistently with both
+// "go run ." and running the compiled binary.
 func resolveLogFilePath() (string, error) {
-	exe, err := os.Executable()
+	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Dir(exe)
 	return filepath.Join(dir, "g711-radio.log"), nil
 }
 
