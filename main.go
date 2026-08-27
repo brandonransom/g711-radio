@@ -476,26 +476,14 @@ func main() {
 		if err != nil {
 			logger.Fatalf("read PFX: %v", err)
 		}
-		blocks, err := pkcs12.ToPEM(pfxData, config.PFXPassword)
+		privateKey, leaf, err := pkcs12.Decode(pfxData, config.PFXPassword)
 		if err != nil {
 			logger.Fatalf("decode PFX: %v", err)
 		}
-		var certPEM, keyPEM []byte
-		for _, b := range blocks {
-			switch b.Type {
-			case "CERTIFICATE":
-				certPEM = append(certPEM, []byte("-----BEGIN CERTIFICATE-----\n")...)
-				certPEM = append(certPEM, []byte(fmt.Sprintf("%s\n", encodeBase64Lines(b.Bytes)))...)
-				certPEM = append(certPEM, []byte("-----END CERTIFICATE-----\n")...)
-			case "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY":
-				keyPEM = append(keyPEM, []byte(fmt.Sprintf("-----BEGIN %s-----\n", b.Type))...)
-				keyPEM = append(keyPEM, []byte(fmt.Sprintf("%s\n", encodeBase64Lines(b.Bytes)))...)
-				keyPEM = append(keyPEM, []byte(fmt.Sprintf("-----END %s-----\n", b.Type))...)
-			}
-		}
-		tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
-		if err != nil {
-			logger.Fatalf("build TLS cert from PFX: %v", err)
+		tlsCert := tls.Certificate{
+			Certificate: [][]byte{leaf.Raw},
+			PrivateKey:  privateKey,
+			Leaf:        leaf,
 		}
 		httpServer.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{tlsCert},
@@ -516,52 +504,6 @@ func main() {
 			logger.Fatal(err)
 		}
 	}
-}
-
-func encodeBase64Lines(data []byte) string {
-	const lineLen = 64
-	encoded := make([]byte, 0, len(data)*2)
-	b64 := make([]byte, ((len(data)+2)/3)*4)
-	n := encodeBase64(b64, data)
-	b64 = b64[:n]
-	for len(b64) > 0 {
-		end := lineLen
-		if end > len(b64) {
-			end = len(b64)
-		}
-		encoded = append(encoded, b64[:end]...)
-		encoded = append(encoded, '\n')
-		b64 = b64[end:]
-	}
-	return string(encoded)
-}
-
-func encodeBase64(dst, src []byte) int {
-	const enc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-	n := 0
-	for len(src) >= 3 {
-		dst[n] = enc[src[0]>>2]
-		dst[n+1] = enc[(src[0]&0x3)<<4|src[1]>>4]
-		dst[n+2] = enc[(src[1]&0xf)<<2|src[2]>>6]
-		dst[n+3] = enc[src[2]&0x3f]
-		n += 4
-		src = src[3:]
-	}
-	switch len(src) {
-	case 1:
-		dst[n] = enc[src[0]>>2]
-		dst[n+1] = enc[(src[0]&0x3)<<4]
-		dst[n+2] = '='
-		dst[n+3] = '='
-		n += 4
-	case 2:
-		dst[n] = enc[src[0]>>2]
-		dst[n+1] = enc[(src[0]&0x3)<<4|src[1]>>4]
-		dst[n+2] = enc[(src[1]&0xf)<<2]
-		dst[n+3] = '='
-		n += 4
-	}
-	return n
 }
 
 func loadConfig(path string) (appConfig, error) {
