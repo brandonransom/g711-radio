@@ -1141,9 +1141,16 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 		last := st.lastPacketAt
 		conflict := st.conflictAddr
 		st.mu.RUnlock()
+
+		// Consider a stream "heard today" if live packets arrived in the last 24h,
+		// OR if the transcript/recording log has a clip event in that window
+		// (covers cases where the server was restarted and lastPacketAt reset).
+		heardToday := (!last.IsZero() && last.After(cutoff)) ||
+			s.hub.HasRecentActivity(id, 24*time.Hour)
+
 		statuses = append(statuses, streamStatus{
 			ID:           id,
-			HeardToday:   !last.IsZero() && last.After(cutoff),
+			HeardToday:   heardToday,
 			HasConflict:  conflict != "",
 			ConflictAddr: conflict,
 		})
