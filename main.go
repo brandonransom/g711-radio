@@ -44,7 +44,8 @@ const (
 	frameSizeBytes = 160
 	sampleRateHz   = 8000
 	skipBytes      = 12
-	configPath     = "config.local.json"
+	configPath     = "config.json"
+	secretsPath    = "config.secrets.json"
 )
 
 //go:embed web/*
@@ -626,6 +627,28 @@ func loadConfig(path string) (appConfig, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&config); err != nil {
 		return appConfig{}, fmt.Errorf("decode %s: %w", path, err)
+	}
+
+	// Overlay config.secrets.json if present (passwords and other sensitive values).
+	if sf, err := os.Open(secretsPath); err == nil {
+		defer sf.Close()
+		var secrets struct {
+			PFXPassword string `json:"pfxPassword"`
+			CertFile    string `json:"certFile"`
+			KeyFile     string `json:"keyFile"`
+		}
+		if err := json.NewDecoder(sf).Decode(&secrets); err != nil {
+			return appConfig{}, fmt.Errorf("decode %s: %w", secretsPath, err)
+		}
+		if secrets.PFXPassword != "" {
+			config.PFXPassword = secrets.PFXPassword
+		}
+		if secrets.CertFile != "" {
+			config.CertFile = secrets.CertFile
+		}
+		if secrets.KeyFile != "" {
+			config.KeyFile = secrets.KeyFile
+		}
 	}
 
 	if config.HTTPPort < 1 || config.HTTPPort > 65535 {
