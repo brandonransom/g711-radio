@@ -113,6 +113,11 @@ type station struct {
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
 	subscribers map[string]*subscriber
+
+	// packet health tracking (protected by mu)
+	lastPacketAt time.Time
+	sourceAddr   string // first/expected source IP:port
+	conflictAddr string // non-empty when a second source IP is detected
 }
 
 type clipRecord struct {
@@ -414,6 +419,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("/streams", server.handleStreams)
+	mux.HandleFunc("/stream-status", server.handleStreamStatus)
 	mux.HandleFunc("/offer", server.handleOffer)
 	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
 	mux.Handle("/transcripts", hub)
@@ -779,6 +785,25 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			continue
 		}
 
+		addrStr := remoteAddr.String()
+		now := time.Now()
+
+		s.mu.Lock()
+		s.lastPacketAt = now
+		if packetsSeen == 0 {
+			s.sourceAddr = addrStr
+		} else if addrStr != s.sourceAddr && s.conflictAddr != addrStr {
+			// New conflicting source detected.
+			s.conflictAddr = addrStr
+			s.mu.Unlock()
+			s.logger.Printf(
+				"WARNING: %s (UDP %d) is receiving packets from multiple sources: expected %s, also receiving from %s — this will cause audio problems",
+				s.info.StreamName, s.info.UDPPort, s.sourceAddr, addrStr,
+			)
+			s.mu.Lock()
+		}
+		s.mu.Unlock()
+
 		if packetsSeen == 0 {
 			s.logger.Printf(
 				"%s: first UDP packet from %s, packet_bytes=%d, audio_bytes=%d, skip_bytes=%d",
@@ -980,6 +1005,38 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(s.regionGroups); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}
+}
+
+type streamStatus struct {
+	ID           string `json:"id"`
+	HeardToday   bool   `json:"heardToday"`
+	HasConflict  bool   `json:"hasConflict"`
+	ConflictAddr string `json:"conflictAddr,omitempty"`
+}
+
+func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	statuses := make([]streamStatus, 0, len(s.streams))
+	for id, st := range s.streams {
+		st.mu.RLock()
+		last := st.lastPacketAt
+		conflict := st.conflictAddr
+		st.mu.RUnlock()
+		statuses = append(statuses, streamStatus{
+			ID:           id,
+			HeardToday:   !last.IsZero() && last.After(cutoff),
+			HasConflict:  conflict != "",
+			ConflictAddr: conflict,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(statuses)
 }
 
 func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
