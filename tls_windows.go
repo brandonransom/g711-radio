@@ -34,6 +34,8 @@ const (
 	acquireSilentFlag    = 0x00000040
 	ncryptPadPKCS1Flag   = 0x00000002
 	ncryptPadPSSFlag     = 0x00000008
+
+	certStoreReadonlyFlag = 0x00008000
 )
 
 // winKey is a crypto.Signer backed by a Windows CNG key handle.
@@ -153,7 +155,7 @@ func buildTLSConfig(certSubject string, logger *log.Logger) (*tls.Config, error)
 		windows.CERT_STORE_PROV_SYSTEM,
 		0,
 		0,
-		windows.CERT_SYSTEM_STORE_LOCAL_MACHINE,
+		windows.CERT_SYSTEM_STORE_LOCAL_MACHINE|certStoreReadonlyFlag,
 		uintptr(unsafe.Pointer(storeName)),
 	)
 	if err != nil {
@@ -227,7 +229,7 @@ func acquirePrivateKey(ctx *windows.CertContext, cert *x509.Certificate) (crypto
 
 	r, _, err := procCryptAcquireCertPrivateKey.Call(
 		uintptr(unsafe.Pointer(ctx)),
-		uintptr(acquireOnlyNCryptKey|acquireSilentFlag),
+		uintptr(acquireOnlyNCryptKey),
 		0,
 		uintptr(unsafe.Pointer(&keyHandle)),
 		uintptr(unsafe.Pointer(&keySpec)),
