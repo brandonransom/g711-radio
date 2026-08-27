@@ -46,13 +46,11 @@ const (
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort      int                                  `json:"httpPort"`
-	Regions       map[string]map[string][]streamConfig `json:"regions"`
-	Whisper       *whisperConfig                       `json:"whisper"`
-	AudioLogDir   string                               `json:"audioLogDir"`
-	CertDir       string                               `json:"certDir"`
-	CertFile      string                               `json:"certFile"`
-	KeyFile       string                               `json:"keyFile"`
+	HTTPPort    int                                  `json:"httpPort"`
+	Regions     map[string]map[string][]streamConfig `json:"regions"`
+	Whisper     *whisperConfig                       `json:"whisper"`
+	AudioLogDir string                               `json:"audioLogDir"`
+	CertSubject string                               `json:"certSubject"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -466,13 +464,17 @@ func main() {
 	}()
 
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
-	if config.CertDir != "" {
-		logger.Printf("cert directory: %s", config.CertDir)
+
+	tlsCfg, err := buildTLSConfig(config.CertSubject, logger)
+	if err != nil {
+		logger.Printf("TLS setup failed (%v) — falling back to HTTP", err)
+		tlsCfg = nil
 	}
 
-	if config.CertFile != "" && config.KeyFile != "" {
+	if tlsCfg != nil {
+		httpServer.TLSConfig = tlsCfg
 		logger.Printf("serving WebRTC client on https://localhost:%d", config.HTTPPort)
-		if err := httpServer.ListenAndServeTLS(config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Fatal(err)
 		}
 	} else {
