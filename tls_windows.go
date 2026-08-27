@@ -45,6 +45,18 @@ type winKey struct {
 	callerFree bool
 }
 
+// bcryptPKCS1PaddingInfo mirrors BCRYPT_PKCS1_PADDING_INFO from bcrypt.h.
+// Must match the C struct layout exactly — a single pointer field.
+type bcryptPKCS1PaddingInfo struct {
+	pszAlgID *uint16
+}
+
+// bcryptPSSPaddingInfo mirrors BCRYPT_PSS_PADDING_INFO from bcrypt.h.
+type bcryptPSSPaddingInfo struct {
+	pszAlgID *uint16
+	cbSalt   uint32
+}
+
 func (k *winKey) Public() crypto.PublicKey { return k.pub }
 
 func (k *winKey) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
@@ -63,14 +75,11 @@ func (k *winKey) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byt
 			if saltLen == rsa.PSSSaltLengthAuto || saltLen == 0 {
 				saltLen = hash.Size()
 			}
-			pi := struct {
-				pszAlgID *uint16
-				cbSalt   uint32
-			}{pszAlgID: algID, cbSalt: uint32(saltLen)}
+			pi := bcryptPSSPaddingInfo{pszAlgID: algID, cbSalt: uint32(saltLen)}
 			flags = ncryptPadPSSFlag
 			paddingInfo = unsafe.Pointer(&pi)
 		} else {
-			pi := struct{ pszAlgID *uint16 }{pszAlgID: algID}
+			pi := bcryptPKCS1PaddingInfo{pszAlgID: algID}
 			flags = ncryptPadPKCS1Flag
 			paddingInfo = unsafe.Pointer(&pi)
 		}
