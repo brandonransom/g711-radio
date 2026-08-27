@@ -1,3 +1,4 @@
 config.local.json
+config.secrets.json
 g711-radio
 *.pcapng
