@@ -537,6 +537,7 @@
 
       <div id="statusPanel" class="status" hidden>
         <strong>Connection</strong>
+        <div id="statusNotice" class="stream-notice" style="margin-bottom:6px" hidden></div>
         <div id="statusText">Idle.</div>
         <div class="row">
           <button id="disconnectBtn" class="secondary" type="button" disabled>Disconnect</button>
@@ -579,6 +580,7 @@
       const launchRoot = document.getElementById("launchRoot");
       const statusPanel = document.getElementById("statusPanel");
       const statusText = document.getElementById("statusText");
+      const statusNotice = document.getElementById("statusNotice");
       const player = document.getElementById("player");
       const streamsRoot = document.getElementById("streams");
       const transcriptPanel = document.getElementById("transcriptPanel");
@@ -1198,6 +1200,9 @@
         }
         connectingStreamId = null;
         disconnectBtn.disabled = true;
+        statusNotice.hidden = true;
+        statusNotice.textContent = "";
+        statusNotice.className = "stream-notice";
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout);
           reconnectTimeout = null;
@@ -1362,12 +1367,31 @@
           if (!resp.ok) return;
           const statuses = await resp.json();
           for (const s of statuses) {
+            // Update stream cards on the main listing page.
             const card = document.querySelector(`.stream[data-stream-id="${s.id}"]`);
-            if (!card) continue;
-            const quiet = card.querySelector(".stream-notice.quiet");
-            const conflict = card.querySelector(".stream-notice.conflict");
-            if (quiet) quiet.style.display = s.heardToday ? "none" : "block";
-            if (conflict) conflict.style.display = s.hasConflict ? "block" : "none";
+            if (card) {
+              const quiet = card.querySelector(".stream-notice.quiet");
+              const conflict = card.querySelector(".stream-notice.conflict");
+              if (quiet) quiet.style.display = s.heardToday ? "none" : "block";
+              if (conflict) conflict.style.display = s.hasConflict ? "block" : "none";
+            }
+
+            // Update the Connection box on the dedicated stream page.
+            if (sharePageStream && s.id === sharePageStream.id) {
+              if (s.hasConflict) {
+                statusNotice.className = "stream-notice conflict";
+                statusNotice.textContent = `⚠ Multiple audio sources detected on UDP ${sharePageStream.udpPort} — this will cause audio problems`;
+                statusNotice.hidden = false;
+              } else if (!s.heardToday) {
+                statusNotice.className = "stream-notice quiet";
+                statusNotice.textContent = `Nothing heard from "${sharePageStream.streamName}" today`;
+                statusNotice.hidden = false;
+              } else {
+                statusNotice.hidden = true;
+                statusNotice.textContent = "";
+                statusNotice.className = "stream-notice";
+              }
+            }
           }
         } catch (_) { /* ignore network errors between polls */ }
       }
