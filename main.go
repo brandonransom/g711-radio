@@ -51,14 +51,15 @@ const (
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort    int                                  `json:"httpPort"`
-	Regions     map[string]map[string][]streamConfig `json:"regions"`
-	Whisper     *whisperConfig                       `json:"whisper"`
-	AudioLogDir string                               `json:"audioLogDir"`
-	CertFile    string                               `json:"certFile"`
-	KeyFile     string                               `json:"keyFile"`
-	PFXFile     string                               `json:"pfxFile"`
-	PFXPassword string                               `json:"pfxPassword"`
+	HTTPPort         int                                  `json:"httpPort"`
+	HTTPRedirectPort int                                  `json:"httpRedirectPort"`
+	Regions          map[string]map[string][]streamConfig `json:"regions"`
+	Whisper          *whisperConfig                       `json:"whisper"`
+	AudioLogDir      string                               `json:"audioLogDir"`
+	CertFile         string                               `json:"certFile"`
+	KeyFile          string                               `json:"keyFile"`
+	PFXFile          string                               `json:"pfxFile"`
+	PFXPassword      string                               `json:"pfxPassword"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -474,94 +475,71 @@ func main() {
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
 
 	if config.PFXFile != "" {
-		pfxData, err := os.ReadFile(config.PFXFile)
-		if err != nil {
-			logger.Fatalf("read PFX: %v", err)
-		}
-		blocks, err := pkcs12.ToPEM(pfxData, config.PFXPassword)
-		if err != nil {
-			logger.Fatalf("decode PFX: %v", err)
-		}
-		// Separate key and certs; use the first cert that pairs with the key.
-		var keyPEM []byte
-		var certPEMs [][]byte
-		for _, b := range blocks {
-			switch b.Type {
-			case "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY":
-				keyPEM = pem.EncodeToMemory(b)
-			case "CERTIFICATE":
-				certPEMs = append(certPEMs, pem.EncodeToMemory(b))
+		tlsCert, tlsErr := buildTLSCertFromPFX(config.PFXFile, config.PFXPassword, logger)
+		if tlsErr != nil {
+			logger.Printf("TLS setup failed (%v) — falling back to HTTP", tlsErr)
+			addr := fmt.Sprintf(":%d", config.HTTPPort)
+			if config.HTTPRedirectPort != 0 {
+				addr = fmt.Sprintf(":%d", config.HTTPRedirectPort)
 			}
-		}
-		if keyPEM == nil {
-			logger.Fatalf("no private key found in PFX")
-		}
-		// Parse all certs into DER form.
-		var allCertDER [][]byte
-		for _, pemBytes := range certPEMs {
-			p, _ := pem.Decode(pemBytes)
-			if p != nil {
-				allCertDER = append(allCertDER, p.Bytes)
+			httpServer.Addr = addr
+			logger.Printf("serving WebRTC client on http://localhost%s", addr)
+			if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Fatal(err)
 			}
-		}
-		// Find the leaf: the cert whose key matches keyPEM.
-		var tlsCert tls.Certificate
-		var leafIdx int
-		for i, certBlock := range certPEMs {
-			c, e := tls.X509KeyPair(certBlock, keyPEM)
-			if e == nil {
-				tlsCert = c
-				leafIdx = i
-				break
+		} else {
+			httpServer.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{tlsCert},
+				MinVersion:   tls.VersionTLS12,
 			}
-		}
-		if tlsCert.PrivateKey == nil {
-			logger.Fatalf("no certificate in PFX matches the private key")
-		}
-		// Build chain in order: leaf → issuing CA → ... → root.
-		// Walk up by matching Subject→Issuer until we loop or run out.
-		leaf, _ := x509.ParseCertificate(allCertDER[leafIdx])
-		bySubject := make(map[string][]byte)
-		for i, der := range allCertDER {
-			if i == leafIdx {
-				continue
+			if config.HTTPRedirectPort != 0 {
+				httpsPort := config.HTTPPort
+				go func() {
+					redirectMux := http.NewServeMux()
+					redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+						target := fmt.Sprintf("https://%s:%d%s", r.Host, httpsPort, r.RequestURI)
+						http.Redirect(w, r, target, http.StatusMovedPermanently)
+					})
+					redirectSrv := &http.Server{
+						Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
+						Handler: redirectMux,
+					}
+					logger.Printf("HTTP→HTTPS redirect on http://localhost:%d", config.HTTPRedirectPort)
+					if err := redirectSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+						logger.Printf("redirect server error: %v", err)
+					}
+				}()
 			}
-			if c, e := x509.ParseCertificate(der); e == nil {
-				bySubject[c.Subject.String()] = der
+			logger.Printf("serving WebRTC client on https://localhost:%d (PFX: %s)", config.HTTPPort, config.PFXFile)
+			if err := httpServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Fatal(err)
 			}
-		}
-		tlsCert.Certificate = [][]byte{allCertDER[leafIdx]}
-		current := leaf
-		for {
-			issuerDER, ok := bySubject[current.Issuer.String()]
-			if !ok {
-				break
-			}
-			tlsCert.Certificate = append(tlsCert.Certificate, issuerDER)
-			next, err := x509.ParseCertificate(issuerDER)
-			if err != nil || next.Subject.String() == next.Issuer.String() {
-				break // reached self-signed root
-			}
-			current = next
-		}
-		logger.Printf("TLS chain: %d cert(s) loaded", len(tlsCert.Certificate))
-		for idx, der := range tlsCert.Certificate {
-			if c, e := x509.ParseCertificate(der); e == nil {
-				logger.Printf("  [%d] Subject=%s  Issuer=%s  IsCA=%v", idx, c.Subject.CommonName, c.Issuer.CommonName, c.IsCA)
-			}
-		}
-		httpServer.TLSConfig = &tls.Config{
-			Certificates: []tls.Certificate{tlsCert},
-			MinVersion:   tls.VersionTLS12,
-		}
-		logger.Printf("serving WebRTC client on https://localhost:%d (PFX: %s)", config.HTTPPort, config.PFXFile)
-		if err := httpServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Fatal(err)
 		}
 	} else if config.CertFile != "" && config.KeyFile != "" {
+		if config.HTTPRedirectPort != 0 {
+			httpsPort := config.HTTPPort
+			go func() {
+				redirectMux := http.NewServeMux()
+				redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+					target := fmt.Sprintf("https://%s:%d%s", r.Host, httpsPort, r.RequestURI)
+					http.Redirect(w, r, target, http.StatusMovedPermanently)
+				})
+				redirectSrv := &http.Server{
+					Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
+					Handler: redirectMux,
+				}
+				logger.Printf("HTTP→HTTPS redirect on http://localhost:%d", config.HTTPRedirectPort)
+				if err := redirectSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					logger.Printf("redirect server error: %v", err)
+				}
+			}()
+		}
 		logger.Printf("serving WebRTC client on https://localhost:%d", config.HTTPPort)
 		if err := httpServer.ListenAndServeTLS(config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Fatal(err)
+			logger.Printf("TLS setup failed (%v) — falling back to HTTP", err)
+			if err2 := httpServer.ListenAndServe(); err2 != nil && !errors.Is(err2, http.ErrServerClosed) {
+				logger.Fatal(err2)
+			}
 		}
 	} else {
 		logger.Printf("serving WebRTC client on http://localhost:%d", config.HTTPPort)
@@ -569,6 +547,82 @@ func main() {
 			logger.Fatal(err)
 		}
 	}
+}
+
+func buildTLSCertFromPFX(pfxFile, password string, logger *log.Logger) (tls.Certificate, error) {
+	pfxData, err := os.ReadFile(pfxFile)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("read PFX: %w", err)
+	}
+	blocks, err := pkcs12.ToPEM(pfxData, password)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("decode PFX: %w", err)
+	}
+	var keyPEM []byte
+	var certPEMs [][]byte
+	for _, b := range blocks {
+		switch b.Type {
+		case "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY":
+			keyPEM = pem.EncodeToMemory(b)
+		case "CERTIFICATE":
+			certPEMs = append(certPEMs, pem.EncodeToMemory(b))
+		}
+	}
+	if keyPEM == nil {
+		return tls.Certificate{}, fmt.Errorf("no private key found in PFX")
+	}
+	var allCertDER [][]byte
+	for _, pemBytes := range certPEMs {
+		p, _ := pem.Decode(pemBytes)
+		if p != nil {
+			allCertDER = append(allCertDER, p.Bytes)
+		}
+	}
+	var tlsCert tls.Certificate
+	var leafIdx int
+	for i, certBlock := range certPEMs {
+		c, e := tls.X509KeyPair(certBlock, keyPEM)
+		if e == nil {
+			tlsCert = c
+			leafIdx = i
+			break
+		}
+	}
+	if tlsCert.PrivateKey == nil {
+		return tls.Certificate{}, fmt.Errorf("no certificate in PFX matches the private key")
+	}
+	// Build chain in order: leaf → issuing CA → ... → root.
+	leaf, _ := x509.ParseCertificate(allCertDER[leafIdx])
+	bySubject := make(map[string][]byte)
+	for i, der := range allCertDER {
+		if i == leafIdx {
+			continue
+		}
+		if c, e := x509.ParseCertificate(der); e == nil {
+			bySubject[c.Subject.String()] = der
+		}
+	}
+	tlsCert.Certificate = [][]byte{allCertDER[leafIdx]}
+	current := leaf
+	for {
+		issuerDER, ok := bySubject[current.Issuer.String()]
+		if !ok {
+			break
+		}
+		tlsCert.Certificate = append(tlsCert.Certificate, issuerDER)
+		next, err := x509.ParseCertificate(issuerDER)
+		if err != nil || next.Subject.String() == next.Issuer.String() {
+			break
+		}
+		current = next
+	}
+	logger.Printf("TLS chain: %d cert(s) loaded", len(tlsCert.Certificate))
+	for idx, der := range tlsCert.Certificate {
+		if c, e := x509.ParseCertificate(der); e == nil {
+			logger.Printf("  [%d] Subject=%s  Issuer=%s  IsCA=%v", idx, c.Subject.CommonName, c.Issuer.CommonName, c.IsCA)
+		}
+	}
+	return tlsCert, nil
 }
 
 func loadConfig(path string) (appConfig, error) {
