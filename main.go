@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"embed"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -476,14 +477,44 @@ func main() {
 		if err != nil {
 			logger.Fatalf("read PFX: %v", err)
 		}
-		privateKey, leaf, err := pkcs12.Decode(pfxData, config.PFXPassword)
+		blocks, err := pkcs12.ToPEM(pfxData, config.PFXPassword)
 		if err != nil {
 			logger.Fatalf("decode PFX: %v", err)
 		}
-		tlsCert := tls.Certificate{
-			Certificate: [][]byte{leaf.Raw},
-			PrivateKey:  privateKey,
-			Leaf:        leaf,
+		// Separate key and certs; use the first cert that pairs with the key.
+		var keyPEM []byte
+		var certPEMs [][]byte
+		for _, b := range blocks {
+			switch b.Type {
+			case "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY":
+				keyPEM = pem.EncodeToMemory(b)
+			case "CERTIFICATE":
+				certPEMs = append(certPEMs, pem.EncodeToMemory(b))
+			}
+		}
+		if keyPEM == nil {
+			logger.Fatalf("no private key found in PFX")
+		}
+		// Find the leaf cert (the one that pairs with the private key).
+		var tlsCert tls.Certificate
+		for i, certBlock := range certPEMs {
+			c, e := tls.X509KeyPair(certBlock, keyPEM)
+			if e == nil {
+				tlsCert = c
+				// Append remaining certs as chain intermediates.
+				for j, extra := range certPEMs {
+					if j != i {
+						p, _ := pem.Decode(extra)
+						if p != nil {
+							tlsCert.Certificate = append(tlsCert.Certificate, p.Bytes)
+						}
+					}
+				}
+				break
+			}
+		}
+		if tlsCert.PrivateKey == nil {
+			logger.Fatalf("no certificate in PFX matches the private key")
 		}
 		httpServer.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{tlsCert},
