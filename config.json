@@ -103,13 +103,31 @@
         { "streamName": "North Fork John Day Net", "udpPort": 15144 },
         { "streamName": "Heppner Net", "udpPort": 15145 }
       ],
-      "Rouge-Siskyou NF": [
+      "Willamette NF": [
+        { "streamName": "Santiam River Net", "udpPort": 15182 },
+        { "streamName": "McKenzie Net", "udpPort": 15181 },
+        { "streamName": "Middle Fork Net", "udpPort": 15183 }
+      ],
+      "Deschutes NF": [
+        { "streamName": "DEF North", "udpPort": 15120 },
+        { "streamName": "DEF Central", "udpPort": 15110 },
+        { "streamName": "DEF South", "udpPort": 15130 },
+        { "streamName": "NFF", "udpPort": 15170 }
+      ],
+      "Ochoco NF": [
+        { "streamName": "OCH East", "udpPort": 15740 },
+        { "streamName": "OCH Central", "udpPort": 15710 },
+        { "streamName": "OCH West", "udpPort": 15750 },
+        { "streamName": "Local FF", "udpPort": 15770 }
+      ],
+      "Siuslaw NF": [
+        { "streamName": "SUF North", "udpPort": 15122 },
+        { "streamName": "SUF Central", "udpPort": 15121 },
+        { "streamName": "SUF South", "udpPort": 15123 }
+      ],
+      "Rogue-Siskiyou NF": [
         { "streamName": "Placeholder 1", "udpPort": 2275 },
         { "streamName": "Placeholder 2", "udpPort": 2276 }
-      ],
-      "Willamette NF": [
-        { "streamName": "Placeholder 3", "udpPort": 2277 },
-        { "streamName": "Placeholder 4", "udpPort": 2278 }
       ]
     },
     "ZZ Radio Test": {
