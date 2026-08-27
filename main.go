@@ -474,72 +474,61 @@ func main() {
 
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
 
+	// startHTTP starts a plain HTTP server, optionally on a secondary port.
+	// If httpRedirectPort is set, use that; otherwise use httpPort.
+	startHTTP := func(reason string) {
+		addr := fmt.Sprintf(":%d", config.HTTPPort)
+		if config.HTTPRedirectPort != 0 {
+			addr = fmt.Sprintf(":%d", config.HTTPRedirectPort)
+		}
+		httpServer.Addr = addr
+		if reason != "" {
+			logger.Printf("TLS setup failed (%s) — falling back to HTTP", reason)
+		}
+		logger.Printf("serving WebRTC client on http://localhost%s", addr)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal(err)
+		}
+	}
+
+	// startHTTPSidecar starts a plain HTTP listener on httpRedirectPort
+	// serving the same content (no redirect) alongside HTTPS on httpPort.
+	startHTTPSidecar := func() {
+		if config.HTTPRedirectPort == 0 {
+			return
+		}
+		httpSrv := &http.Server{
+			Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
+			Handler: httpServer.Handler,
+		}
+		go func() {
+			logger.Printf("also serving WebRTC client on http://localhost:%d", config.HTTPRedirectPort)
+			if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Printf("HTTP sidecar error: %v", err)
+			}
+		}()
+	}
+
 	if config.PFXFile != "" {
 		tlsCert, tlsErr := buildTLSCertFromPFX(config.PFXFile, config.PFXPassword, logger)
 		if tlsErr != nil {
-			logger.Printf("TLS setup failed (%v) — falling back to HTTP", tlsErr)
-			addr := fmt.Sprintf(":%d", config.HTTPPort)
-			if config.HTTPRedirectPort != 0 {
-				addr = fmt.Sprintf(":%d", config.HTTPRedirectPort)
-			}
-			httpServer.Addr = addr
-			logger.Printf("serving WebRTC client on http://localhost%s", addr)
-			if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Fatal(err)
-			}
+			startHTTP(tlsErr.Error())
 		} else {
 			httpServer.TLSConfig = &tls.Config{
 				Certificates: []tls.Certificate{tlsCert},
 				MinVersion:   tls.VersionTLS12,
 			}
-			if config.HTTPRedirectPort != 0 {
-				httpsPort := config.HTTPPort
-				go func() {
-					redirectMux := http.NewServeMux()
-					redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-						target := fmt.Sprintf("https://%s:%d%s", r.Host, httpsPort, r.RequestURI)
-						http.Redirect(w, r, target, http.StatusMovedPermanently)
-					})
-					redirectSrv := &http.Server{
-						Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
-						Handler: redirectMux,
-					}
-					logger.Printf("HTTP→HTTPS redirect on http://localhost:%d", config.HTTPRedirectPort)
-					if err := redirectSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-						logger.Printf("redirect server error: %v", err)
-					}
-				}()
-			}
+			startHTTPSidecar()
 			logger.Printf("serving WebRTC client on https://localhost:%d (PFX: %s)", config.HTTPPort, config.PFXFile)
 			if err := httpServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				logger.Fatal(err)
 			}
 		}
 	} else if config.CertFile != "" && config.KeyFile != "" {
-		if config.HTTPRedirectPort != 0 {
-			httpsPort := config.HTTPPort
-			go func() {
-				redirectMux := http.NewServeMux()
-				redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-					target := fmt.Sprintf("https://%s:%d%s", r.Host, httpsPort, r.RequestURI)
-					http.Redirect(w, r, target, http.StatusMovedPermanently)
-				})
-				redirectSrv := &http.Server{
-					Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
-					Handler: redirectMux,
-				}
-				logger.Printf("HTTP→HTTPS redirect on http://localhost:%d", config.HTTPRedirectPort)
-				if err := redirectSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-					logger.Printf("redirect server error: %v", err)
-				}
-			}()
-		}
+		startHTTPSidecar()
 		logger.Printf("serving WebRTC client on https://localhost:%d", config.HTTPPort)
 		if err := httpServer.ListenAndServeTLS(config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Printf("TLS setup failed (%v) — falling back to HTTP", err)
-			if err2 := httpServer.ListenAndServe(); err2 != nil && !errors.Is(err2, http.ErrServerClosed) {
-				logger.Fatal(err2)
-			}
+			startHTTP(err.Error())
 		}
 	} else {
 		logger.Printf("serving WebRTC client on http://localhost:%d", config.HTTPPort)
