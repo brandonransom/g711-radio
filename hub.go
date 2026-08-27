@@ -166,6 +166,47 @@ func (h *transcriptHub) History(streamID string, maxAge time.Duration) ([]transc
 	return events, nil
 }
 
+// HasRecentActivity returns true if any clip event for streamID has been logged
+// within the last maxAge duration. This is a lightweight scan used to determine
+// whether a stream has been heard recently even after a server restart.
+func (h *transcriptHub) HasRecentActivity(streamID string, maxAge time.Duration) bool {
+	if h.logDir == "" {
+		return false
+	}
+	entries, err := os.ReadDir(h.logDir)
+	if err != nil {
+		return false
+	}
+	cutoff := time.Now().Add(-maxAge)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".log" {
+			continue
+		}
+		path := filepath.Join(h.logDir, entry.Name())
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		scanner := bufio.NewScanner(f)
+		found := false
+		for scanner.Scan() {
+			var ev transcriptEvent
+			if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+				continue
+			}
+			if ev.StreamID == streamID && ev.Type == "clip" && ev.Timestamp.After(cutoff) {
+				found = true
+				break
+			}
+		}
+		f.Close()
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
 // ServeHTTP handles GET /transcripts as a Server-Sent Events stream.
 // Optional query param: ?streamId=stream-7420 to filter to one stream.
 func (h *transcriptHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
