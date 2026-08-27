@@ -1372,8 +1372,9 @@
             if (card) {
               const quiet = card.querySelector(".stream-notice.quiet");
               const conflict = card.querySelector(".stream-notice.conflict");
-              if (quiet) quiet.style.display = s.heardToday ? "none" : "block";
               if (conflict) conflict.style.display = s.hasConflict ? "block" : "none";
+              // Suppress the quiet notice when a conflict is active — conflict is more informative.
+              if (quiet) quiet.style.display = (!s.heardToday && !s.hasConflict) ? "block" : "none";
             }
 
             // Update the Connection box on the dedicated stream page.
