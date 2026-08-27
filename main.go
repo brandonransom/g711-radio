@@ -50,7 +50,8 @@ type appConfig struct {
 	Regions     map[string]map[string][]streamConfig `json:"regions"`
 	Whisper     *whisperConfig                       `json:"whisper"`
 	AudioLogDir string                               `json:"audioLogDir"`
-	CertSubject string                               `json:"certSubject"`
+	CertFile    string                               `json:"certFile"`
+	KeyFile     string                               `json:"keyFile"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
@@ -465,16 +466,9 @@ func main() {
 
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
 
-	tlsCfg, err := buildTLSConfig(config.CertSubject, logger)
-	if err != nil {
-		logger.Printf("TLS setup failed (%v) — falling back to HTTP", err)
-		tlsCfg = nil
-	}
-
-	if tlsCfg != nil {
-		httpServer.TLSConfig = tlsCfg
+	if config.CertFile != "" && config.KeyFile != "" {
 		logger.Printf("serving WebRTC client on https://localhost:%d", config.HTTPPort)
-		if err := httpServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpServer.ListenAndServeTLS(config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Fatal(err)
 		}
 	} else {
