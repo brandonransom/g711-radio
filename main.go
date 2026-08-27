@@ -496,26 +496,53 @@ func main() {
 		if keyPEM == nil {
 			logger.Fatalf("no private key found in PFX")
 		}
-		// Find the leaf cert (the one that pairs with the private key).
+		// Parse all certs into DER form.
+		var allCertDER [][]byte
+		for _, pemBytes := range certPEMs {
+			p, _ := pem.Decode(pemBytes)
+			if p != nil {
+				allCertDER = append(allCertDER, p.Bytes)
+			}
+		}
+		// Find the leaf: the cert whose key matches keyPEM.
 		var tlsCert tls.Certificate
+		var leafIdx int
 		for i, certBlock := range certPEMs {
 			c, e := tls.X509KeyPair(certBlock, keyPEM)
 			if e == nil {
 				tlsCert = c
-				// Append remaining certs as chain intermediates.
-				for j, extra := range certPEMs {
-					if j != i {
-						p, _ := pem.Decode(extra)
-						if p != nil {
-							tlsCert.Certificate = append(tlsCert.Certificate, p.Bytes)
-						}
-					}
-				}
+				leafIdx = i
 				break
 			}
 		}
 		if tlsCert.PrivateKey == nil {
 			logger.Fatalf("no certificate in PFX matches the private key")
+		}
+		// Build chain in order: leaf → issuing CA → ... → root.
+		// Walk up by matching Subject→Issuer until we loop or run out.
+		leaf, _ := x509.ParseCertificate(allCertDER[leafIdx])
+		bySubject := make(map[string][]byte)
+		for i, der := range allCertDER {
+			if i == leafIdx {
+				continue
+			}
+			if c, e := x509.ParseCertificate(der); e == nil {
+				bySubject[c.Subject.String()] = der
+			}
+		}
+		tlsCert.Certificate = [][]byte{allCertDER[leafIdx]}
+		current := leaf
+		for {
+			issuerDER, ok := bySubject[current.Issuer.String()]
+			if !ok {
+				break
+			}
+			tlsCert.Certificate = append(tlsCert.Certificate, issuerDER)
+			next, err := x509.ParseCertificate(issuerDER)
+			if err != nil || next.Subject.String() == next.Issuer.String() {
+				break // reached self-signed root
+			}
+			current = next
 		}
 		logger.Printf("TLS chain: %d cert(s) loaded", len(tlsCert.Certificate))
 		for idx, der := range tlsCert.Certificate {
