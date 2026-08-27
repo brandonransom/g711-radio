@@ -1,7 +1,7 @@
 {
   "httpPort": 443,
   "audioLogDir": "audio",
-  "certFile": "C:\\Certs\\radiostreams_27.cert",
+  "certFile": "C:\\Certs\\radiostreams.cert",
   "keyFile": "C:\\Certs\\radiostreams.key",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
