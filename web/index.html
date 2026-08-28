@@ -599,6 +599,14 @@
       let baseReconnectDelay = 1000;
       let currentConnectionState = "idle";
       const expandedGroups = new Set();
+      const DEFAULT_OPEN_REGION_COUNT = 1;
+      const DEFAULT_OPEN_GROUP_COUNT = 1;
+      const streamCardCache = new Map();
+      const streamStatusTargets = new Map();
+      const groupBodyByKey = new Map();
+      const regionBodyByName = new Map();
+      let pollTimer = null;
+      let pollIntervalMs = 30000;
 
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
@@ -907,6 +915,16 @@
         window.open(buildStreamURL(stream.id, stream.streamName).toString(), "_blank", "noopener,noreferrer");
       }
 
+      function runAfterFirstPaint(task) {
+        requestAnimationFrame(() => {
+          if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(task, { timeout: 1500 });
+          } else {
+            setTimeout(task, 0);
+          }
+        });
+      }
+
       function isDedicatedStreamPage() {
         return Boolean(sharePageStream);
       }
@@ -1034,6 +1052,8 @@
         conflictNotice.textContent = `⚠ Multiple audio sources detected on UDP ${stream.udpPort} — this will cause audio problems`;
 
         const button = document.createElement("button");
+        button.dataset.action = "stream-primary";
+        button.dataset.streamId = stream.id;
         if (connectingStreamId) {
           button.textContent = connectingStreamId === stream.id ? "Connecting..." : "Busy";
           button.disabled = true;
@@ -1041,30 +1061,93 @@
           button.textContent = "Listening";
           button.disabled = false;
           button.title = "Open this feed in a new tab";
-          button.addEventListener("click", () => openStreamInNewTab(stream));
         } else {
           button.textContent = "Listen";
           button.disabled = false;
-          button.addEventListener("click", () => {
-            if (sharePageStream) {
-              void connect(stream);
-              return;
-            }
-
-            openStreamInNewTab(stream);
-          });
         }
 
         card.append(header, quietNotice, conflictNotice, button);
+        streamStatusTargets.set(stream.id, { quietEl: quietNotice, conflictEl: conflictNotice });
         return card;
+      }
+
+      function updateStreamCard(stream) {
+        let card = streamCardCache.get(stream.id);
+        if (!card) {
+          card = buildStreamCard(stream);
+          streamCardCache.set(stream.id, card);
+          return card;
+        }
+
+        const title = card.querySelector("h3");
+        if (title && title.textContent !== stream.streamName) {
+          title.textContent = stream.streamName;
+        }
+        const meta = card.querySelector(".meta");
+        const nextMeta = `UDP ${stream.udpPort}`;
+        if (meta && meta.textContent !== nextMeta) {
+          meta.textContent = nextMeta;
+        }
+
+        const button = card.querySelector("button");
+        if (button) {
+          let nextText = "Listen";
+          let nextDisabled = false;
+          let nextTitle = "";
+
+          if (connectingStreamId) {
+            nextText = connectingStreamId === stream.id ? "Connecting..." : "Busy";
+            nextDisabled = true;
+          } else if (currentStreamId === stream.id && pc) {
+            nextText = "Listening";
+            nextDisabled = false;
+            nextTitle = "Open this feed in a new tab";
+          }
+
+          if (button.textContent !== nextText) button.textContent = nextText;
+          if (button.disabled !== nextDisabled) button.disabled = nextDisabled;
+          if ((button.title || "") !== nextTitle) button.title = nextTitle;
+        }
+
+        return card;
+      }
+
+      function renderGroupBody(regionName, group) {
+        const key = `${regionName}/${group.groupName}`;
+        const groupBody = groupBodyByKey.get(key);
+        if (!groupBody || groupBody.dataset.rendered === "true") return;
+        for (const stream of group.streams) {
+          groupBody.append(updateStreamCard(stream));
+        }
+        groupBody.dataset.rendered = "true";
+      }
+
+      function renderRegionBodies(regionName) {
+        const region = streamGroups.find((r) => r.regionName === regionName);
+        if (!region) return;
+        const regionBody = regionBodyByName.get(regionName);
+        if (!regionBody) return;
+        for (const group of region.subGroups) {
+          const key = `${regionName}/${group.groupName}`;
+          if (expandedGroups.has(key)) {
+            renderGroupBody(regionName, group);
+          }
+        }
       }
 
       function renderStreams() {
         streamsRoot.hidden = isDedicatedStreamPage();
-        streamsRoot.innerHTML = "";
         if (streamsRoot.hidden) {
+          streamsRoot.innerHTML = "";
+          groupBodyByKey.clear();
+          regionBodyByName.clear();
           return;
         }
+
+        streamsRoot.innerHTML = "";
+        groupBodyByKey.clear();
+        regionBodyByName.clear();
+        streamStatusTargets.clear();
 
         if (!streamGroups.length) {
           const empty = document.createElement("div");
@@ -1077,10 +1160,13 @@
         for (const region of streamGroups) {
           const regionDetails = document.createElement("details");
           regionDetails.className = "region";
-          regionDetails.open = expandedGroups.has(region.regionName);
+          const shouldOpenRegion = expandedGroups.has(region.regionName);
+          regionDetails.open = shouldOpenRegion;
+          regionDetails.dataset.region = region.regionName;
           regionDetails.addEventListener("toggle", () => {
             if (regionDetails.open) {
               expandedGroups.add(region.regionName);
+              renderRegionBodies(region.regionName);
             } else {
               expandedGroups.delete(region.regionName);
             }
@@ -1110,15 +1196,18 @@
 
           const regionBody = document.createElement("div");
           regionBody.className = "region-body";
+          regionBodyByName.set(region.regionName, regionBody);
 
-          for (const group of region.subGroups) {
+          region.subGroups.forEach((group, groupIndex) => {
             const groupDetails = document.createElement("details");
             groupDetails.className = "group";
-            groupDetails.open = expandedGroups.has(`${region.regionName}/${group.groupName}`);
+            const key = `${region.regionName}/${group.groupName}`;
+            groupDetails.open = expandedGroups.has(key);
+            groupDetails.dataset.group = key;
             groupDetails.addEventListener("toggle", () => {
-              const key = `${region.regionName}/${group.groupName}`;
               if (groupDetails.open) {
                 expandedGroups.add(key);
+                renderGroupBody(region.regionName, group);
               } else {
                 expandedGroups.delete(key);
               }
@@ -1147,16 +1236,20 @@
 
             const groupBody = document.createElement("div");
             groupBody.className = "group-body";
-            for (const stream of group.streams) {
-              groupBody.append(buildStreamCard(stream));
-            }
+            groupBodyByKey.set(key, groupBody);
 
             groupDetails.append(groupBody);
             regionBody.append(groupDetails);
-          }
+          });
 
           regionDetails.append(regionBody);
           streamsRoot.append(regionDetails);
+        }
+
+        for (const region of streamGroups) {
+          if (expandedGroups.has(region.regionName)) {
+            renderRegionBodies(region.regionName);
+          }
         }
       }
 
@@ -1331,6 +1424,20 @@
 
         streamGroups = await response.json();
         streams = flattenStreamGroups(streamGroups);
+
+        if (expandedGroups.size === 0 && streamGroups.length) {
+          streamGroups.forEach((region, regionIndex) => {
+            if (regionIndex < DEFAULT_OPEN_REGION_COUNT) {
+              expandedGroups.add(region.regionName);
+            }
+            region.subGroups.forEach((group, groupIndex) => {
+              if (regionIndex < DEFAULT_OPEN_REGION_COUNT && groupIndex < DEFAULT_OPEN_GROUP_COUNT) {
+                expandedGroups.add(`${region.regionName}/${group.groupName}`);
+              }
+            });
+          });
+        }
+
         renderStreams();
 
         const requestedStreamId = getRequestedStreamId();
@@ -1360,44 +1467,90 @@
       }
 
       disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
+      streamsRoot.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-action='stream-primary']");
+        if (!button) return;
+        const { streamId } = button.dataset;
+        if (!streamId) return;
+        const stream = streams.find((s) => s.id === streamId);
+        if (!stream) return;
+
+        if (currentStreamId === stream.id && pc) {
+          openStreamInNewTab(stream);
+          return;
+        }
+
+        if (sharePageStream) {
+          void connect(stream);
+          return;
+        }
+
+        openStreamInNewTab(stream);
+      });
+
+      function getVisibleStreamIds() {
+        if (isDedicatedStreamPage()) {
+          return sharePageStream ? [sharePageStream.id] : [];
+        }
+        const ids = [];
+        for (const region of streamGroups) {
+          if (!expandedGroups.has(region.regionName)) continue;
+          for (const group of region.subGroups) {
+            if (!expandedGroups.has(`${region.regionName}/${group.groupName}`)) continue;
+            for (const stream of group.streams) {
+              ids.push(stream.id);
+            }
+          }
+        }
+        return ids;
+      }
+
+      function schedulePollLoop() {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+        pollIntervalMs = document.visibilityState === "hidden" ? 120000 : 30000;
+        pollTimer = setTimeout(async () => {
+          await pollStreamStatus();
+          schedulePollLoop();
+        }, pollIntervalMs);
+      }
 
       async function pollStreamStatus() {
         try {
-          const resp = await fetch("/stream-status");
+          const visibleIds = getVisibleStreamIds();
+          if (!visibleIds.length) return;
+          const resp = await fetch(`/stream-status?ids=${encodeURIComponent(visibleIds.join(","))}`);
           if (!resp.ok) return;
           const statuses = await resp.json();
-          for (const s of statuses) {
-            // Update stream cards on the main listing page.
-            const card = document.querySelector(`.stream[data-stream-id="${s.id}"]`);
-            if (card) {
-              const quiet = card.querySelector(".stream-notice.quiet");
-              const conflict = card.querySelector(".stream-notice.conflict");
-              if (conflict) conflict.style.display = s.hasConflict ? "block" : "none";
-              // Suppress the quiet notice when a conflict is active — conflict is more informative.
-              if (quiet) quiet.style.display = (!s.heardToday && !s.hasConflict) ? "block" : "none";
-            }
+          requestAnimationFrame(() => {
+            for (const s of statuses) {
+              const targets = streamStatusTargets.get(s.id);
+              if (targets) {
+                if (targets.conflictEl) targets.conflictEl.style.display = s.hasConflict ? "block" : "none";
+                if (targets.quietEl) targets.quietEl.style.display = (!s.heardToday && !s.hasConflict) ? "block" : "none";
+              }
 
-            // Update the Connection box on the dedicated stream page.
-            if (sharePageStream && s.id === sharePageStream.id) {
-              if (s.hasConflict) {
-                statusNotice.className = "stream-notice conflict";
-                statusNotice.textContent = `⚠ Multiple audio sources detected on UDP ${sharePageStream.udpPort} — this will cause audio problems`;
-                statusNotice.hidden = false;
-              } else if (!s.heardToday) {
-                statusNotice.className = "stream-notice quiet";
-                statusNotice.textContent = `Nothing heard from "${sharePageStream.streamName}" today`;
-                statusNotice.hidden = false;
-              } else {
-                statusNotice.hidden = true;
-                statusNotice.textContent = "";
-                statusNotice.className = "stream-notice";
+              if (sharePageStream && s.id === sharePageStream.id) {
+                if (s.hasConflict) {
+                  statusNotice.className = "stream-notice conflict";
+                  statusNotice.textContent = `⚠ Multiple audio sources detected on UDP ${sharePageStream.udpPort} — this will cause audio problems`;
+                  statusNotice.hidden = false;
+                } else if (!s.heardToday) {
+                  statusNotice.className = "stream-notice quiet";
+                  statusNotice.textContent = `Nothing heard from "${sharePageStream.streamName}" today`;
+                  statusNotice.hidden = false;
+                } else {
+                  statusNotice.hidden = true;
+                  statusNotice.textContent = "";
+                  statusNotice.className = "stream-notice";
+                }
               }
             }
-          }
+          });
         } catch (_) { /* ignore network errors between polls */ }
       }
-
-      setInterval(pollStreamStatus, 30_000);
 
       // Mobile persistence: reconnect WebRTC and SSE when the tab becomes visible again
       // (covers app-switching on iOS/Android, screen lock, and bfcache restores).
@@ -1422,6 +1575,7 @@
       }
 
       document.addEventListener("visibilitychange", handleVisibilityRestore);
+      document.addEventListener("visibilitychange", schedulePollLoop);
 
       // iOS bfcache: page is restored from cache without a full reload.
       window.addEventListener("pageshow", (e) => {
@@ -1447,6 +1601,12 @@
         try {
           await loadStreams();
           await pollStreamStatus();
+          schedulePollLoop();
+          runAfterFirstPaint(() => {
+            if (sharePageStream) {
+              startTranscription(sharePageStream.id);
+            }
+          });
         } catch (error) {
           streamGroups = [];
           streams = [];
