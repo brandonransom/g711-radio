@@ -56,6 +56,7 @@ var webFiles embed.FS
 type appConfig struct {
 	HTTPPort         int                                  `json:"httpPort"`
 	HTTPRedirectPort int                                  `json:"httpRedirectPort"`
+	EnableHTTP       bool                                 `json:"enableHttp"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
 	AudioLogDir      string                               `json:"audioLogDir"`
@@ -545,6 +546,12 @@ func main() {
 		}()
 	}
 
+	if !config.EnableHTTP {
+		logger.Printf("HTTP listener disabled by config (enableHttp=false)")
+		<-ctx.Done()
+		return
+	}
+
 	if config.PFXFile != "" {
 		tlsCert, tlsErr := buildTLSCertFromPFX(config.PFXFile, config.PFXPassword, config.PFXKeyPassword, logger)
 		if tlsErr != nil {
@@ -697,6 +704,18 @@ func loadConfig(path string) (appConfig, error) {
 			config.KeyFile = secrets.KeyFile
 		}
 	}
+	// Default to enabled for backward compatibility with existing configs.
+	// If enableHttp is omitted from config, it decodes as false; treat omission as true.
+	var hasEnableHTTPField bool
+	if cfgBytes, readErr := os.ReadFile(path); readErr == nil {
+		var raw map[string]json.RawMessage
+		if unmarshalErr := json.Unmarshal(cfgBytes, &raw); unmarshalErr == nil {
+			_, hasEnableHTTPField = raw["enableHttp"]
+		}
+	}
+	if !hasEnableHTTPField {
+		config.EnableHTTP = true
+	}
 
 	if config.HTTPPort < 1 || config.HTTPPort > 65535 {
 		return appConfig{}, fmt.Errorf("%s has invalid httpPort %d", path, config.HTTPPort)
@@ -840,6 +859,15 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 		if packetsSeen == 0 {
 			s.sourceAddr = sourceIP
 		} else if sourceIP != s.sourceAddr && s.conflictAddr != sourceIP {
+			if packetsSeen < 500 {
+				s.mu.Unlock()
+				packetsSeen++
+				if s.vad != nil {
+					s.vad.Push(DecodePCMU(frame), time.Now())
+				}
+				s.broadcast(media.Sample{Data: frame, Duration: s.frameDuration})
+				continue
+			}
 			// New conflicting source IP detected.
 			s.conflictAddr = sourceIP
 			s.conflictClearCount = 0
