@@ -599,7 +599,7 @@ func buildTLSCertFromPFX(pfxFile, pfxPassword, keyPassword string, logger *log.L
 	// Try to decode with the PFX password first. If that fails and a separate key password
 	// is provided, try again with the key password (some CAs use separate passwords).
 	blocks, err := pkcs12.ToPEM(pfxData, pfxPassword)
-	if err != nil && keyPassword != "" && keyPassword != pfxPassword {
+	if err != nil && keyPassword != "" {
 		logger.Printf("TLS: initial PFX decode failed, retrying with keyPassword")
 		blocks, err = pkcs12.ToPEM(pfxData, keyPassword)
 	}
