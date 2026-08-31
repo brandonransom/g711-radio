@@ -136,8 +136,10 @@ type clipRecord struct {
 }
 
 type subscriber struct {
-	pc    *webrtc.PeerConnection
-	track *webrtc.TrackLocalStaticSample
+	pc            *webrtc.PeerConnection
+	track         *webrtc.TrackLocalStaticSample
+	clientIP      string
+	connectionAt  time.Time
 }
 
 type offerRequest struct {
@@ -189,6 +191,9 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	clientIP := getClientIP(r)
+
 	var req struct {
 		ClipID   string `json:"clipId"`
 		AudioURL string `json:"audioUrl"`
@@ -199,6 +204,7 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 	}
 	// Try registry first (clips from current server run).
 	if s.requestClipTranscription(req.ClipID) {
+		s.logger.Printf("USAGE: clip_id=%s client_ip=%s action=transcript_request source=registry", req.ClipID, clientIP)
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -217,6 +223,7 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 				start:    time.Now(),
 				manual:   true,
 			})
+			s.logger.Printf("USAGE: clip_id=%s client_ip=%s action=transcript_request source=audiourl_fallback", req.ClipID, clientIP)
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
@@ -468,7 +475,8 @@ func main() {
 		json.NewEncoder(w).Encode(events)
 	})
 	if config.AudioLogDir != "" {
-		mux.Handle("/audio/", http.StripPrefix("/audio/", http.FileServer(http.Dir(config.AudioLogDir))))
+		audioHandler := http.StripPrefix("/audio/", http.FileServer(http.Dir(config.AudioLogDir)))
+		mux.Handle("/audio/", audioLoggingMiddleware(audioHandler, logger))
 		logger.Printf("audio log directory: %s (served at /audio/)", config.AudioLogDir)
 	}
 
@@ -970,6 +978,17 @@ func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start t
 	return absPath, relURL, nil
 }
 
+// audioLoggingMiddleware wraps an http.Handler to log audio file downloads
+func audioLoggingMiddleware(handler http.Handler, logger *log.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clientIP := getClientIP(r)
+		filePath := r.URL.Path
+		// Log audio download requests
+		logger.Printf("USAGE: client_ip=%s action=audio_download path=%s", clientIP, filePath)
+		handler.ServeHTTP(w, r)
+	})
+}
+
 // pruneOldFiles walks dir and removes regular files older than maxAge.
 // Empty directories left behind are also removed.
 func pruneOldFiles(dir string, maxAge time.Duration, logger *log.Logger) {
@@ -1041,6 +1060,23 @@ func pruneTranscriptLogs(dir string, maxAge time.Duration, logger *log.Logger) {
 	}
 }
 
+// getClientIP extracts the client IP address from an HTTP request.
+// Checks X-Forwarded-For header first (for proxied connections), then falls back to RemoteAddr.
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For can contain multiple IPs; use the first one
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+	// Extract IP from RemoteAddr (format: "IP:port")
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
 // resolveLogFilePath returns the path to the server log file (g711-radio.log)
 // in the current working directory, so it works consistently with both
 // "go run ." and running the compiled binary.
@@ -1086,7 +1122,7 @@ func pruneLogFile(path string, maxAge time.Duration, logger *log.Logger) {
 	}
 }
 
-func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
+func (s *station) addSubscriber(pc *webrtc.PeerConnection, clientIP string) (string, error) {
 	track, err := webrtc.NewTrackLocalStaticSample(s.codec, "audio", s.info.ID)
 	if err != nil {
 		return "", err
@@ -1103,8 +1139,10 @@ func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
 
 	s.mu.Lock()
 	s.subscribers[id] = &subscriber{
-		pc:    pc,
-		track: track,
+		pc:           pc,
+		track:        track,
+		clientIP:     clientIP,
+		connectionAt: time.Now(),
 	}
 	s.mu.Unlock()
 
@@ -1121,6 +1159,12 @@ func (s *station) removeSubscriber(id string) {
 
 	if ok && sub.pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
 		_ = sub.pc.Close()
+	}
+
+	// Log connection duration
+	if ok && !sub.connectionAt.IsZero() {
+		duration := time.Since(sub.connectionAt)
+		s.logger.Printf("USAGE: stream=%s peer=%s client_ip=%s duration=%v", s.info.StreamName, id, sub.clientIP, duration)
 	}
 }
 
@@ -1233,6 +1277,8 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
+	clientIP := getClientIP(r)
+
 	var request offerRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "invalid offer body", http.StatusBadRequest)
@@ -1260,12 +1306,15 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	peerID, err := station.addSubscriber(pc)
+	peerID, err := station.addSubscriber(pc, clientIP)
 	if err != nil {
 		_ = pc.Close()
 		http.Error(w, "failed to add audio track", http.StatusInternalServerError)
 		return
 	}
+
+	// Log new connection
+	s.logger.Printf("USAGE: stream=%s peer=%s client_ip=%s action=connect", station.info.StreamName, peerID, clientIP)
 
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		s.logger.Printf("%s %s state: %s", station.info.StreamName, peerID, state.String())
