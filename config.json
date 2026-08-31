@@ -4,7 +4,7 @@
   "audioLogDir": "audio",
   "certFile": "",
   "keyFile": "",
-  "pfxFile": "C:\\Certs\\radiostreams_export.pfx",
+  "pfxFile": "C:\\Certs\\radiostreams_27.pfx",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
     "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-medium.bin",
