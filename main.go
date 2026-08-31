@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
+	"encoding/csv"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -60,6 +61,7 @@ type appConfig struct {
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
 	AudioLogDir      string                               `json:"audioLogDir"`
+	UsageLogFile     string                               `json:"usageLogFile"`
 	CertFile         string                               `json:"certFile"`
 	KeyFile          string                               `json:"keyFile"`
 	PFXFile          string                               `json:"pfxFile"`
@@ -108,6 +110,7 @@ type station struct {
 	codec         webrtc.RTPCodecCapability
 	frameDuration time.Duration
 	logger        *log.Logger
+	usageLogger   *usageLogger
 	audioLogDir   string
 
 	// whisperPool is non-nil when transcription is enabled.
@@ -142,6 +145,13 @@ type subscriber struct {
 	connectionAt  time.Time
 }
 
+type usageLogger struct {
+	mu     sync.Mutex
+	file   *os.File
+	writer *csv.Writer
+	close  chan struct{}
+}
+
 type offerRequest struct {
 	StreamID string                    `json:"streamId"`
 	Offer    webrtc.SessionDescription `json:"offer"`
@@ -150,6 +160,7 @@ type offerRequest struct {
 type webrtcServer struct {
 	api          *webrtc.API
 	logger       *log.Logger
+	usageLogger  *usageLogger
 	streams      map[string]*station
 	regionGroups []regionGroup
 	hub          *transcriptHub
@@ -204,7 +215,11 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 	}
 	// Try registry first (clips from current server run).
 	if s.requestClipTranscription(req.ClipID) {
-		s.logger.Printf("USAGE: clip_id=%s client_ip=%s action=transcript_request source=registry", req.ClipID, clientIP)
+		s.usageLogger.logUsage("transcript_request", map[string]string{
+			"client_ip": clientIP,
+			"clip_id":   req.ClipID,
+			"source":    "registry",
+		})
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -223,7 +238,11 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 				start:    time.Now(),
 				manual:   true,
 			})
-			s.logger.Printf("USAGE: clip_id=%s client_ip=%s action=transcript_request source=audiourl_fallback", req.ClipID, clientIP)
+			s.usageLogger.logUsage("transcript_request", map[string]string{
+				"client_ip": clientIP,
+				"clip_id":   req.ClipID,
+				"source":    "audiourl_fallback",
+			})
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
@@ -260,6 +279,16 @@ func main() {
 		logger.Fatal(err)
 	}
 
+	usageLog, err := newUsageLogger(config.UsageLogFile)
+	if err != nil {
+		logger.Printf("WARNING: could not open usage log file: %v", err)
+		usageLog, _ = newUsageLogger("")
+	}
+	if config.UsageLogFile != "" {
+		logger.Printf("usage log file: %s", config.UsageLogFile)
+		defer usageLog.Close()
+	}
+
 	codec := webrtc.RTPCodecCapability{
 		MimeType:  webrtc.MimeTypePCMU,
 		ClockRate: sampleRateHz,
@@ -291,6 +320,7 @@ func main() {
 	server := &webrtcServer{
 		api:          api,
 		logger:       logger,
+		usageLogger:  usageLog,
 		streams:      make(map[string]*station, config.totalStreams),
 		regionGroups: make([]regionGroup, 0, len(config.streamGroups)),
 		hub:          hub,
@@ -328,10 +358,11 @@ func main() {
 					codec:         codec,
 					frameDuration: frameDuration,
 					logger:        logger,
-						audioLogDir:   config.AudioLogDir,
-						subscribers:   make(map[string]*subscriber),
-						whisperPool:   pool,
-					}
+					usageLogger:   server.usageLogger,
+					audioLogDir:   config.AudioLogDir,
+					subscribers:   make(map[string]*subscriber),
+					whisperPool:   pool,
+				}
 
 					if pool != nil || config.AudioLogDir != "" {
 						wCfg := &whisperConfig{}
@@ -476,7 +507,7 @@ func main() {
 	})
 	if config.AudioLogDir != "" {
 		audioHandler := http.StripPrefix("/audio/", http.FileServer(http.Dir(config.AudioLogDir)))
-		mux.Handle("/audio/", audioLoggingMiddleware(audioHandler, logger))
+		mux.Handle("/audio/", audioLoggingMiddleware(audioHandler, usageLog))
 		logger.Printf("audio log directory: %s (served at /audio/)", config.AudioLogDir)
 	}
 
@@ -979,12 +1010,15 @@ func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start t
 }
 
 // audioLoggingMiddleware wraps an http.Handler to log audio file downloads
-func audioLoggingMiddleware(handler http.Handler, logger *log.Logger) http.Handler {
+func audioLoggingMiddleware(handler http.Handler, usageLogger *usageLogger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientIP := getClientIP(r)
 		filePath := r.URL.Path
 		// Log audio download requests
-		logger.Printf("USAGE: client_ip=%s action=audio_download path=%s", clientIP, filePath)
+		usageLogger.logUsage("audio_download", map[string]string{
+			"client_ip": clientIP,
+			"path":      filePath,
+		})
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -1077,6 +1111,62 @@ func getClientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+// newUsageLogger creates a CSV logger for usage events. If path is empty, no logging occurs.
+func newUsageLogger(path string) (*usageLogger, error) {
+	if path == "" {
+		return &usageLogger{}, nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	ul := &usageLogger{file: f, writer: csv.NewWriter(f), close: make(chan struct{})}
+	// Write header if file is empty
+	info, _ := f.Stat()
+	if info.Size() == 0 {
+		_ = ul.writer.Write([]string{"timestamp", "action", "client_ip", "stream", "peer_id", "clip_id", "source", "duration_ms", "path"})
+		ul.writer.Flush()
+	}
+	return ul, nil
+}
+
+// logUsage writes a usage event to the CSV file with flexible fields.
+func (ul *usageLogger) logUsage(action string, fields map[string]string) {
+	if ul.file == nil {
+		return
+	}
+	ul.mu.Lock()
+	defer ul.mu.Unlock()
+	
+	timestamp := time.Now().Format(time.RFC3339)
+	row := []string{
+		timestamp,
+		action,
+		fields["client_ip"],
+		fields["stream"],
+		fields["peer_id"],
+		fields["clip_id"],
+		fields["source"],
+		fields["duration_ms"],
+		fields["path"],
+	}
+	_ = ul.writer.Write(row)
+	ul.writer.Flush()
+}
+
+// Close closes the usage logger file.
+func (ul *usageLogger) Close() error {
+	if ul.file != nil {
+		ul.mu.Lock()
+		if ul.writer != nil {
+			ul.writer.Flush()
+		}
+		ul.mu.Unlock()
+		return ul.file.Close()
+	}
+	return nil
+}
+
 // resolveLogFilePath returns the path to the server log file (g711-radio.log)
 // in the current working directory, so it works consistently with both
 // "go run ." and running the compiled binary.
@@ -1164,7 +1254,12 @@ func (s *station) removeSubscriber(id string) {
 	// Log connection duration
 	if ok && !sub.connectionAt.IsZero() {
 		duration := time.Since(sub.connectionAt)
-		s.logger.Printf("USAGE: stream=%s peer=%s client_ip=%s duration=%v", s.info.StreamName, id, sub.clientIP, duration)
+		s.usageLogger.logUsage("disconnect", map[string]string{
+			"stream":      s.info.StreamName,
+			"peer_id":     id,
+			"client_ip":   sub.clientIP,
+			"duration_ms": fmt.Sprintf("%d", duration.Milliseconds()),
+		})
 	}
 }
 
@@ -1314,7 +1409,11 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log new connection
-	s.logger.Printf("USAGE: stream=%s peer=%s client_ip=%s action=connect", station.info.StreamName, peerID, clientIP)
+	s.usageLogger.logUsage("connect", map[string]string{
+		"stream":    station.info.StreamName,
+		"peer_id":   peerID,
+		"client_ip": clientIP,
+	})
 
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		s.logger.Printf("%s %s state: %s", station.info.StreamName, peerID, state.String())

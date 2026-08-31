@@ -18,11 +18,13 @@ Edit the gitignored `config.local.json`, send your UDP audio to the configured p
 
 ## Config
 
-`config.local.json` contains the HTTP port, an optional whisper block, and a hierarchical `regions` map:
+`config.local.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `regions` map:
 
 ```json
 {
   "httpPort": 8080,
+  "audioLogDir": "audio",
+  "usageLogFile": "usage.csv",
   "whisper": {
     "modelPath": "C:\\path\\to\\ggml-medium.bin",
     "workers": 3,
@@ -50,7 +52,27 @@ Edit the gitignored `config.local.json`, send your UDP audio to the configured p
 }
 ```
 
+- `httpPort`: HTTPS port to listen on (default 443)
+- `audioLogDir`: Directory to store recorded audio clips (optional)
+- `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
+- `whisper` block: Optional transcription configuration
+
 The `whisper` block is optional. Omit it entirely to run without transcription.
+
+## Usage Logging
+
+When `usageLogFile` is configured, the server writes visitor activity to a CSV file with the following columns:
+- **timestamp**: ISO 8601 timestamp of the event
+- **action**: Event type (connect, disconnect, audio_download, transcript_request)
+- **client_ip**: IP address of the visitor
+- **stream**: Stream name
+- **peer_id**: Unique peer ID for WebRTC connections
+- **clip_id**: Clip ID for transcription requests
+- **source**: Where the clip came from (registry or audiourl_fallback)
+- **duration_ms**: Connection duration in milliseconds
+- **path**: URL path for audio downloads
+
+This CSV is spreadsheet-friendly and can be imported into Excel, Google Sheets, or used for analytics dashboards.
 
 ## Transcription
 

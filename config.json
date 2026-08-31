@@ -2,6 +2,7 @@
   "httpPort": 443,
   "httpRedirectPort": 80,
   "audioLogDir": "audio",
+  "usageLogFile": "usage.csv",
   "certFile": "",
   "keyFile": "",
   "pfxFile": "C:\\Certs\\radiostreams_export.pfx",
