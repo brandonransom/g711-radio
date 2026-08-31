@@ -5,7 +5,7 @@ A Go WebRTC server built with Pion. It reads a local JSON config file, listens o
 ## Prerequisites
 
 - **Go 1.24+**
-- *(Optional)* **whisper.cpp** for server-side transcription — see [Transcription](#transcription) below
+- *(Optional)* **whisper.cpp** for server-side transcription — required on whichever host actually performs transcription (see [Transcription](#transcription) and [Remote Transcription Server](#remote-transcription-server) below)
 
 ## Run it
 
@@ -56,6 +56,7 @@ Edit the gitignored `config.local.json`, send your UDP audio to the configured p
 - `audioLogDir`: Directory to store recorded audio clips (optional)
 - `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
 - `whisper` block: Optional transcription configuration
+  - `remoteHost`: Optional. If set (e.g. `"192.168.1.50:8090"` or `"whisper-host.local:8090"`), transcription requests are sent over HTTP to that host's `/transcribe` endpoint instead of running `whisper-cli` locally. May include an `http://`/`https://` scheme prefix; defaults to `http://` when omitted. When `remoteHost` is set, `binaryPath`/`modelPath` are unnecessary here — they belong in the remote server's own config instead. See [Remote Transcription Server](#remote-transcription-server).
 
 The `whisper` block is optional. Omit it entirely to run without transcription.
 
@@ -155,6 +156,95 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 | `small` | 466 MB | Good balance |
 | `medium` | 1.5 GB | **Recommended** for radio audio quality |
 | `large-v3` | 3 GB | Best accuracy, slowest |
+
+## Remote Transcription Server
+
+Transcription is CPU-heavy. Instead of running `whisper-cli` on the same machine as the WebRTC server, you can offload it to a separate, more powerful host using `cmd/whisper-server` — a small standalone HTTP server included in this repo.
+
+Set `whisper.remoteHost` in the main app's config to point at that host, and the main app will POST recorded WAV clips to it over HTTP instead of shelling out to `whisper-cli` locally. The remote host still needs `whisper.cpp` installed (see [Transcription](#transcription) above), but the WebRTC/G.711 host does not.
+
+**There is no authentication.** This is intended for a trusted internal/private network only — firewall the configured port (default `8090`) if the remote host is otherwise reachable.
+
+### Build and run
+
+```bash
+go build -o whisper-server ./cmd/whisper-server
+./whisper-server -config whisper-server.config.json
+```
+
+or run it directly without building a binary:
+
+```bash
+go run ./cmd/whisper-server -config whisper-server.config.json
+```
+
+`-config` defaults to `whisper-server.config.json` in the current directory if omitted.
+
+### Config file
+
+Copy `cmd/whisper-server/config.example.json` to `whisper-server.config.json` (or any path you like) and edit it:
+
+```json
+{
+  "port": 8090,
+  "binaryPath": "whisper-cli",
+  "modelPath": "/path/to/ggml-medium.bin",
+  "workers": 2,
+  "timeoutMs": 60000
+}
+```
+
+- `port`: TCP port to listen on (default `8090`)
+- `binaryPath`: Path to (or name on `PATH` of) the `whisper-cli` executable (default `whisper-cli`)
+- `modelPath`: Path to the whisper.cpp GGML model file — **required**; the server refuses to start if this is empty
+- `workers`: Maximum number of concurrent `whisper-cli` subprocesses (default `2`)
+- `timeoutMs`: Per-request timeout for the `whisper-cli` subprocess, in milliseconds (default `60000`)
+
+### Endpoints
+
+- **`POST /transcribe`** — body is the raw WAV file bytes (`Content-Type: audio/wav`). An optional `X-Stream-Name` header is accepted purely for log context. Responds `200` with `{"text": "..."}` on success, or a `4xx`/`5xx` status with `{"error": "..."}` on failure.
+
+  ```bash
+  curl -X POST --data-binary @clip.wav -H "Content-Type: audio/wav" http://whisper-host:8090/transcribe
+  ```
+
+- **`GET /healthz`** — reports liveness and load:
+
+  ```bash
+  curl http://whisper-host:8090/healthz
+  # {"status":"ok","workers":2,"inFlight":0,"totalProcessed":42}
+  ```
+
+### End-to-end example
+
+On the dedicated transcription host, `whisper-server.config.json`:
+
+```json
+{
+  "port": 8090,
+  "binaryPath": "/usr/local/bin/whisper-cli",
+  "modelPath": "/opt/whisper.cpp/models/ggml-medium.bin",
+  "workers": 4,
+  "timeoutMs": 60000
+}
+```
+
+On the WebRTC server host, the `whisper` block in `config.local.json`:
+
+```json
+{
+  "whisper": {
+    "remoteHost": "whisper-host.local:8090",
+    "workers": 3,
+    "vadThreshold": 0.02,
+    "silenceMs": 600,
+    "minClipMs": 300,
+    "maxClipMs": 30000
+  }
+}
+```
+
+`binaryPath`/`modelPath` are omitted on the client side since transcription now happens on `whisper-host.local`. The client-side `workers` value still controls how many clips can be sent to the remote server concurrently.
 
 ## Notes
 

@@ -1,0 +1,7 @@
+{
+  "port": 8090,
+  "binaryPath": "whisper-cli",
+  "modelPath": "/opt/whisper.cpp/models/ggml-medium.bin",
+  "workers": 2,
+  "timeoutMs": 60000
+}
