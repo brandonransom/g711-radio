@@ -1,6 +1,6 @@
 {
   "httpPort": 443,
-  "httpRedirectPort": 80,
+  "httpRedirectPort":,
   "audioLogDir": "audio",
   "certFile": "",
   "keyFile": "",
