@@ -797,7 +797,10 @@
         transcriptPanel.hidden = false;
         transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
 
-        fetch(`/transcripts/history?streamId=${encodeURIComponent(streamId)}`)
+        const cacheBuster = Date.now();
+        fetch(`/transcripts/history?streamId=${encodeURIComponent(streamId)}&t=${cacheBuster}`, {
+          cache: "no-store"
+        })
           .then(r => r.json())
           .then(events => {
             transcriptLog.innerHTML = "";
@@ -1045,11 +1048,11 @@
 
         const quietNotice = document.createElement("div");
         quietNotice.className = "stream-notice quiet";
-        quietNotice.textContent = `Nothing heard from "${stream.streamName}" today`;
+        quietNotice.textContent = "";
 
         const conflictNotice = document.createElement("div");
         conflictNotice.className = "stream-notice conflict";
-        conflictNotice.textContent = `⚠ Multiple audio sources detected on UDP ${stream.udpPort} — this will cause audio problems`;
+        conflictNotice.textContent = "";
 
         const button = document.createElement("button");
         button.dataset.action = "stream-primary";
@@ -1417,7 +1420,10 @@
       async function loadStreams() {
         setStatus("Loading streams...");
 
-        const response = await fetch("/streams");
+        const cacheBuster = Date.now();
+        const response = await fetch(`/streams?t=${cacheBuster}`, {
+          cache: "no-store"
+        });
         if (!response.ok) {
           throw new Error(await response.text());
         }
@@ -1521,25 +1527,31 @@
         try {
           const visibleIds = getVisibleStreamIds();
           if (!visibleIds.length) return;
-          const resp = await fetch(`/stream-status?ids=${encodeURIComponent(visibleIds.join(","))}`);
+          // Add cache-buster to ensure fresh status from server
+          const cacheBuster = Date.now();
+          const resp = await fetch(`/stream-status?ids=${encodeURIComponent(visibleIds.join(","))}&t=${cacheBuster}`, {
+            cache: "no-store"
+          });
           if (!resp.ok) return;
           const statuses = await resp.json();
           requestAnimationFrame(() => {
             for (const s of statuses) {
               const targets = streamStatusTargets.get(s.id);
               if (targets) {
-                if (targets.conflictEl) targets.conflictEl.style.display = s.hasConflict ? "block" : "none";
-                if (targets.quietEl) targets.quietEl.style.display = (!s.heardToday && !s.hasConflict) ? "block" : "none";
+                if (targets.conflictEl) {
+                  targets.conflictEl.style.display = s.hasConflict ? "block" : "none";
+                  targets.conflictEl.textContent = s.statusMessage || "";
+                }
+                if (targets.quietEl) {
+                  targets.quietEl.style.display = (!s.heardToday && !s.hasConflict) ? "block" : "none";
+                  targets.quietEl.textContent = s.statusMessage || "";
+                }
               }
 
               if (sharePageStream && s.id === sharePageStream.id) {
-                if (s.hasConflict) {
-                  statusNotice.className = "stream-notice conflict";
-                  statusNotice.textContent = `⚠ Multiple audio sources detected on UDP ${sharePageStream.udpPort} — this will cause audio problems`;
-                  statusNotice.hidden = false;
-                } else if (!s.heardToday) {
-                  statusNotice.className = "stream-notice quiet";
-                  statusNotice.textContent = `Nothing heard from "${sharePageStream.streamName}" today`;
+                if (s.statusMessage) {
+                  statusNotice.className = s.hasConflict ? "stream-notice conflict" : "stream-notice quiet";
+                  statusNotice.textContent = s.statusMessage;
                   statusNotice.hidden = false;
                 } else {
                   statusNotice.hidden = true;

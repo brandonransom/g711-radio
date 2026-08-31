@@ -1159,6 +1159,10 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Disable caching — browser must always fetch fresh stream list from server
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(s.regionGroups); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
@@ -1166,10 +1170,11 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 }
 
 type streamStatus struct {
-	ID           string `json:"id"`
-	HeardToday   bool   `json:"heardToday"`
-	HasConflict  bool   `json:"hasConflict"`
-	ConflictAddr string `json:"conflictAddr,omitempty"`
+	ID            string `json:"id"`
+	HeardToday    bool   `json:"heardToday"`
+	HasConflict   bool   `json:"hasConflict"`
+	ConflictAddr  string `json:"conflictAddr,omitempty"`
+	StatusMessage string `json:"statusMessage"`
 }
 
 func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request) {
@@ -1178,12 +1183,20 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Disable caching — browser must always fetch fresh status from server
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Content-Type", "application/json")
+
 	cutoff := time.Now().Add(-24 * time.Hour)
 	statuses := make([]streamStatus, 0, len(s.streams))
 	for id, st := range s.streams {
 		st.mu.RLock()
 		last := st.lastPacketAt
 		conflict := st.conflictAddr
+		streamName := st.info.StreamName
+		udpPort := st.info.UDPPort
 		st.mu.RUnlock()
 
 		// Consider a stream "heard today" if live packets arrived in the last 24h,
@@ -1192,15 +1205,23 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 		heardToday := (!last.IsZero() && last.After(cutoff)) ||
 			s.hub.HasRecentActivity(id, 24*time.Hour)
 
+		// Generate server-side status message — decision logic stays on server
+		statusMessage := ""
+		if conflict != "" {
+			statusMessage = fmt.Sprintf("⚠ Multiple audio sources detected on UDP %d — this will cause audio problems", udpPort)
+		} else if !heardToday {
+			statusMessage = fmt.Sprintf(`Nothing heard from "%s" today`, streamName)
+		}
+
 		statuses = append(statuses, streamStatus{
-			ID:           id,
-			HeardToday:   heardToday,
-			HasConflict:  conflict != "",
-			ConflictAddr: conflict,
+			ID:            id,
+			HeardToday:    heardToday,
+			HasConflict:   conflict != "",
+			ConflictAddr:  conflict,
+			StatusMessage: statusMessage,
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(statuses)
 }
 
