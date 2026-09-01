@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -24,15 +28,16 @@ type transcriptJob struct {
 
 // whisperConfig holds runtime configuration for the Whisper worker pool.
 type whisperConfig struct {
-	BinaryPath   string  `json:"binaryPath"`
-	ModelPath    string  `json:"modelPath"`
-	Workers      int     `json:"workers"`
-	VADThreshold float64 `json:"vadThreshold"`
-	SilenceMs    int     `json:"silenceMs"`
-	MinClipMs    int     `json:"minClipMs"`
-	MaxClipMs    int     `json:"maxClipMs"`
-	TimeoutMs    int     `json:"timeoutMs"`
-	AutoTranscribeMinClipMs int `json:"autoTranscribeMinClipMs"`
+	BinaryPath              string  `json:"binaryPath"`
+	ModelPath               string  `json:"modelPath"`
+	RemoteHost              string  `json:"remoteHost"`
+	Workers                 int     `json:"workers"`
+	VADThreshold            float64 `json:"vadThreshold"`
+	SilenceMs               int     `json:"silenceMs"`
+	MinClipMs               int     `json:"minClipMs"`
+	MaxClipMs               int     `json:"maxClipMs"`
+	TimeoutMs               int     `json:"timeoutMs"`
+	AutoTranscribeMinClipMs int     `json:"autoTranscribeMinClipMs"`
 }
 
 func (c *whisperConfig) setDefaults() {
@@ -64,13 +69,14 @@ func (c *whisperConfig) setDefaults() {
 // whisperPool manages an unbounded FIFO job queue and a fixed number of worker
 // goroutines that each call whisper.cpp to transcribe audio clips.
 type whisperPool struct {
-	cfg    whisperConfig
-	mu     sync.Mutex
-	queue  []transcriptJob
-	ready  chan struct{}
-	hub    *transcriptHub
-	logger *log.Logger
-	done   chan struct{}
+	cfg        whisperConfig
+	mu         sync.Mutex
+	queue      []transcriptJob
+	ready      chan struct{}
+	hub        *transcriptHub
+	logger     *log.Logger
+	done       chan struct{}
+	httpClient *http.Client
 }
 
 func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *whisperPool {
@@ -80,14 +86,56 @@ func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *
 		hub:    hub,
 		logger: logger,
 		done:   make(chan struct{}),
+		httpClient: &http.Client{
+			// Safety margin above the per-request context timeout used in
+			// transcribeRemote, so the context (not the client) is what
+			// normally cancels a slow request.
+			Timeout: time.Duration(cfg.TimeoutMs+5000) * time.Millisecond,
+		},
 	}
 }
 
-// Start launches worker goroutines.
+// Start launches worker goroutines. If a remote whisper server is configured,
+// it first performs a one-time, non-fatal reachability check so operators get
+// early feedback in the logs without blocking or crashing startup.
 func (p *whisperPool) Start() {
+	if p.cfg.RemoteHost != "" {
+		p.checkRemoteReachability()
+	}
 	for i := 0; i < p.cfg.Workers; i++ {
 		go p.worker(i)
 	}
+}
+
+// checkRemoteReachability performs a best-effort GET against the remote
+// whisper server's /healthz endpoint purely for diagnostic logging at
+// startup. It never returns an error and never blocks startup for long —
+// failures are logged as warnings only.
+func (p *whisperPool) checkRemoteReachability() {
+	base := remoteBaseURL(p.cfg.RemoteHost)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(base + "/healthz")
+	if err != nil {
+		p.logger.Printf("WARNING: remote whisper server at %s unreachable: %v", base, err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		p.logger.Printf("WARNING: remote whisper server at %s unreachable: status %s", base, resp.Status)
+		return
+	}
+	p.logger.Printf("remote whisper server at %s is reachable", base)
+}
+
+// remoteBaseURL normalizes a configured RemoteHost into a base URL: it
+// defaults to the http:// scheme when none is given and strips any trailing
+// slash so callers can safely append a path like "/transcribe".
+func remoteBaseURL(remoteHost string) string {
+	base := remoteHost
+	if !strings.Contains(base, "://") {
+		base = "http://" + base
+	}
+	return strings.TrimRight(base, "/")
 }
 
 // Submit enqueues a clip for transcription. Never drops — unbounded FIFO.
@@ -168,9 +216,9 @@ func (p *whisperPool) worker(id int) {
 	}
 }
 
-// transcribe passes the saved WAV file directly to whisper-cli with --convert,
+// transcribeLocal passes the saved WAV file directly to whisper-cli with --convert,
 // letting whisper handle any resampling. This avoids a fragile re-encode step.
-func (p *whisperPool) transcribe(wavPath string) (string, error) {
+func (p *whisperPool) transcribeLocal(wavPath string) (string, error) {
 	binary := p.cfg.BinaryPath
 	if binary == "" {
 		binary = "WhisperCLI.exe"
@@ -200,6 +248,66 @@ func (p *whisperPool) transcribe(wavPath string) (string, error) {
 	return cleanWhisperOutput(out.String()), nil
 }
 
+// transcribeRemote sends the saved WAV file to a remote whisper-server
+// instance (see cmd/whisper-server) over HTTP instead of running whisper-cli
+// locally. The remote host has no authentication and is expected to run on a
+// trusted private network.
+func (p *whisperPool) transcribeRemote(wavPath string) (string, error) {
+	data, err := os.ReadFile(wavPath)
+	if err != nil {
+		return "", fmt.Errorf("remote whisper: read %s: %w", wavPath, err)
+	}
+
+	url := remoteBaseURL(p.cfg.RemoteHost) + "/transcribe"
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.cfg.TimeoutMs)*time.Millisecond)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("remote whisper %s: build request: %w", url, err)
+	}
+	req.Header.Set("Content-Type", "audio/wav")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("remote whisper %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	body, readErr := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if readErr == nil && json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
+			return "", fmt.Errorf("remote whisper %s: %s", url, errResp.Error)
+		}
+		return "", fmt.Errorf("remote whisper %s: unexpected status %s", url, resp.Status)
+	}
+	if readErr != nil {
+		return "", fmt.Errorf("remote whisper %s: read response: %w", url, readErr)
+	}
+
+	var okResp struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(body, &okResp); err != nil {
+		return "", fmt.Errorf("remote whisper %s: decode response: %w", url, err)
+	}
+
+	return okResp.Text, nil
+}
+
+// transcribe dispatches to a remote whisper-server instance when RemoteHost
+// is configured, otherwise it runs whisper-cli locally as a subprocess.
+func (p *whisperPool) transcribe(wavPath string) (string, error) {
+	if p.cfg.RemoteHost != "" {
+		return p.transcribeRemote(wavPath)
+	}
+	return p.transcribeLocal(wavPath)
+}
 
 // encodePCM16WAV encodes int16 samples into a standard WAV byte slice.
 func encodePCM16WAV(samples []int16, sampleRate int) ([]byte, error) {

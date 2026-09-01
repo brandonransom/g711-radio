@@ -307,14 +307,18 @@ func main() {
 	hub := newTranscriptHub("transcripts", logger)
 
 	var pool *whisperPool
-	if config.Whisper != nil && config.Whisper.ModelPath != "" {
+	if config.Whisper != nil && (config.Whisper.ModelPath != "" || config.Whisper.RemoteHost != "") {
 		config.Whisper.setDefaults()
-		if config.Whisper.BinaryPath == "" {
+		if config.Whisper.RemoteHost == "" && config.Whisper.BinaryPath == "" {
 			config.Whisper.BinaryPath = "WhisperCLI.exe"
 		}
 		pool = newWhisperPool(*config.Whisper, hub, logger)
 		pool.Start()
-		logger.Printf("whisper transcription enabled: model=%s workers=%d", config.Whisper.ModelPath, config.Whisper.Workers)
+		if config.Whisper.RemoteHost != "" {
+			logger.Printf("whisper transcription enabled: remote host=%s workers=%d", config.Whisper.RemoteHost, config.Whisper.Workers)
+		} else {
+			logger.Printf("whisper transcription enabled: model=%s workers=%d", config.Whisper.ModelPath, config.Whisper.Workers)
+		}
 	}
 
 	server := &webrtcServer{
