@@ -14,11 +14,11 @@ go mod tidy
 go run .
 ```
 
-Edit the gitignored `config.local.json`, send your UDP audio to the configured ports, then open `http://localhost:<httpPort>`.
+Edit `config.json`, send your UDP audio to the configured ports, then open `http://localhost:<httpPort>`.
 
 ## Config
 
-`config.local.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `regions` map:
+`config.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `regions` map:
 
 ```json
 {
@@ -98,7 +98,7 @@ Transcription uses [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runni
    ```powershell
    $env:PATH += ";C:\path\to\whisper.cpp\build\bin\Release"
    ```
-4. Note the full path of `ggml-medium.bin` — set it as `modelPath` in `config.local.json` (local mode) or `whisper-server.config.json` (remote mode; see [Remote Transcription Server](#remote-transcription-server) below).
+4. Note the full path of `ggml-medium.bin` — set it as `modelPath` in `config.json` (local mode) or `whisper-server.config.json` (remote mode; see [Remote Transcription Server](#remote-transcription-server) below).
 
 ### Install whisper.cpp on Linux
 
@@ -126,7 +126,7 @@ Transcription uses [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runni
    ```bash
    sudo cp build/bin/whisper-cli /usr/local/bin/
    ```
-5. Note the full path of `ggml-medium.bin` — set it as `modelPath` in `config.local.json` (local mode) or `whisper-server.config.json` (remote mode; see [Remote Transcription Server](#remote-transcription-server) below).
+5. Note the full path of `ggml-medium.bin` — set it as `modelPath` in `config.json` (local mode) or `whisper-server.config.json` (remote mode; see [Remote Transcription Server](#remote-transcription-server) below).
 
 #### Optional: GPU acceleration on Linux (NVIDIA)
 
@@ -217,7 +217,7 @@ curl http://localhost:8090/healthz
 
 ### 3. Point the WebRTC host at it
 
-The WebRTC host does **not** need whisper.cpp installed in this mode. Just set `remoteHost` in its `whisper` config block (see [Config](#config) above) to the transcription host's address, in `config.local.json`:
+The WebRTC host does **not** need whisper.cpp installed in this mode. Just set `remoteHost` in its `whisper` config block (see [Config](#config) above) to the transcription host's address, in `config.json`:
 
 ```json
 {
