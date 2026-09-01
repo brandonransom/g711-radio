@@ -40,7 +40,7 @@
         --panel: rgba(255, 252, 246, 0.92);
         --ink: #1e241f;
         --muted: #5f6d63;
-        --accent: var(--primary-0);
+        --accent: var(--secondary2-2);
         --line: rgba(30, 36, 31, 0.12);
         --shadow: 0 20px 60px rgba(37, 45, 37, 0.14);
       }
@@ -59,8 +59,8 @@
         font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
         color: var(--ink);
         background:
-          radial-gradient(circle at top left, rgba(227, 166, 72, 0.28), transparent 30%),
-          radial-gradient(circle at bottom right, rgba(9, 138, 17, 0.22), transparent 34%),
+          radial-gradient(circle at top left, rgba(55, 99, 148, 0.28), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(0, 114, 7, 0.24), transparent 34%),
           linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
         display: grid;
         place-items: center;
@@ -108,15 +108,15 @@
         font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-weight: 600;
         cursor: pointer;
-        background: var(--primary-0);
+        background: var(--secondary2-2);
         color: #fffdf8;
         transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
-        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.24);
+        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.24);
       }
 
       button:hover:not(:disabled) {
         transform: translateY(-1px);
-        background: var(--primary-2);
+        background: var(--secondary2-1);
       }
 
       button:disabled {
@@ -132,7 +132,7 @@
       }
 
       .secondary:hover:not(:disabled) {
-        background: rgba(227, 76, 72, 0.1);
+        background: rgba(28, 80, 138, 0.1);
       }
 
       .streams {
@@ -157,7 +157,7 @@
         cursor: pointer;
         list-style: none;
         font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: linear-gradient(135deg, rgba(227, 76, 72, 0.04), rgba(57, 179, 65, 0.04));
+        background: linear-gradient(135deg, rgba(55, 99, 148, 0.05), rgba(0, 114, 7, 0.05));
       }
 
       .region summary::-webkit-details-marker {
@@ -165,7 +165,7 @@
       }
 
       .region summary:hover {
-        background: linear-gradient(135deg, rgba(227, 76, 72, 0.12), rgba(57, 179, 65, 0.12));
+        background: linear-gradient(135deg, rgba(55, 99, 148, 0.16), rgba(0, 114, 7, 0.16));
       }
 
       .region-info {
@@ -225,7 +225,7 @@
       }
 
       .group summary:hover {
-        background: rgba(227, 76, 72, 0.08);
+        background: rgba(28, 80, 138, 0.08);
       }
 
       .group-info {
@@ -268,7 +268,7 @@
         padding: 24px;
         border-radius: 24px;
         background:
-          linear-gradient(135deg, rgba(227, 166, 72, 0.14), rgba(9, 138, 17, 0.16)),
+          linear-gradient(135deg, rgba(55, 99, 148, 0.16), rgba(0, 114, 7, 0.18)),
           rgba(255, 255, 255, 0.78);
         border: 1px solid var(--line);
       }
@@ -304,17 +304,17 @@
       }
 
       .stream-start-toggle:not(.started) {
-        background: var(--primary-0);
-        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.28);
+        background: var(--secondary2-2);
+        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.28);
       }
 
       .stream-start-toggle:not(.started):hover:not(:disabled) {
-        background: var(--primary-2);
+        background: var(--secondary2-1);
       }
 
       .stream-start-toggle.started {
-        background: var(--complement-0);
-        box-shadow: 0 12px 24px rgba(9, 138, 17, 0.28);
+        background: var(--complement-3);
+        box-shadow: 0 12px 24px rgba(0, 114, 7, 0.28);
       }
 
       .stream-start-toggle.started:hover:not(:disabled) {
@@ -378,13 +378,13 @@
       }
 
       .stream button:not(:disabled) {
-        background: var(--primary-0);
-        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.28);
+        background: var(--secondary2-2);
+        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.28);
       }
 
       .stream button:hover:not(:disabled) {
-        background: var(--primary-2);
-        box-shadow: 0 12px 24px rgba(175, 15, 11, 0.32);
+        background: var(--secondary2-1);
+        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.32);
       }
 
       .stream button:disabled {
@@ -519,7 +519,7 @@
 
       code {
         font-family: "Aptos Mono", "Courier New", monospace;
-        background: rgba(227, 76, 72, 0.1);
+        background: rgba(28, 80, 138, 0.1);
         padding: 2px 6px;
         border-radius: 4px;
       }
@@ -554,25 +554,6 @@
     </main>
 
     <script>
-      // Telex Cool Color Scheme
-      const telexCoolColors = {
-        primary: "#1C508A",
-        secondary: "#376394",
-        accent: "#007207",
-      };
-
-      function applyColorScheme(colors) {
-        document.documentElement.style.setProperty("--primary-0", colors.primary);
-        document.documentElement.style.setProperty("--accent", colors.primary);
-        document.documentElement.style.setProperty("--secondary1-0", colors.secondary);
-        document.documentElement.style.setProperty("--complement-0", colors.accent);
-      }
-
-      // Initialize theme on load
-      window.addEventListener("DOMContentLoaded", () => {
-        applyColorScheme(telexCoolColors);
-      });
-
       // Stream connection logic
       const disconnectBtn = document.getElementById("disconnectBtn");
       const launchRoot = document.getElementById("launchRoot");
