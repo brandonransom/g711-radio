@@ -1152,7 +1152,7 @@
           const btn = launchRoot.querySelector(".stream-start-toggle");
           if (btn && (currentConnectionState === "connected" || currentConnectionState === "connecting" || currentConnectionState === "reconnecting")) {
             btn.classList.add("started");
-            btn.textContent = currentConnectionState === "connected" ? "Stream Started" : "Connecting...";
+            btn.textContent = currentConnectionState === "connected" ? "Stream Started" : currentConnectionState === "reconnecting" ? "Reconnecting..." : "Connecting...";
           } else if (btn && currentConnectionState === "idle") {
             btn.classList.remove("started");
             btn.textContent = "Start Stream";
@@ -1459,22 +1459,34 @@
         }
       }
 
-      function disconnect(updateStatus = true, keepURL = false) {
+      // Tears down the current peer connection and resets connection-scoped UI
+      // (player, disconnect button, status notice) without touching the URL,
+      // the recordings/transcripts panel, or currentStreamId/currentStreamName.
+      // Used when we're about to reconnect to the same stream so those survive
+      // a transient audio-leg failure.
+      function resetConnectionUI() {
         closeCurrentConnection();
         player.srcObject = null;
-        currentStreamId = null;
-        if (!keepURL) {
-          currentStreamName = "";
-          stopTranscription();
-        }
-        if (!keepURL) {
-          syncURL(null);
-        }
         connectingStreamId = null;
         disconnectBtn.disabled = true;
         statusNotice.hidden = true;
         statusNotice.textContent = "";
         statusNotice.className = "stream-notice";
+      }
+
+      function disconnect(updateStatus = true, keepURL = false) {
+        resetConnectionUI();
+        currentStreamId = null;
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+        reconnectAttempts = 0;
+        if (!keepURL) {
+          currentStreamName = "";
+          stopTranscription();
+          syncURL(null);
+        }
         renderLaunchView();
         renderStreams();
         setConnectionState("idle");
@@ -1488,18 +1500,47 @@
         }
       }
 
+      // Automatically retries a lost WebRTC audio connection with capped
+      // exponential backoff. Only invoked for genuine failures (connectionState
+      // "failed"/"closed") while still on the dedicated stream page — it never
+      // touches the URL or the recordings/transcripts panel (SSE), since those
+      // are independent of the audio leg and should keep running indefinitely.
+      function scheduleReconnect(stream) {
+        if (!stream) return;
+        reconnectAttempts++;
+        const delayMs = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
+        const delaySecs = (delayMs / 1000).toFixed(1);
+
+        setConnectionState("reconnecting");
+        setStatus(`${formatStreamDisplayName(stream)}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts})...`);
+        renderLaunchView();
+
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+        }
+        reconnectTimeout = setTimeout(() => {
+          reconnectTimeout = null;
+          if (sharePageStream && sharePageStream.id === stream.id && !pc) {
+            void connect(stream);
+          }
+        }, delayMs);
+      }
+
       async function connect(stream) {
         if (!stream) return;
         if (connectingStreamId === stream.id) return;
         if (currentStreamId === stream.id && pc && ["new", "connecting", "connected"].includes(pc.connectionState)) return;
 
         const connectToken = ++activeConnectToken;
-        disconnect(false, true);
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+        resetConnectionUI();
 
         currentStreamId = stream.id;
         currentStreamName = formatStreamDisplayName(stream);
         connectingStreamId = stream.id;
-        reconnectAttempts = 0;
         syncURL(stream.id, formatStreamDisplayName(stream));
         renderLaunchView();
         renderStreams();
@@ -1539,18 +1580,35 @@
             return;
           }
 
-          setStatus(`${currentStreamName}: ${connection.connectionState}`);
-
           if (connection.connectionState === "connected") {
+            setStatus(`${currentStreamName}: connected`);
             setConnectionState("connected");
             connectingStreamId = null;
             disconnectBtn.disabled = false;
+            reconnectAttempts = 0;
             renderStreams();
+            return;
           }
 
-          if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
-            closeCurrentConnection();
-            disconnect(true, false);
+          if (connection.connectionState === "disconnected") {
+            // Transient — the browser's ICE agent keeps probing in the background
+            // and will either recover back to "connected" on its own or escalate
+            // to "failed" after its own timeout. Don't tear anything down yet;
+            // doing so on every brief network hiccup is what caused audio to
+            // reset during otherwise-healthy streams.
+            setConnectionState("reconnecting");
+            setStatus(`${currentStreamName}: connection interrupted, attempting to recover...`);
+            return;
+          }
+
+          if (["failed", "closed"].includes(connection.connectionState)) {
+            if (sharePageStream && sharePageStream.id === stream.id) {
+              resetConnectionUI();
+              scheduleReconnect(stream);
+            } else {
+              closeCurrentConnection();
+              disconnect(true, false);
+            }
           }
         });
 
@@ -1583,10 +1641,15 @@
           }
         } catch (error) {
           if (connectToken === activeConnectToken && pc === connection) {
-            closeCurrentConnection();
-            connectingStreamId = null;
-            disconnect(false, false);
-            setStatus(`Connection failed: ${error.message}`);
+            if (sharePageStream && sharePageStream.id === stream.id) {
+              resetConnectionUI();
+              scheduleReconnect(stream);
+            } else {
+              closeCurrentConnection();
+              connectingStreamId = null;
+              disconnect(false, false);
+              setStatus(`Connection failed: ${error.message}`);
+            }
           }
         }
       }
@@ -1749,7 +1812,53 @@
         } catch (_) { /* ignore network errors between polls */ }
       }
 
+      // Mobile/network resume: a phone lock, app-switch, or IP change can keep
+      // the peer connection dead (or the page frozen) well past the point
+      // where ICE would have self-healed or the backoff timer in
+      // scheduleReconnect() would have fired — background tabs are commonly
+      // throttled or fully suspended, so that timer may never run while
+      // hidden. When the page becomes visible/active again, check the actual
+      // connection state directly and reconnect immediately if needed,
+      // instead of waiting out a stale backoff. This never touches the URL or
+      // the recordings/transcripts panel — only the audio leg.
+      function handleVisibilityRestore() {
+        if (document.visibilityState !== "visible") return;
+        if (!sharePageStream || currentStreamId !== sharePageStream.id || connectingStreamId) return;
+        const state = pc ? pc.connectionState : null;
+        if (!pc || ["failed", "closed", "disconnected"].includes(state)) {
+          if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+          }
+          reconnectAttempts = 0;
+          void connect(sharePageStream);
+        }
+      }
+
       document.addEventListener("visibilitychange", schedulePollLoop);
+      document.addEventListener("visibilitychange", handleVisibilityRestore);
+
+      // iOS bfcache: page is restored from cache without a full reload, and
+      // any live media/ICE sockets from before the freeze are dead even if
+      // stale JS state still looks "connected".
+      window.addEventListener("pageshow", (e) => {
+        if (e.persisted) {
+          reconnectAttempts = 0;
+          handleVisibilityRestore();
+        }
+      });
+
+      // Reconnect immediately when the device regains network connectivity
+      // (wifi resume, airplane mode off, cellular handoff) rather than
+      // waiting out whatever backoff delay was in progress.
+      window.addEventListener("online", () => {
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+        reconnectAttempts = 0;
+        handleVisibilityRestore();
+      });
 
       renderPageChrome();
 
