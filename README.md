@@ -60,6 +60,45 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 
 The `whisper` block is optional. Omit it entirely to run without transcription.
 
+## Multicast Audio Streaming
+
+Streams support listening on **up to 4 UDP ports simultaneously**, with intelligent port priority and automatic failover. This enables redundant encoder setups, multi-site aggregation, and fallback scenarios.
+
+### Configuration
+
+Each stream can use:
+- **`udpPort`** (deprecated): Single UDP port (backward compatible)
+- **`udpPorts`**: Array of 1-4 UDP ports
+- **`multicastAddr`** (deprecated): Single multicast address
+- **`multicastAddrs`**: Array of multicast addresses (one per port, or empty string for unicast)
+
+Example:
+```json
+{
+  "regions": {
+    "Alaska": {
+      "Chugach NF": [
+        { "streamName": "Single Port", "udpPort": 5000 },
+        { "streamName": "Redundant", "udpPorts": [5000, 5001] },
+        { "streamName": "Multicast", "udpPorts": [5000, 5001], "multicastAddrs": ["224.0.0.1", ""] }
+      ]
+    }
+  }
+}
+```
+
+### Port Priority & Failover
+
+- **Port Priority**: The first port to receive a valid audio packet becomes active; packets from other ports are silently dropped
+- **Dropout Detection**: After ~1 second with no packets on the active port, the stream resets and any port can become active
+- **Use Case**: Seamless failover from primary to backup encoder without manual intervention
+
+### Backward Compatibility
+
+Existing configs with single `udpPort` continue to work unchanged. Multicast is purely opt-in.
+
+See the section below for detailed multicast configuration examples.
+
 ## Usage Logging
 
 When `usageLogFile` is configured, the server writes visitor activity to a CSV file with the following columns:
@@ -261,12 +300,81 @@ This check never blocks startup — the app starts either way — so treat the w
   # {"status":"ok","workers":2,"inFlight":0,"totalProcessed":42}
   ```
 
+## Multicast Configuration Examples
+
+### Example 1: Encoder Failover (Redundant Ports)
+
+```json
+{
+  "regions": {
+   "Alaska": {
+     "Chugach NF": [
+       {
+         "streamName": "Fire Dispatch",
+         "udpPorts": [5000, 5001]
+       }
+     ]
+   }
+  }
+}
+```
+
+Primary encoder sends to port 5000; backup sends to port 5001. If primary fails (no packets for 1 second), backup takes over automatically.
+
+### Example 2: Multicast with Unicast Fallback
+
+```json
+{
+  "streamName": "Regional Broadcast",
+  "udpPorts": [5000, 5001],
+  "multicastAddrs": ["224.0.0.1", ""]
+}
+```
+
+Primary encoder sends to multicast group 224.0.0.1:5000. Backup (outside the multicast network) sends to unicast port 5001. Primary wins if both are transmitting.
+
+### Example 3: Multi-Site Aggregation
+
+```json
+{
+  "streamName": "Forest Network",
+  "udpPorts": [5000, 5001, 5002, 5003],
+  "multicastAddrs": [
+   "224.0.1.1",
+   "224.0.1.2",
+   "224.0.1.3",
+   "224.0.1.4"
+  ]
+}
+```
+
+Four regional sites each broadcast to different multicast groups. Audio from all sites is aggregated; port priority ensures one encoder wins at any time.
+
+### Testing Multicast
+
+To send test audio to a multicast address:
+
+```bash
+# Using FFmpeg (Linux/macOS)
+ffmpeg -f lavfi -i sine=frequency=1000:duration=30 \
+  -acodec pcm_mulaw -ar 8000 -ac 1 \
+  -f rtp "rtp://224.0.0.1:5000?ttl=32"
+```
+
+To verify packets arrive:
+
+```bash
+# Monitor multicast traffic
+sudo tcpdump -i eth0 -n host 224.0.0.1 and port 5000
+```
+
 ## Notes
 
 - The server assumes 8 kHz mono G.711 PCMU frames with a 12-byte transport header and 160 audio bytes per packet (20 ms).
 - The client loads streams from `/streams`, renders them as a hierarchical region → group → stream accordion, and opens each feed in its own dedicated tab.
 - The client uses non-trickle ICE and is intended for local or LAN use. For internet-facing deployments, add STUN/TURN configuration.
 - Transcription requires Chrome or Edge on the client (SSE is supported in all modern browsers; the panel displays regardless).
+- Multicast streams support up to 4 ports per stream. Port priority ensures seamless failover in redundant encoder scenarios.
 
 ## Test with GStreamer
 
