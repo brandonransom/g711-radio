@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -95,7 +96,17 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 
 	exeDir := m.config.CommandPath
 	exeName := filepath.Base(m.config.ExecutablePath)
+	if exeDir == "" {
+		exeDir = "."
+	}
+	if _, err := os.Stat(m.config.ExecutablePath); err != nil {
+		return fmt.Errorf("mping executable not found at %s: %w", m.config.ExecutablePath, err)
+	}
+	if info, err := os.Stat(exeDir); err != nil || !info.IsDir() {
+		return fmt.Errorf("mping command path is not a directory: %s", exeDir)
+	}
 	cmdLine := strings.Join(append([]string{quoteCmdArg(exeName)}, quoteCmdArgs(args)...), " ")
+	m.logger.Printf("starting mping via cmd.exe in %s: %s %s", exeDir, m.config.ExecutablePath, strings.Join(args, " "))
 	cmd := exec.CommandContext(m.ctx, "cmd.exe", "/c", "start", "", "/D", exeDir, "cmd.exe", "/k", cmdLine)
 	cmd.Stdout = nil // Suppress stdout
 	cmd.Stderr = nil // Suppress stderr
