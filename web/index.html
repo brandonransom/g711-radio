@@ -1085,12 +1085,16 @@
 
       function buildStreamURL(streamId, streamName) {
         const url = new URL(window.location.href);
+        if (streamId) {
+          url.searchParams.set(streamQueryParam, streamId);
+        } else {
+          url.searchParams.delete(streamQueryParam);
+        }
         if (streamName) {
           url.searchParams.set("name", streamName.replace(/\s+/g, "-"));
         } else {
           url.searchParams.delete("name");
         }
-        url.searchParams.delete(streamQueryParam);
         return url;
       }
 
@@ -1126,11 +1130,11 @@
       }
 
       function isDedicatedStreamPage() {
-        return Boolean(sharePageStream || getRequestedStreamId() || currentStreamId || connectingStreamId);
+        return Boolean(sharePageStream || getRequestedStreamId());
       }
 
       function showShareLanding() {
-        return Boolean((sharePageStream || getRequestedStreamId() || currentStreamId || connectingStreamId) && !pc && !connectingStreamId);
+        return Boolean(isDedicatedStreamPage() && !pc && !connectingStreamId);
       }
 
       let launchViewStreamId = null;
