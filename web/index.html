@@ -651,7 +651,6 @@
 
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
-      let sseWatchdogTimer = null;
 
       function formatTranscriptTime(isoString) {
         const date = new Date(isoString);
@@ -948,27 +947,11 @@
       let transcriptionStreamId = null;
 
       function openSseConnection(streamId) {
-        if (sseWatchdogTimer) { clearInterval(sseWatchdogTimer); sseWatchdogTimer = null; }
         if (transcriptSSE) { transcriptSSE.close(); transcriptSSE = null; }
 
         transcriptSSE = new EventSource(`/transcripts?streamId=${encodeURIComponent(streamId)}`);
 
-        let sseLastActivity = Date.now();
-        sseWatchdogTimer = setInterval(() => {
-          if (transcriptSSE && Date.now() - sseLastActivity > 20000) {
-            transcriptSSE.close();
-            transcriptSSE = null;
-            clearInterval(sseWatchdogTimer);
-            sseWatchdogTimer = null;
-            // Reconnect SSE only — do NOT reload history or wipe the log.
-            if (transcriptionStreamId) openSseConnection(transcriptionStreamId);
-          }
-        }, 5000);
-
-        const resetSseWatchdog = () => { sseLastActivity = Date.now(); };
-
         transcriptSSE.onmessage = (event) => {
-          resetSseWatchdog();
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === "clip") {
@@ -979,23 +962,7 @@
           } catch (_) {}
         };
 
-        transcriptSSE.addEventListener("message", resetSseWatchdog);
-
-        transcriptSSE.onerror = () => {
-          resetSseWatchdog();
-          const existing = transcriptLog.querySelector(".transcript-reconnecting");
-          if (!existing) {
-            const note = document.createElement("span");
-            note.className = "transcript-empty transcript-reconnecting";
-            note.textContent = "Reconnecting transcript feed...";
-            transcriptLog.appendChild(note);
-          }
-        };
-        transcriptSSE.onopen = () => {
-          resetSseWatchdog();
-          const note = transcriptLog.querySelector(".transcript-reconnecting");
-          if (note) note.remove();
-        };
+        transcriptSSE.onerror = () => {};
       }
 
       function startTranscription(streamId) {
@@ -1049,7 +1016,6 @@
       }
 
       function stopTranscription() {
-        if (sseWatchdogTimer) { clearInterval(sseWatchdogTimer); sseWatchdogTimer = null; }
         if (transcriptSSE) { transcriptSSE.close(); transcriptSSE = null; }
         clipPlaybackQueue = [];
         clipPlaybackActive = null;

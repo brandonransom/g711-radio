@@ -66,7 +66,6 @@ type appConfig struct {
 	DebugMulticast   bool                                 `json:"debugMulticast"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
-	Keepalive        *keepaliveConfig                      `json:"keepalive"`
 	AudioLogDir      string                               `json:"audioLogDir"`
 	UsageLogFile     string                               `json:"usageLogFile"`
 	CertFile         string                               `json:"certFile"`
@@ -188,7 +187,6 @@ type webrtcServer struct {
 	clipMu       sync.RWMutex
 	whisperPool  *whisperPool
 	audioLogDir  string
-	keepaliveManager *keepaliveManager
 }
 
 func (s *webrtcServer) storeClip(rec clipRecord) {
@@ -437,7 +435,6 @@ func main() {
 		clips:        make(map[string]clipRecord),
 		whisperPool:  pool,
 		audioLogDir:  config.AudioLogDir,
-		keepaliveManager: newKeepaliveManager(config.Keepalive, logger),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -585,13 +582,6 @@ func main() {
 						frameDuration,
 					)
 
-					// Start integrated keepalive bursts for multicast addresses.
-					if server.keepaliveManager != nil && server.keepaliveManager.config.Enabled {
-						if err := server.keepaliveManager.startForAddresses(addresses); err != nil {
-							logger.Printf("warning: failed to start keepalive for %q: %v", cfg.StreamName, err)
-						}
-					}
-
 					ml.Start()
 
 					go func(st *station, ml *MulticastListener) {
@@ -696,9 +686,6 @@ func main() {
 		_ = httpServer.Shutdown(shutdownCtx)
 		if pool != nil {
 			pool.Close()
-		}
-		if server.keepaliveManager != nil {
-			server.keepaliveManager.close()
 		}
 	}()
 
