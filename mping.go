@@ -82,15 +82,14 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 		return nil
 	}
 
-	// Build mping command line
-	// Default to sender mode (-s flag)
-	// Format: mping.exe -s -a <multicast_addr> -p <port> -t <ttl> -i <interval>
+	// Build mping command line to match the working manual invocation.
+	// Format: mping.exe <multicast_addr> <port> <ttl> <interval_ms> <mode>
 	args := []string{
-		"-s", // Sender mode
-		"-a", multicastAddr,
-		"-p", strconv.Itoa(m.config.Port),
-		"-t", strconv.Itoa(m.config.TTL),
-		"-i", strconv.Itoa(m.config.IntervalMs),
+		multicastAddr,
+		strconv.Itoa(m.config.Port),
+		strconv.Itoa(m.config.TTL),
+		strconv.Itoa(m.config.IntervalMs),
+		"0",
 	}
 
 	exeDir := m.config.CommandPath
@@ -103,7 +102,8 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	if info, err := os.Stat(exeDir); err != nil || !info.IsDir() {
 		return fmt.Errorf("mping command path is not a directory: %s", exeDir)
 	}
-	m.logger.Printf("starting mping as a process in %s: %s", exeDir, m.config.ExecutablePath)
+	m.logger.Printf("starting mping as a process in %s: %s %s %d %d %d 0",
+		exeDir, m.config.ExecutablePath, multicastAddr, m.config.Port, m.config.TTL, m.config.IntervalMs)
 	cmd := exec.CommandContext(m.ctx, m.config.ExecutablePath, args...)
 	cmd.Dir = exeDir
 	cmd.Stdout = nil
