@@ -73,8 +73,11 @@ type appConfig struct {
 }
 
 type streamConfig struct {
-	StreamName string `json:"streamName"`
-	UDPPort    int    `json:"udpPort"`
+	StreamName    string   `json:"streamName"`
+	UDPPort       int      `json:"udpPort"`       // deprecated: use UDPPorts for multicast
+	UDPPorts      []int    `json:"udpPorts"`      // list of UDP ports to listen on (supports multicast)
+	MulticastAddr string   `json:"multicastAddr"` // single multicast group (if any) — deprecated
+	MulticastAddrs []string `json:"multicastAddrs"` // list of multicast group addresses
 }
 
 type streamInfo struct {
@@ -120,6 +123,9 @@ type station struct {
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
 	subscribers map[string]*subscriber
+
+	// multicast listener (non-nil if using multiple ports/multicast addresses)
+	multicastListener *MulticastListener
 
 	// packet health tracking (protected by mu)
 	lastPacketAt        time.Time
@@ -249,6 +255,89 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 		s.logger.Printf("transcribe: clip %q audioUrl fallback wav=%s not found on disk", req.ClipID, wavPath)
 	}
 	http.Error(w, "clip not found or transcription unavailable", http.StatusNotFound)
+}
+
+// getListenerConfig extracts UDP ports and multicast addresses from streamConfig.
+// Returns (ports, addresses, error).
+// Ports are ordered: if UDPPorts is present, use it; otherwise use UDPPort.
+// Addresses are ordered: if MulticastAddrs is present, use it; otherwise use MulticastAddr.
+// If not enough addresses are provided for the ports, empty strings fill the gaps (indicating unicast).
+func getListenerConfig(cfg streamConfig) ([]int, []string, error) {
+	var ports []int
+	var addresses []string
+
+	// Extract ports
+	if len(cfg.UDPPorts) > 0 {
+		ports = cfg.UDPPorts
+	} else if cfg.UDPPort > 0 {
+		ports = []int{cfg.UDPPort}
+	}
+
+	if len(ports) == 0 {
+		return nil, nil, fmt.Errorf("stream has no ports configured")
+	}
+	if len(ports) > 4 {
+		return nil, nil, fmt.Errorf("stream has %d ports; maximum is 4", len(ports))
+	}
+
+	// Extract addresses
+	if len(cfg.MulticastAddrs) > 0 {
+		addresses = cfg.MulticastAddrs
+	} else if cfg.MulticastAddr != "" {
+		addresses = []string{cfg.MulticastAddr}
+	}
+
+	// Pad addresses with empty strings (for unicast ports)
+	for len(addresses) < len(ports) {
+		addresses = append(addresses, "")
+	}
+
+	return ports, addresses, nil
+}
+
+// ingestMulticast is called when a stream uses multicast listener.
+func (s *station) ingestMulticast(ctx context.Context) error {
+	if s.multicastListener == nil {
+		return fmt.Errorf("multicast listener not initialized")
+	}
+
+	packetsSeen := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case frame, ok := <-s.multicastListener.FrameChan():
+			if !ok {
+				// Channel closed
+				return nil
+			}
+
+			now := time.Now()
+			s.mu.Lock()
+			s.lastPacketAt = now
+			s.mu.Unlock()
+
+			if packetsSeen == 0 {
+				s.logger.Printf(
+					"%s: first multicast packet received, audio_bytes=%d, skip_bytes=%d",
+					s.info.StreamName,
+					len(frame),
+					skipBytes,
+				)
+			}
+			packetsSeen++
+
+			// Run VAD if transcription is enabled.
+			if s.vad != nil {
+				s.vad.Push(DecodePCMU(frame), time.Now())
+			}
+
+			s.broadcast(media.Sample{
+				Data:     frame,
+				Duration: s.frameDuration,
+			})
+		}
+	}
 }
 
 func main() {
@@ -440,37 +529,85 @@ func main() {
 						)
 					}
 
-				conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", cfg.UDPPort))
+				// Extract ports and addresses from config
+				ports, addresses, err := getListenerConfig(cfg)
 				if err != nil {
-					logger.Fatalf("listen on UDP %d for %q: %v", cfg.UDPPort, cfg.StreamName, err)
+					logger.Fatalf("invalid stream config for %q: %v", cfg.StreamName, err)
 				}
 
-				server.streams[info.ID] = st
-				apiSubGroup.Streams = append(apiSubGroup.Streams, info)
+				// Determine if we need multicast listener
+				useMulticast := len(ports) > 1
 
-				logger.Printf(
-					"configured stream %q in region %q, group %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
-					info.StreamName,
-					region.RegionName,
-					sg.GroupName,
-					info.UDPPort,
-					frameSizeBytes,
-					skipBytes,
-					frameDuration,
-				)
-
-				go func(st *station, conn net.PacketConn) {
-					<-ctx.Done()
-					_ = conn.Close()
-					st.closeSubscribers()
-				}(st, conn)
-
-				go func(st *station, conn net.PacketConn) {
-					if err := st.ingest(ctx, conn); err != nil {
-						logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
-						stop()
+				if useMulticast {
+					// Use multicast listener for multiple ports
+					ml, err := NewMulticastListener(cfg.StreamName, ports, addresses, 1*time.Second, logger)
+					if err != nil {
+						logger.Fatalf("failed to create multicast listener for %q: %v", cfg.StreamName, err)
 					}
-				}(st, conn)
+					st.multicastListener = ml
+
+					server.streams[info.ID] = st
+					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
+
+					logger.Printf(
+						"configured stream %q in region %q, group %q on UDP ports %v, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+						info.StreamName,
+						region.RegionName,
+						sg.GroupName,
+						ports,
+						frameSizeBytes,
+						skipBytes,
+						frameDuration,
+					)
+
+					ml.Start()
+
+					go func(st *station, ml *MulticastListener) {
+						<-ctx.Done()
+						ml.Close()
+						st.closeSubscribers()
+					}(st, ml)
+
+					go func(st *station) {
+						if err := st.ingestMulticast(ctx); err != nil {
+							logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
+							stop()
+						}
+					}(st)
+				} else {
+					// Use single UDP port (original behavior)
+					conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", ports[0]))
+					if err != nil {
+						logger.Fatalf("listen on UDP %d for %q: %v", ports[0], cfg.StreamName, err)
+					}
+
+					server.streams[info.ID] = st
+					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
+
+					logger.Printf(
+						"configured stream %q in region %q, group %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+						info.StreamName,
+						region.RegionName,
+						sg.GroupName,
+						ports[0],
+						frameSizeBytes,
+						skipBytes,
+						frameDuration,
+					)
+
+					go func(st *station, conn net.PacketConn) {
+						<-ctx.Done()
+						_ = conn.Close()
+						st.closeSubscribers()
+					}(st, conn)
+
+					go func(st *station, conn net.PacketConn) {
+						if err := st.ingest(ctx, conn); err != nil {
+							logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
+							stop()
+						}
+					}(st, conn)
+				}
 			}
 
 			apiRegion.SubGroups = append(apiRegion.SubGroups, apiSubGroup)

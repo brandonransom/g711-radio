@@ -17,6 +17,13 @@
     "minClipMs": 1000,
     "maxClipMs": 30000
   },
+  "mping": {
+    "enabled": true,
+    "executablePath": "C:\\Program Files\\mping\\mping.exe",
+    "port": 5750,
+    "ttl": 32,
+    "intervalMs": 1000
+  },
   "regions": {
     "Alaska": {
       "Chugach NF": [
@@ -49,7 +56,8 @@
         { "streamName": "Fire East Net", "udpPort": 51790 },
         { "streamName": "Fire West Net", "udpPort": 51760 },
         { "streamName": "Forest East Net", "udpPort": 51740 },
-        { "streamName": "Forest West Net", "udpPort": 51750 }
+        { "streamName": "Forest West Net", "udpPort": 51750 },
+        { "streamName": "Fire East Redundant", "udpPorts": [51791, 51792], "multicastAddrs": ["224.1.1.1", ""] }
       ],
       "Modoc NF": [
         { "streamName": "Admin Net", "udpPort": 5900 },
