@@ -628,6 +628,7 @@
       let reconnectAttempts = 0;
       let reconnectTimeout = null;
       let baseReconnectDelay = 1000;
+      let activeConnectToken = 0;
       let currentConnectionState = "idle";
       const expandedGroups = new Set();
       const DEFAULT_OPEN_REGION_COUNT = 1;
@@ -1492,6 +1493,7 @@
       }
 
       function scheduleReconnect(stream) {
+        if (connectingStreamId === stream.id) return;
         reconnectAttempts++;
         const delayMs = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
         const delaySecs = (delayMs / 1000).toFixed(1);
@@ -1545,6 +1547,11 @@
       }
 
       async function connect(stream) {
+        if (!stream) return;
+        if (connectingStreamId === stream.id) return;
+        if (currentStreamId === stream.id && pc && ["new", "connecting", "connected"].includes(pc.connectionState)) return;
+
+        const connectToken = ++activeConnectToken;
         disconnect(false, true);
 
         currentStreamId = stream.id;
@@ -1583,6 +1590,9 @@
         });
 
         connection.addEventListener("connectionstatechange", () => {
+          if (connectToken !== activeConnectToken) {
+            return;
+          }
           if (pc !== connection) {
             return;
           }
@@ -1628,13 +1638,13 @@
           const answer = await response.json();
           await connection.setRemoteDescription(answer);
 
-          if (pc === connection) {
+          if (connectToken === activeConnectToken && pc === connection) {
             connectingStreamId = null;
             renderStreams();
             setStatus(`Waiting for ${formatStreamDisplayName(stream)} audio...`);
           }
         } catch (error) {
-          if (pc === connection) {
+          if (connectToken === activeConnectToken && pc === connection) {
             closeCurrentConnection();
             connectingStreamId = null;
             if (sharePageStream) {
@@ -1803,7 +1813,7 @@
           startTranscription(transcriptionStreamId);
         }
         // Reconnect WebRTC if we have a stream but the peer connection is gone/failed.
-        if (sharePageStream && currentStreamId) {
+        if (sharePageStream && currentStreamId && !connectingStreamId) {
           const state = pc ? pc.connectionState : null;
           if (!pc || ["failed", "closed", "disconnected"].includes(state)) {
             if (reconnectTimeout) {
