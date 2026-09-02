@@ -1575,11 +1575,7 @@
 
           if (["failed", "closed", "disconnected"].includes(connection.connectionState)) {
             closeCurrentConnection();
-            if (sharePageStream) {
-              scheduleReconnect(stream);
-            } else {
-              disconnect(true, false);
-            }
+            disconnect(true, false);
           }
         });
 
@@ -1614,12 +1610,8 @@
           if (connectToken === activeConnectToken && pc === connection) {
             closeCurrentConnection();
             connectingStreamId = null;
-            if (sharePageStream) {
-              scheduleReconnect(stream);
-            } else {
-              disconnect(false, false);
-              setStatus(`Connection failed: ${error.message}`);
-            }
+            disconnect(false, false);
+            setStatus(`Connection failed: ${error.message}`);
           }
         }
       }
