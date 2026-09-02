@@ -226,6 +226,74 @@ func TestDropoutDetection(t *testing.T) {
 		}
 	}
 }
+
+// TestExtractAudioFrame verifies audio extraction across multiple device
+// packet formats: the legacy 12-byte-header format, and the DFSI-style
+// gateway's 14-byte (steady-state) and 18-byte (first frame of a burst,
+// carrying an extra start-of-stream marker) headers. It also verifies that
+// short non-audio control/keepalive packets (as seen from DFSI gateways
+// cycling through their channel ports) are rejected rather than misread as
+// audio.
+func TestExtractAudioFrame(t *testing.T) {
+	makePacket := func(headerLen int, marker byte) []byte {
+		payload := make([]byte, headerLen+frameSizeBytes)
+		for i := 0; i < headerLen; i++ {
+			payload[i] = marker // arbitrary header bytes; content must be ignored
+		}
+		audio := createTestG711Frame(frameSizeBytes)
+		copy(payload[headerLen:], audio)
+		return payload
+	}
+
+	t.Run("legacy 12-byte header (172-byte packet)", func(t *testing.T) {
+		pkt := makePacket(12, 0xAA)
+		frame, err := extractAudioFrame(pkt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(frame, createTestG711Frame(frameSizeBytes)) {
+			t.Errorf("extracted frame does not match expected audio bytes")
+		}
+	})
+
+	t.Run("DFSI 14-byte header (174-byte packet)", func(t *testing.T) {
+		pkt := makePacket(14, 0xBB)
+		frame, err := extractAudioFrame(pkt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(frame, createTestG711Frame(frameSizeBytes)) {
+			t.Errorf("extracted frame does not match expected audio bytes")
+		}
+	})
+
+	t.Run("DFSI 18-byte header, first frame of burst (178-byte packet)", func(t *testing.T) {
+		pkt := makePacket(18, 0xCC)
+		frame, err := extractAudioFrame(pkt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !bytes.Equal(frame, createTestG711Frame(frameSizeBytes)) {
+			t.Errorf("extracted frame does not match expected audio bytes")
+		}
+	})
+
+	t.Run("short non-audio control/keepalive packets are rejected", func(t *testing.T) {
+		for _, size := range []int{14, 16, 17, 28, 36, 84} {
+			if _, err := extractAudioFrame(make([]byte, size)); err == nil {
+				t.Errorf("expected error for %d-byte non-audio packet, got nil", size)
+			}
+		}
+	})
+
+	t.Run("implausibly large header is rejected as a sanity check", func(t *testing.T) {
+		pkt := makePacket(maxHeaderBytes+1, 0xDD)
+		if _, err := extractAudioFrame(pkt); err == nil {
+			t.Errorf("expected error for packet with %d-byte header, got nil", maxHeaderBytes+1)
+		}
+	})
+}
+
 // Helper functions
 
 func equalIntSlices(a, b []int) bool {

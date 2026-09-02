@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -40,8 +42,23 @@ func nextClipID() string {
 	return fmt.Sprintf("clip-%d", globalClipID.Add(1))
 }
 
+// nextStreamID returns a randomly generated, globally unique stream
+// identifier. IDs must never be derived from a stream's position in the
+// config file: inserting, removing, or reordering a stream entry would then
+// silently reassign another stream's old ID to a different stream on the
+// next restart, so a stale ID cached anywhere (a bookmarked link, a client's
+// in-memory state) would silently attach to the wrong stream. Random IDs are
+// re-generated fresh on every server start, so nothing should assume a
+// stream's ID is stable across restarts — transcriptHub.History and
+// HasRecentActivity key off the stream name for that reason.
 func nextStreamID() string {
-	return fmt.Sprintf("stream-%d", globalStreamID.Add(1))
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		// crypto/rand failing is effectively unheard of on real systems; fall
+		// back to a counter so a transient entropy failure can't stop startup.
+		return fmt.Sprintf("stream-fallback-%d", globalStreamID.Add(1))
+	}
+	return "stream-" + hex.EncodeToString(buf[:])
 }
 
 func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
@@ -51,7 +68,8 @@ func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
 const (
 	frameSizeBytes = 160
 	sampleRateHz   = 8000
-	skipBytes      = 12
+	skipBytes      = 12 // legacy/default header size; used only for startup diagnostics — actual header length is auto-detected per packet, see extractAudioFrame
+	maxHeaderBytes = 64 // sanity cap on the auto-detected header length; guards against unrelated traffic being misread as audio
 	configPath     = "config.json"
 	secretsPath    = "config.secrets.json"
 )
@@ -337,7 +355,7 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 					s.info.StreamName,
 					packet.sourceIP,
 					len(frame),
-					skipBytes,
+					packet.headerBytes,
 				)
 			}
 			packetsSeen++
@@ -463,14 +481,15 @@ func main() {
 				}
 
 				st := &station{
-					info:          info,
-					codec:         codec,
-					frameDuration: frameDuration,
-					logger:        logger,
-					usageLogger:   server.usageLogger,
-					audioLogDir:   config.AudioLogDir,
-					subscribers:   make(map[string]*subscriber),
-					whisperPool:   pool,
+					info:           info,
+					codec:          codec,
+					frameDuration:  frameDuration,
+					logger:         logger,
+					debugMulticast: cfg.DebugMulticast,
+					usageLogger:    server.usageLogger,
+					audioLogDir:    config.AudioLogDir,
+					subscribers:    make(map[string]*subscriber),
+					whisperPool:    pool,
 				}
 
 					if pool != nil || config.AudioLogDir != "" {
@@ -656,7 +675,12 @@ func main() {
 			http.Error(w, "streamId required", http.StatusBadRequest)
 			return
 		}
-		events, err := hub.History(streamID, 72*time.Hour)
+		st, ok := server.streams[streamID]
+		if !ok {
+			http.Error(w, "unknown streamId", http.StatusNotFound)
+			return
+		}
+		events, err := hub.History(st.info.StreamName, 72*time.Hour)
 		if err != nil {
 			http.Error(w, "failed to read history", http.StatusInternalServerError)
 			logger.Printf("transcript history: %v", err)
@@ -1055,7 +1079,12 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 
 		frame, err := extractAudioFrame(buffer[:n])
 		if err != nil {
-			s.logger.Printf("%s: dropping UDP packet from %s: %v", s.info.StreamName, remoteAddr, err)
+			// Non-audio control/keepalive packets are expected on some device
+			// types (e.g. DFSI gateways cycling their channel ports); only log
+			// when debugging this stream so normal operation stays quiet.
+			if s.debugMulticast {
+				s.logger.Printf("%s: dropping UDP packet from %s: %v", s.info.StreamName, remoteAddr, err)
+			}
 			continue
 		}
 
@@ -1137,7 +1166,7 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 				remoteAddr,
 				n,
 				frameSizeBytes,
-				skipBytes,
+				n-frameSizeBytes,
 			)
 		}
 		packetsSeen++
@@ -1515,7 +1544,7 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 		// OR if the transcript/recording log has a clip event in that window
 		// (covers cases where the server was restarted and lastPacketAt reset).
 		heardToday := (!last.IsZero() && last.After(cutoff)) ||
-			s.hub.HasRecentActivity(id, 24*time.Hour)
+			s.hub.HasRecentActivity(streamName, 24*time.Hour)
 
 		// Generate server-side status message — decision logic stays on server
 		statusMessage := ""
@@ -1624,12 +1653,35 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// extractAudioFrame extracts the fixed-size G.711 audio payload from a UDP packet.
+//
+// Different source device types prepend headers of different lengths before the
+// audio — e.g. 12 bytes for legacy analog encoders, 14 bytes for DFSI-style
+// gateways, and 18 bytes on a DFSI gateway's first frame of a transmission
+// (which carries an extra start-of-stream marker). Header contents are never
+// used elsewhere in this codebase, and every audio-bearing packet observed so
+// far places the fixed-size G.711 payload at the very end of the packet, so
+// the header length is derived from the packet length instead of assumed to be
+// a fixed constant. This lets multiple device formats share the same ingest
+// path without per-stream configuration.
+//
+// Packets shorter than frameSizeBytes cannot hold a full audio frame; these are
+// non-audio control/keepalive packets (observed as short as 14 bytes from DFSI
+// gateways cycling through their channel ports) and are rejected so callers can
+// discard them quietly. Packets whose implied header exceeds maxHeaderBytes are
+// also rejected, as a sanity check against unrelated traffic landing on the
+// same port.
 func extractAudioFrame(payload []byte) ([]byte, error) {
-	if len(payload) < skipBytes+frameSizeBytes {
-		return nil, fmt.Errorf("packet is %d bytes, need at least %d", len(payload), skipBytes+frameSizeBytes)
+	if len(payload) < frameSizeBytes {
+		return nil, fmt.Errorf("packet is %d bytes, need at least %d (likely a non-audio control/keepalive packet)", len(payload), frameSizeBytes)
 	}
 
-	return bytes.Clone(payload[skipBytes : skipBytes+frameSizeBytes]), nil
+	header := len(payload) - frameSizeBytes
+	if header > maxHeaderBytes {
+		return nil, fmt.Errorf("packet is %d bytes, implying a %d-byte header which exceeds the %d-byte sanity limit", len(payload), header, maxHeaderBytes)
+	}
+
+	return bytes.Clone(payload[header : header+frameSizeBytes]), nil
 }
 
 func drainRTCP(sender *webrtc.RTPSender) {

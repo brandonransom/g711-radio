@@ -114,93 +114,67 @@ func (h *transcriptHub) appendLog(event transcriptEvent) {
 	}
 }
 
-// History returns transcript events for a stream within the last maxAge duration.
-// streamID is used to look up the stream name via the event's StreamID field,
-// but the file is keyed by stream name. The caller passes the streamID and we
-// scan for a matching log by checking all files — or the caller can pass streamName directly.
-// For simplicity we accept either streamID or streamName as the lookup key.
-func (h *transcriptHub) History(streamID string, maxAge time.Duration) ([]transcriptEvent, error) {
-	// Try to find a log file whose events match this streamID.
-	// We scan all .log files in the dir and return the first match.
-	entries, err := os.ReadDir(h.logDir)
+// History returns transcript events for a stream within the last maxAge
+// duration. Lookups are keyed by stream name rather than the server's
+// runtime stream ID: log files are already written one-per-stream-name (see
+// logFilename), and stream IDs are randomly regenerated on every server
+// restart (see nextStreamID), so they can't be used to find events written
+// during a previous run.
+func (h *transcriptHub) History(streamName string, maxAge time.Duration) ([]transcriptEvent, error) {
+	if h.logDir == "" || streamName == "" {
+		return nil, nil
+	}
+
+	path := filepath.Join(h.logDir, logFilename(streamName))
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	cutoff := time.Now().Add(-maxAge)
 	var events []transcriptEvent
-
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".log" {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var ev transcriptEvent
+		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
 			continue
 		}
-		path := filepath.Join(h.logDir, entry.Name())
-		f, err := os.Open(path)
-		if err != nil {
-			continue
-		}
-		scanner := bufio.NewScanner(f)
-		matched := false
-		var fileEvents []transcriptEvent
-		for scanner.Scan() {
-			var ev transcriptEvent
-			if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
-				continue
-			}
-			if ev.StreamID == streamID {
-				matched = true
-				if ev.Timestamp.After(cutoff) {
-					fileEvents = append(fileEvents, ev)
-				}
-			}
-		}
-		f.Close()
-		if matched {
-			events = fileEvents
-			break
+		if ev.Timestamp.After(cutoff) {
+			events = append(events, ev)
 		}
 	}
 	return events, nil
 }
 
-// HasRecentActivity returns true if any clip event for streamID has been logged
-// within the last maxAge duration. This is a lightweight scan used to determine
-// whether a stream has been heard recently even after a server restart.
-func (h *transcriptHub) HasRecentActivity(streamID string, maxAge time.Duration) bool {
-	if h.logDir == "" {
+// HasRecentActivity returns true if any clip event for streamName has been
+// logged within the last maxAge duration. This is a lightweight scan used to
+// determine whether a stream has been heard recently even after a server
+// restart (see History for why this is keyed by stream name, not the
+// server's runtime stream ID).
+func (h *transcriptHub) HasRecentActivity(streamName string, maxAge time.Duration) bool {
+	if h.logDir == "" || streamName == "" {
 		return false
 	}
-	entries, err := os.ReadDir(h.logDir)
+
+	path := filepath.Join(h.logDir, logFilename(streamName))
+	f, err := os.Open(path)
 	if err != nil {
 		return false
 	}
+	defer f.Close()
+
 	cutoff := time.Now().Add(-maxAge)
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".log" {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var ev transcriptEvent
+		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
 			continue
 		}
-		path := filepath.Join(h.logDir, entry.Name())
-		f, err := os.Open(path)
-		if err != nil {
-			continue
-		}
-		scanner := bufio.NewScanner(f)
-		found := false
-		for scanner.Scan() {
-			var ev transcriptEvent
-			if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
-				continue
-			}
-			if ev.StreamID == streamID && ev.Type == "clip" && ev.Timestamp.After(cutoff) {
-				found = true
-				break
-			}
-		}
-		f.Close()
-		if found {
+		if ev.Type == "clip" && ev.Timestamp.After(cutoff) {
 			return true
 		}
 	}

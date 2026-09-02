@@ -614,7 +614,6 @@
       const streamsRoot = document.getElementById("streams");
       const transcriptPanel = document.getElementById("transcriptPanel");
       const transcriptLog = document.getElementById("transcriptLog");
-      const streamQueryParam = "stream";
       const basePageTitle = "USDA Forest Service Land Mobile Radio Streams";
       const clipAudio = new Audio();
 
@@ -1072,7 +1071,7 @@
       }
 
       function hasRequestedStream() {
-        return Boolean(getRequestedStreamId());
+        return Boolean(getRequestedStreamSelector());
       }
 
       function renderPageChrome() {
@@ -1083,16 +1082,23 @@
         }
       }
 
-      function buildStreamURL(streamId, streamName) {
+      // The URL never carries the server-assigned stream ID: it's randomly
+      // generated on every server start (see nextStreamID in main.go) purely
+      // as an internal lookup key, so it isn't meaningful to bookmark/share
+      // and a stale cached copy must never be able to resolve to a different
+      // stream. Instead, shareable/bookmarkable links identify a stream by
+      // its (region, group, name) triple — stable, human-readable values
+      // straight from the config — which is re-resolved against the current
+      // stream list on every load.
+      function buildStreamURL(stream) {
         const url = new URL(window.location.href);
-        if (streamId) {
-          url.searchParams.set(streamQueryParam, streamId);
+        if (stream) {
+          url.searchParams.set("region", stream.regionName);
+          url.searchParams.set("group", stream.groupName);
+          url.searchParams.set("name", stream.streamName);
         } else {
-          url.searchParams.delete(streamQueryParam);
-        }
-        if (streamName) {
-          url.searchParams.set("name", streamName.replace(/[\/\s]+/g, "-"));
-        } else {
+          url.searchParams.delete("region");
+          url.searchParams.delete("group");
           url.searchParams.delete("name");
         }
         return url;
@@ -1106,17 +1112,37 @@
         return stream.streamName || formatStreamDisplayName(stream);
       }
 
-      function syncURL(streamId, streamName) {
-        window.history.replaceState(null, "", buildStreamURL(streamId, streamName).toString());
+      function syncURL(stream) {
+        window.history.replaceState(null, "", buildStreamURL(stream).toString());
         renderPageChrome();
       }
 
-      function getRequestedStreamId() {
-        return new URL(window.location.href).searchParams.get(streamQueryParam);
+      // Reads the (region, group, name) triple identifying a requested stream
+      // from the URL, or null if the URL doesn't fully specify one.
+      function getRequestedStreamSelector() {
+        const params = new URL(window.location.href).searchParams;
+        const region = params.get("region");
+        const group = params.get("group");
+        const name = params.get("name");
+        if (!region || !group || !name) return null;
+        return { region, group, name };
+      }
+
+      // Resolves the URL's requested stream selector against the current
+      // stream list. Returns null if there's no selector, or it doesn't
+      // match any currently configured stream.
+      function findRequestedStream() {
+        const selector = getRequestedStreamSelector();
+        if (!selector) return null;
+        return streams.find((stream) =>
+          stream.regionName === selector.region &&
+          stream.groupName === selector.group &&
+          stream.streamName === selector.name
+        ) || null;
       }
 
       function openStreamInNewTab(stream) {
-        window.open(buildStreamURL(stream.id, formatStreamDisplayName(stream)).toString(), "_blank", "noopener,noreferrer");
+        window.open(buildStreamURL(stream).toString(), "_blank", "noopener,noreferrer");
       }
 
       function runAfterFirstPaint(task) {
@@ -1130,7 +1156,7 @@
       }
 
       function isDedicatedStreamPage() {
-        return Boolean(sharePageStream || getRequestedStreamId());
+        return Boolean(sharePageStream || getRequestedStreamSelector());
       }
 
       function showShareLanding() {
@@ -1541,7 +1567,7 @@
         currentStreamId = stream.id;
         currentStreamName = formatStreamDisplayName(stream);
         connectingStreamId = stream.id;
-        syncURL(stream.id, formatStreamDisplayName(stream));
+        syncURL(stream);
         renderLaunchView();
         renderStreams();
         setConnectionState("connecting");
@@ -1683,11 +1709,11 @@
 
         renderStreams();
 
-        const requestedStreamId = getRequestedStreamId();
-        if (requestedStreamId) {
-          const requestedStream = streams.find((stream) => stream.id === requestedStreamId);
+        const requestedSelector = getRequestedStreamSelector();
+        if (requestedSelector) {
+          const requestedStream = findRequestedStream();
           if (!requestedStream) {
-            setStatus(`This link points to an unknown stream: ${requestedStreamId}`);
+            setStatus(`This link points to an unknown stream: ${requestedSelector.name}`);
             return;
           }
 
@@ -1710,9 +1736,8 @@
       }
 
       function initializeRequestedStreamIfPresent() {
-        const requestedStreamId = getRequestedStreamId();
-        if (!requestedStreamId || sharePageStream) return;
-        const requestedStream = streams.find((stream) => stream.id === requestedStreamId);
+        if (sharePageStream) return;
+        const requestedStream = findRequestedStream();
         if (!requestedStream) return;
         sharePageStream = requestedStream;
         renderLaunchView();
