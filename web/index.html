@@ -1086,7 +1086,7 @@
       function buildStreamURL(streamId, streamName) {
         const url = new URL(window.location.href);
         if (streamName) {
-          url.searchParams.set("name", streamName);
+          url.searchParams.set("name", streamName.replace(/\s+/g, "-"));
         } else {
           url.searchParams.delete("name");
         }
@@ -1126,11 +1126,11 @@
       }
 
       function isDedicatedStreamPage() {
-        return Boolean(sharePageStream);
+        return Boolean(sharePageStream || getRequestedStreamId() || currentStreamId || connectingStreamId);
       }
 
       function showShareLanding() {
-        return Boolean(isDedicatedStreamPage() && !pc && !connectingStreamId);
+        return Boolean((sharePageStream || getRequestedStreamId() || currentStreamId || connectingStreamId) && !pc && !connectingStreamId);
       }
 
       let launchViewStreamId = null;
