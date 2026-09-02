@@ -17,13 +17,11 @@
     "minClipMs": 1000,
     "maxClipMs": 30000
   },
-  "mping": {
+  "keepalive": {
     "enabled": true,
-    "executablePath": "C:\\TempX\\mping.exe",
-    "commandPath": "C:\\TempX",
     "port": 2600,
-    "ttl": 32,
-    "intervalMs": 120001
+    "intervalMs": 115000,
+    "burstMs": 5000
   },
   "regions": {
     "Alaska": {

@@ -71,7 +71,7 @@ Each stream can use:
 - **`udpPorts`**: Array of 1-4 UDP ports
 - **`multicastAddr`** (deprecated): Single multicast address
 - **`multicastAddrs`**: Array of multicast addresses (one per port, or empty string for unicast)
-- **`mping.commandPath`**: Working directory used when launching mping
+- **`keepalive`**: Integrated multicast keepalive settings
 
 Example:
 ```json

@@ -66,7 +66,7 @@ type appConfig struct {
 	DebugMulticast   bool                                 `json:"debugMulticast"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
-	Mping            *mpingConfig                         `json:"mping"`
+	Keepalive        *keepaliveConfig                      `json:"keepalive"`
 	AudioLogDir      string                               `json:"audioLogDir"`
 	UsageLogFile     string                               `json:"usageLogFile"`
 	CertFile         string                               `json:"certFile"`
@@ -188,7 +188,7 @@ type webrtcServer struct {
 	clipMu       sync.RWMutex
 	whisperPool  *whisperPool
 	audioLogDir  string
-	mpingManager *mpingManager
+	keepaliveManager *keepaliveManager
 }
 
 func (s *webrtcServer) storeClip(rec clipRecord) {
@@ -437,7 +437,7 @@ func main() {
 		clips:        make(map[string]clipRecord),
 		whisperPool:  pool,
 		audioLogDir:  config.AudioLogDir,
-		mpingManager: newMpingManager(config.Mping, logger),
+		keepaliveManager: newKeepaliveManager(config.Keepalive, logger),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -585,10 +585,10 @@ func main() {
 						frameDuration,
 					)
 
-					// Start mping keep-alive for multicast addresses
-					if server.mpingManager != nil && server.mpingManager.isEnabled() {
-						if err := server.mpingManager.startMulticastKeepAlive(addresses); err != nil {
-							logger.Printf("warning: failed to start mping keep-alive for %q: %v", cfg.StreamName, err)
+					// Start integrated keepalive bursts for multicast addresses.
+					if server.keepaliveManager != nil && server.keepaliveManager.config.Enabled {
+						if err := server.keepaliveManager.startForAddresses(addresses); err != nil {
+							logger.Printf("warning: failed to start keepalive for %q: %v", cfg.StreamName, err)
 						}
 					}
 
@@ -697,8 +697,8 @@ func main() {
 		if pool != nil {
 			pool.Close()
 		}
-		if server.mpingManager != nil {
-			server.mpingManager.close()
+		if server.keepaliveManager != nil {
+			server.keepaliveManager.close()
 		}
 	}()
 
@@ -1009,6 +1009,20 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 					portsToValidate = []int{stream.UDPPort}
 				} else {
 					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has no ports configured (udpPort or udpPorts)", path, regionName, groupName, i)
+				}
+
+				if stream.MulticastAddr != "" && len(stream.MulticastAddrs) == 0 {
+					stream.MulticastAddrs = []string{stream.MulticastAddr}
+				}
+				if len(stream.MulticastAddrs) == 1 && len(portsToValidate) > 1 {
+					addr := strings.TrimSpace(stream.MulticastAddrs[0])
+					stream.MulticastAddrs = make([]string, len(portsToValidate))
+					for idx := range stream.MulticastAddrs {
+						stream.MulticastAddrs[idx] = addr
+					}
+				}
+				if len(stream.MulticastAddrs) > 1 && len(stream.MulticastAddrs) != len(portsToValidate) {
+					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has %d multicast addrs for %d ports; provide one address or one per port", path, regionName, groupName, i, len(stream.MulticastAddrs), len(portsToValidate))
 				}
 			
 				if len(portsToValidate) > 4 {
