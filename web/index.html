@@ -1121,22 +1121,21 @@
 
       function buildStreamURL(streamId, streamName) {
         const url = new URL(window.location.href);
-        if (streamId) {
-          url.searchParams.set(streamQueryParam, streamId);
-          if (streamName) {
-            url.searchParams.set("name", streamName);
-          } else {
-            url.searchParams.delete("name");
-          }
+        if (streamName) {
+          url.searchParams.set("name", streamName);
         } else {
-          url.searchParams.delete(streamQueryParam);
           url.searchParams.delete("name");
         }
+        url.searchParams.delete(streamQueryParam);
         return url;
       }
 
       function formatStreamDisplayName(stream) {
         return [stream.regionName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
+      }
+
+      function formatMainListStreamName(stream) {
+        return stream.streamName || formatStreamDisplayName(stream);
       }
 
       function syncURL(streamId, streamName) {
@@ -1274,7 +1273,7 @@
 
         const header = document.createElement("header");
         const title = document.createElement("h3");
-        title.textContent = formatStreamDisplayName(stream);
+        title.textContent = formatMainListStreamName(stream);
         header.append(title);
 
         const quietNotice = document.createElement("div");
