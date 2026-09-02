@@ -20,7 +20,7 @@ type MulticastListener struct {
 	ports       []int
 	addresses   []string     // multicast group addresses (empty string = unicast)
 	listeners   []net.PacketConn
-	frameChan   chan []byte
+	frameChan   chan multicastFrame
 	logger      *log.Logger
 	dropoutTime time.Duration
 
@@ -31,6 +31,11 @@ type MulticastListener struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
+}
+
+type multicastFrame struct {
+	data     []byte
+	sourceIP string
 }
 
 // NewMulticastListener creates a listener for multiple UDP ports/multicast addresses.
@@ -52,7 +57,7 @@ func NewMulticastListener(streamName string, ports []int, addresses []string, dr
 		ports:          ports,
 		addresses:      addresses,
 		listeners:      make([]net.PacketConn, 0, len(ports)),
-		frameChan:      make(chan []byte, 64), // buffered channel for frames
+		frameChan:      make(chan multicastFrame, 64), // buffered channel for frames
 		logger:         logger,
 		dropoutTime:    dropoutTime,
 		activePort:     -1,
@@ -203,9 +208,13 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 		// Make a copy of frame and send it (non-blocking)
 		frameCopy := make([]byte, len(frame))
 		copy(frameCopy, frame)
+		sourceIP := ""
+		if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
+			sourceIP = udpAddr.IP.String()
+		}
 
 		select {
-		case ml.frameChan <- frameCopy:
+		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP}:
 		case <-ml.ctx.Done():
 		default:
 			ml.logger.Printf("%s: frame queue full on listener %d", ml.streamName, listenerIdx)
@@ -217,15 +226,18 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 
 		frameCopy := make([]byte, len(frame))
 		copy(frameCopy, frame)
+		sourceIP := ""
+		if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
+			sourceIP = udpAddr.IP.String()
+		}
 
 		select {
-		case ml.frameChan <- frameCopy:
+		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP}:
 		case <-ml.ctx.Done():
 		default:
 			ml.logger.Printf("%s: frame queue full on active listener %d", ml.streamName, listenerIdx)
 		}
 	} else {
-		// Packet from inactive port — silently drop
 		ml.mu.Unlock()
 	}
 }
@@ -236,17 +248,12 @@ func (ml *MulticastListener) checkDropout() {
 	defer ml.mu.Unlock()
 
 	if ml.activePort >= 0 && time.Now().Sub(ml.lastPacketTime) > ml.dropoutTime {
-		oldPort := ml.activePort
 		ml.activePort = -1
-		ml.logger.Printf(
-			"%s: stream dropped on port listener %d (no packets for %v); ready to accept from any port",
-			ml.streamName, oldPort, ml.dropoutTime,
-		)
 	}
 }
 
 // FrameChan returns the channel on which audio frames arrive.
-func (ml *MulticastListener) FrameChan() <-chan []byte {
+func (ml *MulticastListener) FrameChan() <-chan multicastFrame {
 	return ml.frameChan
 }
 

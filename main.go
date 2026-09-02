@@ -136,6 +136,12 @@ type station struct {
 	conflictSingleSrc   string // which IP the consecutive run is from (primary or conflict addr)
 }
 
+func (s *station) logUnsupportedCodec(codec string, source string) {
+	if s.logger != nil {
+		s.logger.Printf("%s: unsupported codec %q from %s; dropping audio", s.info.StreamName, codec, source)
+	}
+}
+
 type clipRecord struct {
 	clipID   string
 	info     streamInfo
@@ -308,10 +314,15 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case frame, ok := <-s.multicastListener.FrameChan():
+		case packet, ok := <-s.multicastListener.FrameChan():
 			if !ok {
 				// Channel closed
 				return nil
+			}
+			frame := packet.data
+			if len(frame) > 0 && frame[0] != 0x00 {
+				s.logUnsupportedCodec(fmt.Sprintf("payload-type:%d", frame[0]), packet.sourceIP)
+				continue
 			}
 
 			now := time.Now()
@@ -321,8 +332,9 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 
 			if packetsSeen == 0 {
 				s.logger.Printf(
-					"%s: first multicast packet received, audio_bytes=%d, skip_bytes=%d",
+					"%s: first multicast packet received from %s, audio_bytes=%d, skip_bytes=%d",
 					s.info.StreamName,
+					packet.sourceIP,
 					len(frame),
 					skipBytes,
 				)

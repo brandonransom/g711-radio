@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -87,7 +89,10 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 		"-i", strconv.Itoa(m.config.IntervalMs),
 	}
 
-	cmd := exec.CommandContext(m.ctx, m.config.ExecutablePath, args...)
+	exeDir := filepath.Dir(m.config.ExecutablePath)
+	exeName := filepath.Base(m.config.ExecutablePath)
+	cmdLine := strings.Join(append([]string{quoteCmdArg(exeName)}, quoteCmdArgs(args)...), " ")
+	cmd := exec.CommandContext(m.ctx, "cmd.exe", "/c", "start", "", "/D", exeDir, "cmd.exe", "/c", cmdLine)
 	cmd.Stdout = nil // Suppress stdout
 	cmd.Stderr = nil // Suppress stderr
 
@@ -109,6 +114,24 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	}(multicastAddr, cmd)
 
 	return nil
+}
+
+func quoteCmdArg(arg string) string {
+	if arg == "" {
+		return "\"\""
+	}
+	if strings.ContainsAny(arg, " \t\"") {
+		return `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
+	}
+	return arg
+}
+
+func quoteCmdArgs(args []string) []string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, quoteCmdArg(arg))
+	}
+	return quoted
 }
 
 // stopMping stops an mping process for a multicast address

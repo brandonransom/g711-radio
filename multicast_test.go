@@ -166,9 +166,9 @@ func TestPortPriority(t *testing.T) {
 
 	// Verify frame is received
 	select {
-	case frame := <-listener.FrameChan():
-		if !bytes.Equal(frame, testFrame) {
-			t.Errorf("frame mismatch: got %d bytes, expected %d", len(frame), len(testFrame))
+	case packet := <-listener.FrameChan():
+		if !bytes.Equal(packet.data, testFrame) {
+			t.Errorf("frame mismatch: got %d bytes, expected %d", len(packet.data), len(testFrame))
 		}
 	case <-ctx.Done():
 		t.Error("timeout waiting for frame")
@@ -226,7 +226,6 @@ func TestDropoutDetection(t *testing.T) {
 		}
 	}
 }
-
 // Helper functions
 
 func equalIntSlices(a, b []int) bool {
