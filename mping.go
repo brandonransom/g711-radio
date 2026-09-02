@@ -106,8 +106,9 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	m.logger.Printf("starting mping as a process in %s: %s", exeDir, m.config.ExecutablePath)
 	cmd := exec.CommandContext(m.ctx, m.config.ExecutablePath, args...)
 	cmd.Dir = exeDir
-	cmd.Stdout = nil // Suppress stdout
-	cmd.Stderr = nil // Suppress stderr
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start mping for %s: %w", multicastAddr, err)
