@@ -19,10 +19,10 @@
   },
   "mping": {
     "enabled": true,
-    "executablePath": "C:\\Program Files\\mping\\mping.exe",
-    "port": 5750,
+    "executablePath": "C:\\TempX\\mping.exe",
+    "port": 2600,
     "ttl": 32,
-    "intervalMs": 1000
+    "intervalMs": 120001
   },
   "regions": {
     "Alaska": {
@@ -38,7 +38,8 @@
         { "streamName": "Sitka Net", "udpPort": 7550 },
         { "streamName": "Petersburg Net", "udpPort": 7510 },
         { "streamName": "Prince of Wales Net", "udpPort": 7570 },
-        { "streamName": "Revillagigedo Net", "udpPort": 7530 }
+        { "streamName": "Revillagigedo Net", "udpPort": 7530 },
+        { "streamName": "Petersburg Net - Multicast", "udpPorts": [27238, 27288], "multicastAddrs": ["239.7.10.1", ""] }
       ]
     },
     "California": {
@@ -56,8 +57,7 @@
         { "streamName": "Fire East Net", "udpPort": 51790 },
         { "streamName": "Fire West Net", "udpPort": 51760 },
         { "streamName": "Forest East Net", "udpPort": 51740 },
-        { "streamName": "Forest West Net", "udpPort": 51750 },
-        { "streamName": "Fire East Redundant", "udpPorts": [51791, 51792], "multicastAddrs": ["224.1.1.1", "224.1.1.2"] }
+        { "streamName": "Forest West Net", "udpPort": 51750 }
       ],
       "Modoc NF": [
         { "streamName": "Admin Net", "udpPort": 5900 },
