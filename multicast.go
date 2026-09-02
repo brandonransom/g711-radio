@@ -12,10 +12,9 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-// MulticastListener manages multiple UDP ports/multicast addresses for a single stream.
-// It binds to multiple endpoints and routes packets from the first active port.
-// If 1 second passes without packets, the stream is considered dropped and the next
-// port to receive a packet becomes the new active port.
+// MulticastListener manages multiple UDP ports and optional multicast groups for a single stream.
+// It binds to all configured endpoints and routes packets from the first active port.
+// If the active source goes quiet long enough, the next packet from any port becomes active.
 type MulticastListener struct {
 	streamName  string
 	ports       []int
@@ -111,10 +110,12 @@ func (ml *MulticastListener) bindListeners() error {
 
 			// Disable multicast loopback (don't receive our own packets)
 			_ = p.SetMulticastLoopback(false)
+			ml.portAddr[i] = fmt.Sprintf("%s:%d", addr, port)
+		} else {
+			ml.portAddr[i] = fmt.Sprintf(":%d", port)
 		}
 
 		ml.listeners = append(ml.listeners, conn)
-		ml.portAddr[i] = fmt.Sprintf("%s:%d", addr, port)
 	}
 
 	return nil

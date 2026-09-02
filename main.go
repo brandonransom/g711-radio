@@ -538,8 +538,14 @@ func main() {
 					logger.Fatalf("invalid stream config for %q: %v", cfg.StreamName, err)
 				}
 
-				// Determine if we need multicast listener
-				useMulticast := len(ports) > 1
+				// Use the multicast listener whenever any configured address is multicast.
+				useMulticast := false
+				for _, addr := range addresses {
+					if addr != "" {
+						useMulticast = true
+						break
+					}
+				}
 
 				if useMulticast {
 					// Use multicast listener for multiple ports

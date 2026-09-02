@@ -94,6 +94,13 @@ func TestGetListenerConfig(t *testing.T) {
 			shouldFail:    false,
 		},
 		{
+			name:          "Single multicast port",
+			cfg:           streamConfig{UDPPorts: []int{5000}, MulticastAddrs: []string{"224.0.0.1"}},
+			expectedPorts: []int{5000},
+			expectedAddrs: []string{"224.0.0.1"},
+			shouldFail:    false,
+		},
+		{
 			name:          "UDPPorts takes precedence over UDPPort",
 			cfg:           streamConfig{UDPPort: 5000, UDPPorts: []int{6000, 6001}},
 			expectedPorts: []int{6000, 6001},
