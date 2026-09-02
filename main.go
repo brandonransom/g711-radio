@@ -34,9 +34,14 @@ import (
 )
 
 var globalClipID atomic.Uint64
+var globalStreamID atomic.Uint64
 
 func nextClipID() string {
 	return fmt.Sprintf("clip-%d", globalClipID.Add(1))
+}
+
+func nextStreamID() string {
+	return fmt.Sprintf("stream-%d", globalStreamID.Add(1))
 }
 
 func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
@@ -452,7 +457,7 @@ func main() {
 					RegionName: region.RegionName,
 					GroupName:  sg.GroupName,
 					ForestName: sg.GroupName,
-					ID:         fmt.Sprintf("stream-%d", cfg.UDPPort),
+					ID:         nextStreamID(),
 					StreamName: cfg.StreamName,
 					UDPPort:    cfg.UDPPort,
 				}
