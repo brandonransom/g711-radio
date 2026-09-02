@@ -57,7 +57,7 @@ func NewMulticastListener(streamName string, ports []int, addresses []string, dr
 		ports:          ports,
 		addresses:      addresses,
 		listeners:      make([]net.PacketConn, 0, len(ports)),
-		frameChan:      make(chan multicastFrame, 64), // buffered channel for frames
+		frameChan:      make(chan multicastFrame, 256), // buffered channel for frames
 		logger:         logger,
 		dropoutTime:    dropoutTime,
 		activePort:     -1,

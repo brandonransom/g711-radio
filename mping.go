@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -16,7 +15,7 @@ import (
 type mpingConfig struct {
 	Enabled           bool   `json:"enabled"`
 	ExecutablePath    string `json:"executablePath"`    // Path to mping.exe
-	CommandPath       string `json:"commandPath"`        // Directory to start the command window in
+	CommandPath       string `json:"commandPath"`        // Working directory for the mping process
 	Port              int    `json:"port"`               // Port for mping (typically 5750 or similar)
 	TTL               int    `json:"ttl"`                // Time to live (default 32)
 	IntervalMs        int    `json:"intervalMs"`         // Milliseconds between pings (default 1000)
@@ -104,9 +103,9 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	if info, err := os.Stat(exeDir); err != nil || !info.IsDir() {
 		return fmt.Errorf("mping command path is not a directory: %s", exeDir)
 	}
-	cmdLine := strings.Join(append([]string{quoteCmdArg(m.config.ExecutablePath)}, quoteCmdArgs(args)...), " ")
-	m.logger.Printf("starting mping via cmd.exe in %s: %s %s", exeDir, m.config.ExecutablePath, strings.Join(args, " "))
-	cmd := exec.CommandContext(m.ctx, "cmd.exe", "/c", "start", "", "/D", exeDir, "cmd.exe", "/k", cmdLine)
+	m.logger.Printf("starting mping as a process in %s: %s", exeDir, m.config.ExecutablePath)
+	cmd := exec.CommandContext(m.ctx, m.config.ExecutablePath, args...)
+	cmd.Dir = exeDir
 	cmd.Stdout = nil // Suppress stdout
 	cmd.Stderr = nil // Suppress stderr
 
@@ -128,24 +127,6 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	}(multicastAddr, cmd)
 
 	return nil
-}
-
-func quoteCmdArg(arg string) string {
-	if arg == "" {
-		return "\"\""
-	}
-	if strings.ContainsAny(arg, " \t\"") {
-		return `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
-	}
-	return arg
-}
-
-func quoteCmdArgs(args []string) []string {
-	quoted := make([]string, 0, len(args))
-	for _, arg := range args {
-		quoted = append(quoted, quoteCmdArg(arg))
-	}
-	return quoted
 }
 
 // stopMping stops an mping process for a multicast address

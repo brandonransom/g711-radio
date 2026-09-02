@@ -417,6 +417,7 @@
         height: 100%;
         border-radius: inherit;
         transition: clip-path 80ms linear, opacity 80ms linear;
+        opacity: 0;
       }
 
       .vu-meter-green {
@@ -671,12 +672,17 @@
 
         if (greenBar) {
           greenBar.style.clipPath = `inset(0 ${Math.round((1 - clamped) * 100)}% 0 0)`;
+          greenBar.style.opacity = clamped > 0 ? "1" : "0";
         }
         if (yellowBar) {
+          const yellowShown = clamped > 0.75;
           yellowBar.style.clipPath = `inset(0 ${Math.round((1 - Math.max(clamped, 0.75)) * 100)}% 0 0)`;
+          yellowBar.style.opacity = yellowShown ? "1" : "0";
         }
         if (redBar) {
+          const redShown = clamped > 0.9375;
           redBar.style.clipPath = `inset(0 ${Math.round((1 - Math.max(clamped, 0.9375)) * 100)}% 0 0)`;
+          redBar.style.opacity = redShown ? "1" : "0";
         }
       }
 

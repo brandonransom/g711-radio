@@ -22,7 +22,7 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 
 ```json
 {
-  "httpPort": 8080,
+  "httpPort": 80,
   "audioLogDir": "audio",
   "usageLogFile": "usage.csv",
   "whisper": {
@@ -71,7 +71,7 @@ Each stream can use:
 - **`udpPorts`**: Array of 1-4 UDP ports
 - **`multicastAddr`** (deprecated): Single multicast address
 - **`multicastAddrs`**: Array of multicast addresses (one per port, or empty string for unicast)
-- **`mping.commandPath`**: Directory used when opening the mping command window
+- **`mping.commandPath`**: Working directory used when launching mping
 
 Example:
 ```json

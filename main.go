@@ -724,39 +724,14 @@ func main() {
 
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
 
-	// startHTTP starts a plain HTTP server, optionally on a secondary port.
-	// If httpRedirectPort is set, use that; otherwise use httpPort.
-	startHTTP := func(reason string) {
-		addr := fmt.Sprintf(":%d", config.HTTPPort)
-		if config.HTTPRedirectPort != 0 {
-			addr = fmt.Sprintf(":%d", config.HTTPRedirectPort)
-		}
-		httpServer.Addr = addr
-		if reason != "" {
-			logger.Printf("TLS setup failed (%s) — falling back to HTTP", reason)
-		}
-		logger.Printf("serving WebRTC client on http://localhost%s", addr)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Fatal(err)
-		}
-	}
-
-	// startHTTPSidecar starts a plain HTTP listener on httpRedirectPort
-	// serving the same content (no redirect) alongside HTTPS on httpPort.
-	startHTTPSidecar := func() {
-		if config.HTTPRedirectPort == 0 {
-			return
-		}
-		httpSrv := &http.Server{
-			Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
-			Handler: httpServer.Handler,
-		}
-		go func() {
-			logger.Printf("also serving WebRTC client on http://localhost:%d", config.HTTPRedirectPort)
-			if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Printf("HTTP sidecar error: %v", err)
-			}
-		}()
+	redirectMux := http.NewServeMux()
+	redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		target := "https://" + r.Host + r.URL.RequestURI()
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+	})
+	redirectServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", config.HTTPRedirectPort),
+		Handler: redirectMux,
 	}
 
 	if !config.EnableHTTP {
@@ -765,32 +740,36 @@ func main() {
 		return
 	}
 
+	if config.HTTPRedirectPort != 0 {
+		go func() {
+			logger.Printf("redirecting http://localhost:%d to https://", config.HTTPRedirectPort)
+			if err := redirectServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Fatal(err)
+			}
+		}()
+	}
+
 	if config.PFXFile != "" {
 		tlsCert, tlsErr := buildTLSCertFromPFX(config.PFXFile, config.PFXPassword, config.PFXKeyPassword, logger)
 		if tlsErr != nil {
-			startHTTP(tlsErr.Error())
+			logger.Fatal(tlsErr)
 		} else {
 			httpServer.TLSConfig = &tls.Config{
 				Certificates: []tls.Certificate{tlsCert},
 				MinVersion:   tls.VersionTLS12,
 			}
-			startHTTPSidecar()
 			logger.Printf("serving WebRTC client on https://localhost:%d (PFX: %s)", config.HTTPPort, config.PFXFile)
 			if err := httpServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				logger.Fatal(err)
 			}
 		}
 	} else if config.CertFile != "" && config.KeyFile != "" {
-		startHTTPSidecar()
 		logger.Printf("serving WebRTC client on https://localhost:%d", config.HTTPPort)
 		if err := httpServer.ListenAndServeTLS(config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			startHTTP(err.Error())
-		}
-	} else {
-		logger.Printf("serving WebRTC client on http://localhost:%d", config.HTTPPort)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Fatal(err)
 		}
+	} else {
+		logger.Fatal("HTTPS is required but no certificate configuration was provided")
 	}
 }
 
@@ -928,6 +907,9 @@ func loadConfig(path string) (appConfig, error) {
 	}
 	if !hasEnableHTTPField {
 		config.EnableHTTP = true
+	}
+	if config.HTTPRedirectPort == 0 {
+		config.HTTPRedirectPort = 80
 	}
 
 	if config.HTTPPort < 1 || config.HTTPPort > 65535 {
