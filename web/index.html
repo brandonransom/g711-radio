@@ -1091,7 +1091,7 @@
           url.searchParams.delete(streamQueryParam);
         }
         if (streamName) {
-          url.searchParams.set("name", streamName.replace(/\s+/g, "-"));
+          url.searchParams.set("name", streamName.replace(/[\/\s]+/g, "-"));
         } else {
           url.searchParams.delete("name");
         }
@@ -1459,26 +1459,6 @@
         }
       }
 
-      function scheduleReconnect(stream) {
-        if (connectingStreamId === stream.id) return;
-        reconnectAttempts++;
-        const delayMs = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
-        const delaySecs = (delayMs / 1000).toFixed(1);
-
-        setConnectionState("reconnecting");
-        setStatus(`${currentStreamName}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts})...`);
-
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-        }
-
-        reconnectTimeout = setTimeout(() => {
-          if (currentStreamId === stream.id) {
-            void connect(stream);
-          }
-        }, delayMs);
-      }
-
       function disconnect(updateStatus = true, keepURL = false) {
         closeCurrentConnection();
         player.srcObject = null;
@@ -1495,11 +1475,6 @@
         statusNotice.hidden = true;
         statusNotice.textContent = "";
         statusNotice.className = "stream-notice";
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-          reconnectTimeout = null;
-        }
-        reconnectAttempts = 0;
         renderLaunchView();
         renderStreams();
         setConnectionState("idle");
@@ -1671,6 +1646,17 @@
         setStatus(getRootStatusText());
       }
 
+      function initializeRequestedStreamIfPresent() {
+        const requestedStreamId = getRequestedStreamId();
+        if (!requestedStreamId || sharePageStream) return;
+        const requestedStream = streams.find((stream) => stream.id === requestedStreamId);
+        if (!requestedStream) return;
+        sharePageStream = requestedStream;
+        renderLaunchView();
+        renderStreams();
+        startTranscription(requestedStream.id);
+      }
+
       disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
       streamsRoot.addEventListener("click", (event) => {
         const button = event.target.closest("button[data-action='stream-primary']");
@@ -1763,44 +1749,7 @@
         } catch (_) { /* ignore network errors between polls */ }
       }
 
-      // Mobile persistence: reconnect WebRTC and SSE when the tab becomes visible again
-      // (covers app-switching on iOS/Android, screen lock, and bfcache restores).
-      function handleVisibilityRestore() {
-        if (document.visibilityState !== "visible") return;
-        // Reconnect WebRTC if we have a stream but the peer connection is gone/failed.
-        if (sharePageStream && currentStreamId && !connectingStreamId) {
-          const state = pc ? pc.connectionState : null;
-          if (!pc || ["failed", "closed", "disconnected"].includes(state)) {
-            if (reconnectTimeout) {
-              clearTimeout(reconnectTimeout);
-              reconnectTimeout = null;
-            }
-            reconnectAttempts = 0;
-            void connect(sharePageStream);
-          }
-        }
-      }
-
-      document.addEventListener("visibilitychange", handleVisibilityRestore);
       document.addEventListener("visibilitychange", schedulePollLoop);
-
-      // iOS bfcache: page is restored from cache without a full reload.
-      window.addEventListener("pageshow", (e) => {
-        if (e.persisted) {
-          reconnectAttempts = 0;
-          handleVisibilityRestore();
-        }
-      });
-
-      // Reconnect immediately when the device regains network connectivity.
-      window.addEventListener("online", () => {
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-          reconnectTimeout = null;
-        }
-        reconnectAttempts = 0;
-        handleVisibilityRestore();
-      });
 
       renderPageChrome();
 
@@ -1809,11 +1758,7 @@
           await loadStreams();
           await pollStreamStatus();
           schedulePollLoop();
-          runAfterFirstPaint(() => {
-            if (sharePageStream) {
-              startTranscription(sharePageStream.id);
-            }
-          });
+          runAfterFirstPaint(initializeRequestedStreamIfPresent);
         } catch (error) {
           streamGroups = [];
           streams = [];
