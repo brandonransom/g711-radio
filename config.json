@@ -57,7 +57,7 @@
         { "streamName": "Fire West Net", "udpPort": 51760 },
         { "streamName": "Forest East Net", "udpPort": 51740 },
         { "streamName": "Forest West Net", "udpPort": 51750 },
-        { "streamName": "Fire East Redundant", "udpPorts": [51791, 51792], "multicastAddrs": ["224.1.1.1", ""] }
+        { "streamName": "Fire East Redundant", "udpPorts": [51791, 51792], "multicastAddrs": ["224.1.1.1", "224.1.1.2"] }
       ],
       "Modoc NF": [
         { "streamName": "Admin Net", "udpPort": 5900 },

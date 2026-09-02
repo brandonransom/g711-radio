@@ -1,0 +1,76 @@
+2026/09/01 18:07:37 logging to file: C:\Users\brthomas\.copilot\repos\copilot-worktrees\g711-radio\brandonransom-jubilant-winner\g711-radio.log
+2026/09/01 18:07:37 usage log file: usage.csv
+2026/09/01 18:07:37 whisper transcription enabled: model=C:\Users\DispatchAdmin\whisper.cpp\models\ggml-medium.bin workers=3
+2026/09/01 18:07:37 configured stream "Glacier Net" in region "Alaska", group "Chugach NF" on UDP 7420, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Seward Net" in region "Alaska", group "Chugach NF" on UDP 7410, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Cordova Net" in region "Alaska", group "Chugach NF" on UDP 7440, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Yakutat Net" in region "Alaska", group "Tongass NF" on UDP 7520, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Juneau Net" in region "Alaska", group "Tongass NF" on UDP 7500, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Hoonah Net" in region "Alaska", group "Tongass NF" on UDP 7540, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Sitka Net" in region "Alaska", group "Tongass NF" on UDP 7550, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Petersburg Net" in region "Alaska", group "Tongass NF" on UDP 7510, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Prince of Wales Net" in region "Alaska", group "Tongass NF" on UDP 7570, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Revillagigedo Net" in region "Alaska", group "Tongass NF" on UDP 7530, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Admin Net" in region "California", group "Modoc NF" on UDP 5900, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Forest Net" in region "California", group "Modoc NF" on UDP 5950, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Admin Net" in region "California", group "Plumas NF" on UDP 51110, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Forest Net" in region "California", group "Plumas NF" on UDP 51160, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Service Net" in region "California", group "Plumas NF" on UDP 51170, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Pine Cove South Ops" in region "California", group "San Bernardino NF" on UDP 51240, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Keller South Ops" in region "California", group "San Bernardino NF" on UDP 51250, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Admin ATB" in region "California", group "San Bernardino NF" on UDP 51200, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Fire East Net" in region "California", group "Tahoe NF" on UDP 51790, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Fire West Net" in region "California", group "Tahoe NF" on UDP 51760, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Forest East Net" in region "California", group "Tahoe NF" on UDP 51740, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Forest West Net" in region "California", group "Tahoe NF" on UDP 51750, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Fire East Redundant" in region "California", group "Tahoe NF" on UDP ports [51791 51792], codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 warning: failed to start mping keep-alive for "Fire East Redundant": errors starting mping: [failed to start mping for 224.1.1.1: fork/exec C:\Program Files\mping\mping.exe: The system cannot find the path specified. failed to start mping for 224.1.1.2: fork/exec C:\Program Files\mping\mping.exe: The system cannot find the path specified.]
+2026/09/01 18:07:37 configured stream "Apalachicola Net" in region "Florida", group "NF of Florida" on UDP 8550, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Osceola Net" in region "Florida", group "NF of Florida" on UDP 8510, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Ocala Net" in region "Florida", group "NF of Florida" on UDP 8530, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "St. Ignace Net" in region "Michigan", group "Hiawatha NF" on UDP 13104, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Raco Net" in region "Michigan", group "Hiawatha NF" on UDP 13102, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Munising Net" in region "Michigan", group "Hiawatha NF" on UDP 13105, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Gladstone Net" in region "Michigan", group "Hiawatha NF" on UDP 13103, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Baldwin Net" in region "Michigan", group "Huron-Manistee NF" on UDP 13450, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Huron Shores Net" in region "Michigan", group "Huron-Manistee NF" on UDP 13400, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Wellston Net" in region "Michigan", group "Huron-Manistee NF" on UDP 13460, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Mio MTN Net" in region "Michigan", group "Huron-Manistee NF" on UDP 13440, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Ironwood Net" in region "Michigan", group "Ottawa NF" on UDP 13750, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Ontonagon Net" in region "Michigan", group "Ottawa NF" on UDP 13720, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "North Net" in region "Montana", group "Bitterroot NF" on UDP 1320, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "South Net" in region "Montana", group "Bitterroot NF" on UDP 1330, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Wilderness Net" in region "Montana", group "Bitterroot NF" on UDP 1300, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Sacramento RD" in region "New Mexico", group "Lincoln NF" on UDP 10830, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "National Flight Follow" in region "New Mexico", group "Lincoln NF" on UDP 10890, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Smokey Bear RD" in region "New Mexico", group "Lincoln NF" on UDP 10820, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "BLM Roswell FO" in region "New Mexico", group "Lincoln NF" on UDP 10840, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "BIA Mescalero" in region "New Mexico", group "Lincoln NF" on UDP 10850, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "DEF North" in region "Oregon", group "Deschutes NF" on UDP 15120, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "DEF Central" in region "Oregon", group "Deschutes NF" on UDP 15110, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "DEF South" in region "Oregon", group "Deschutes NF" on UDP 15130, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "NFF" in region "Oregon", group "Deschutes NF" on UDP 15170, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "OCH East" in region "Oregon", group "Ochoco NF" on UDP 15740, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "OCH Central" in region "Oregon", group "Ochoco NF" on UDP 15710, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "OCH West" in region "Oregon", group "Ochoco NF" on UDP 15750, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Local FF" in region "Oregon", group "Ochoco NF" on UDP 15770, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Placeholder 1" in region "Oregon", group "Rogue-Siskiyou NF" on UDP 2275, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Placeholder 2" in region "Oregon", group "Rogue-Siskiyou NF" on UDP 2276, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "SUF North" in region "Oregon", group "Siuslaw NF" on UDP 15122, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "SUF Central" in region "Oregon", group "Siuslaw NF" on UDP 15121, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "SUF South" in region "Oregon", group "Siuslaw NF" on UDP 15123, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Pomeroy Net" in region "Oregon", group "Umatilla NF" on UDP 15142, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Walla Walla Net" in region "Oregon", group "Umatilla NF" on UDP 15141, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "North Fork John Day Net" in region "Oregon", group "Umatilla NF" on UDP 15144, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Heppner Net" in region "Oregon", group "Umatilla NF" on UDP 15145, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Santiam River Net" in region "Oregon", group "Willamette NF" on UDP 15182, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "McKenzie Net" in region "Oregon", group "Willamette NF" on UDP 15181, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Middle Fork Net" in region "Oregon", group "Willamette NF" on UDP 15183, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Test Base" in region "ZZ Radio Test", group "Radio Test" on UDP 9999, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "KD Reflector" in region "ZZ Radio Test", group "Radio Test" on UDP 9990, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "JM Reflector" in region "ZZ Radio Test", group "Radio Test" on UDP 9991, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 configured stream "Test Base via Unicast" in region "ZZ Radio Test", group "Radio Test" on UDP 10001, codec=PCMU, frame_size=160 bytes, skip_bytes=12, frame_duration=20ms
+2026/09/01 18:07:37 audio log directory: audio (served at /audio/)
+2026/09/01 18:07:37 loaded 68 stream(s) from config.json
+2026/09/01 18:07:37 TLS setup failed (read PFX: open C:\Certs\radiostreams_27.pfx: The system cannot find the path specified.) — falling back to HTTP
+2026/09/01 18:07:37 serving WebRTC client on http://localhost:8080

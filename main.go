@@ -60,6 +60,7 @@ type appConfig struct {
 	EnableHTTP       bool                                 `json:"enableHttp"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
+	Mping            *mpingConfig                         `json:"mping"`
 	AudioLogDir      string                               `json:"audioLogDir"`
 	UsageLogFile     string                               `json:"usageLogFile"`
 	CertFile         string                               `json:"certFile"`
@@ -174,6 +175,7 @@ type webrtcServer struct {
 	clipMu       sync.RWMutex
 	whisperPool  *whisperPool
 	audioLogDir  string
+	mpingManager *mpingManager
 }
 
 func (s *webrtcServer) storeClip(rec clipRecord) {
@@ -420,6 +422,7 @@ func main() {
 		clips:        make(map[string]clipRecord),
 		whisperPool:  pool,
 		audioLogDir:  config.AudioLogDir,
+		mpingManager: newMpingManager(config.Mping, logger),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -560,6 +563,13 @@ func main() {
 						frameDuration,
 					)
 
+					// Start mping keep-alive for multicast addresses
+					if server.mpingManager != nil && server.mpingManager.isEnabled() {
+						if err := server.mpingManager.startMulticastKeepAlive(addresses); err != nil {
+							logger.Printf("warning: failed to start mping keep-alive for %q: %v", cfg.StreamName, err)
+						}
+					}
+
 					ml.Start()
 
 					go func(st *station, ml *MulticastListener) {
@@ -664,6 +674,9 @@ func main() {
 		_ = httpServer.Shutdown(shutdownCtx)
 		if pool != nil {
 			pool.Close()
+		}
+		if server.mpingManager != nil {
+			server.mpingManager.close()
 		}
 	}()
 
@@ -983,18 +996,33 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 				if streamName == "" {
 					return nil, 0, fmt.Errorf("%s region %q group %q entry %d is missing streamName", path, regionName, groupName, i)
 				}
-				if stream.UDPPort < 1 || stream.UDPPort > 65535 {
-					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has invalid udpPort %d", path, regionName, groupName, i, stream.UDPPort)
+			
+				// Validate ports: UDPPorts (plural) takes precedence
+				var portsToValidate []int
+				if len(stream.UDPPorts) > 0 {
+					portsToValidate = stream.UDPPorts
+				} else if stream.UDPPort > 0 {
+					portsToValidate = []int{stream.UDPPort}
+				} else {
+					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has no ports configured (udpPort or udpPorts)", path, regionName, groupName, i)
 				}
-				if _, exists := seenPorts[stream.UDPPort]; exists {
-					return nil, 0, fmt.Errorf("%s has duplicate udpPort %d", path, stream.UDPPort)
+			
+				if len(portsToValidate) > 4 {
+					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has %d ports; maximum is 4", path, regionName, groupName, i, len(portsToValidate))
 				}
-				seenPorts[stream.UDPPort] = struct{}{}
+			
+				// Validate each port
+				for _, port := range portsToValidate {
+					if port < 1 || port > 65535 {
+						return nil, 0, fmt.Errorf("%s region %q group %q entry %d has invalid UDP port %d", path, regionName, groupName, i, port)
+					}
+					if _, exists := seenPorts[port]; exists {
+						return nil, 0, fmt.Errorf("%s has duplicate UDP port %d", path, port)
+					}
+					seenPorts[port] = struct{}{}
+				}
 
-				subGroup.Streams = append(subGroup.Streams, streamConfig{
-					StreamName: streamName,
-					UDPPort:    stream.UDPPort,
-				})
+				subGroup.Streams = append(subGroup.Streams, stream)
 			}
 
 			region.SubGroups = append(region.SubGroups, subGroup)
