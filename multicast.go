@@ -22,6 +22,7 @@ type MulticastListener struct {
 	listeners   []net.PacketConn
 	frameChan   chan multicastFrame
 	logger      *log.Logger
+	debug       bool
 	dropoutTime time.Duration
 
 	mu              sync.Mutex
@@ -41,7 +42,7 @@ type multicastFrame struct {
 // NewMulticastListener creates a listener for multiple UDP ports/multicast addresses.
 // ports: list of UDP port numbers to bind to
 // addresses: list of multicast group addresses (or empty for unicast). Can be empty.
-func NewMulticastListener(streamName string, ports []int, addresses []string, dropoutTime time.Duration, logger *log.Logger) (*MulticastListener, error) {
+func NewMulticastListener(streamName string, ports []int, addresses []string, dropoutTime time.Duration, logger *log.Logger, debug bool) (*MulticastListener, error) {
 	if len(ports) == 0 {
 		return nil, fmt.Errorf("no ports specified for multicast listener")
 	}
@@ -59,6 +60,7 @@ func NewMulticastListener(streamName string, ports []int, addresses []string, dr
 		listeners:      make([]net.PacketConn, 0, len(ports)),
 		frameChan:      make(chan multicastFrame, 256), // buffered channel for frames
 		logger:         logger,
+		debug:          debug,
 		dropoutTime:    dropoutTime,
 		activePort:     -1,
 		portAddr:       make(map[int]string),
@@ -120,6 +122,10 @@ func (ml *MulticastListener) bindListeners() error {
 			ml.portAddr[i] = fmt.Sprintf(":%d", port)
 		}
 
+		if ml.debug {
+			ml.logger.Printf("%s: bound listener %d on %s (multicast=%t)", ml.streamName, i, ml.portAddr[i], isMulticast)
+		}
+
 		ml.listeners = append(ml.listeners, conn)
 	}
 
@@ -172,6 +178,11 @@ func (ml *MulticastListener) readFrom(listenerIdx int, conn net.PacketConn) {
 				continue
 			}
 
+			if ml.debug {
+				ml.logger.Printf("%s: packet on listener %d (%s) from %s, bytes=%d",
+					ml.streamName, listenerIdx, ml.portAddr[listenerIdx], remoteAddr, n)
+			}
+
 			frame, err := extractAudioFrame(buffer[:n])
 			if err != nil {
 				ml.logger.Printf("%s: dropping UDP packet from %s on listener %d: %v",
@@ -189,11 +200,16 @@ func (ml *MulticastListener) readFrom(listenerIdx int, conn net.PacketConn) {
 func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, frame []byte) {
 	ml.mu.Lock()
 	now := time.Now()
+	prevActive := ml.activePort
 
 	// Check for dropout on the active port
 	if ml.activePort >= 0 {
 		if now.Sub(ml.lastPacketTime) > ml.dropoutTime {
 			// Stream dropped — accept from any port
+			if ml.debug {
+				ml.logger.Printf("%s: active listener %d (%s) timed out after %s; accepting any port again",
+					ml.streamName, ml.activePort, ml.portAddr[ml.activePort], ml.dropoutTime)
+			}
 			ml.activePort = -1
 		}
 	}
@@ -203,6 +219,10 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 		// No active port — this packet wins
 		ml.activePort = listenerIdx
 		ml.lastPacketTime = now
+		if ml.debug {
+			ml.logger.Printf("%s: listener %d (%s) became active (previous=%d)",
+				ml.streamName, listenerIdx, ml.portAddr[listenerIdx], prevActive)
+		}
 		ml.mu.Unlock()
 
 		// Make a copy of frame and send it (non-blocking)
@@ -222,6 +242,10 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 	} else if ml.activePort == listenerIdx {
 		// Packet from active port — process it
 		ml.lastPacketTime = now
+		if ml.debug {
+			ml.logger.Printf("%s: packet accepted from active listener %d (%s)",
+				ml.streamName, listenerIdx, ml.portAddr[listenerIdx])
+		}
 		ml.mu.Unlock()
 
 		frameCopy := make([]byte, len(frame))
@@ -238,6 +262,10 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 			ml.logger.Printf("%s: frame queue full on active listener %d", ml.streamName, listenerIdx)
 		}
 	} else {
+		if ml.debug {
+			ml.logger.Printf("%s: packet ignored from listener %d (%s); active listener is %d (%s)",
+				ml.streamName, listenerIdx, ml.portAddr[listenerIdx], ml.activePort, ml.portAddr[ml.activePort])
+		}
 		ml.mu.Unlock()
 	}
 }
@@ -248,6 +276,10 @@ func (ml *MulticastListener) checkDropout() {
 	defer ml.mu.Unlock()
 
 	if ml.activePort >= 0 && time.Now().Sub(ml.lastPacketTime) > ml.dropoutTime {
+		if ml.debug {
+			ml.logger.Printf("%s: dropout check cleared active listener %d (%s)",
+				ml.streamName, ml.activePort, ml.portAddr[ml.activePort])
+		}
 		ml.activePort = -1
 	}
 }

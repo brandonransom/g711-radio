@@ -63,6 +63,7 @@ type appConfig struct {
 	HTTPPort         int                                  `json:"httpPort"`
 	HTTPRedirectPort int                                  `json:"httpRedirectPort"`
 	EnableHTTP       bool                                 `json:"enableHttp"`
+	DebugMulticast   bool                                 `json:"debugMulticast"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
 	Mping            *mpingConfig                         `json:"mping"`
@@ -84,6 +85,7 @@ type streamConfig struct {
 	UDPPorts      []int    `json:"udpPorts"`      // list of UDP ports to listen on (supports multicast)
 	MulticastAddr string   `json:"multicastAddr"` // single multicast group (if any) — deprecated
 	MulticastAddrs []string `json:"multicastAddrs"` // list of multicast group addresses
+	DebugMulticast bool     `json:"debugMulticast"`
 }
 
 type streamInfo struct {
@@ -124,6 +126,7 @@ type station struct {
 	codec         webrtc.RTPCodecCapability
 	frameDuration time.Duration
 	logger        *log.Logger
+	debugMulticast bool
 	usageLogger   *usageLogger
 	audioLogDir   string
 
@@ -562,7 +565,7 @@ func main() {
 
 				if useMulticast {
 					// Use multicast listener for multiple ports
-					ml, err := NewMulticastListener(cfg.StreamName, ports, addresses, 1*time.Second, logger)
+					ml, err := NewMulticastListener(cfg.StreamName, ports, addresses, 1*time.Second, logger, cfg.DebugMulticast)
 					if err != nil {
 						logger.Fatalf("failed to create multicast listener for %q: %v", cfg.StreamName, err)
 					}

@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -84,14 +84,6 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 
 	// Build mping command line to match the working manual invocation.
 	// Format: mping.exe <multicast_addr> <port> <ttl> <interval_ms> <mode>
-	args := []string{
-		multicastAddr,
-		strconv.Itoa(m.config.Port),
-		strconv.Itoa(m.config.TTL),
-		strconv.Itoa(m.config.IntervalMs),
-		"0",
-	}
-
 	exeDir := m.config.CommandPath
 	if exeDir == "" {
 		exeDir = "."
@@ -102,10 +94,16 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	if info, err := os.Stat(exeDir); err != nil || !info.IsDir() {
 		return fmt.Errorf("mping command path is not a directory: %s", exeDir)
 	}
-	m.logger.Printf("starting mping as a process in %s: %s %s %d %d %d 0",
-		exeDir, m.config.ExecutablePath, multicastAddr, m.config.Port, m.config.TTL, m.config.IntervalMs)
-	cmd := exec.CommandContext(m.ctx, m.config.ExecutablePath, args...)
-	cmd.Dir = exeDir
+	cmdLine := fmt.Sprintf(`cd /d %s && %s %s %d %d %d 0`,
+		quoteCmdPath(exeDir),
+		quoteCmdPath(m.config.ExecutablePath),
+		quoteCmdArg(multicastAddr),
+		m.config.Port,
+		m.config.TTL,
+		m.config.IntervalMs,
+	)
+	m.logger.Printf("starting mping via cmd.exe: %s", cmdLine)
+	cmd := exec.CommandContext(m.ctx, "cmd.exe", "/c", cmdLine)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	cmd.Stdin = nil
@@ -128,6 +126,20 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 	}(multicastAddr, cmd)
 
 	return nil
+}
+
+func quoteCmdPath(path string) string {
+	if path == "" {
+		return "\"\""
+	}
+	if strings.ContainsAny(path, " \t\"") {
+		return `"` + strings.ReplaceAll(path, `"`, `\"`) + `"`
+	}
+	return path
+}
+
+func quoteCmdArg(arg string) string {
+	return quoteCmdPath(arg)
 }
 
 // stopMping stops an mping process for a multicast address

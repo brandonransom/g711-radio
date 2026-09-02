@@ -50,7 +50,7 @@ func TestMulticastListenerCreation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, err := NewMulticastListener("test", tt.ports, tt.addresses, 1*time.Second, nil)
+			listener, err := NewMulticastListener("test", tt.ports, tt.addresses, 1*time.Second, nil, false)
 
 			if (err != nil) != tt.shouldFail {
 				t.Errorf("expected shouldFail=%v, got error=%v", tt.shouldFail, err)
@@ -142,7 +142,7 @@ func TestPortPriority(t *testing.T) {
 	defer cancel()
 
 	// Create a listener on a single available port for testing
-	listener, err := NewMulticastListener("test", []int{15000}, []string{}, 500*time.Millisecond, nil)
+	listener, err := NewMulticastListener("test", []int{15000}, []string{}, 500*time.Millisecond, nil, false)
 	if err != nil {
 		t.Fatalf("failed to create listener: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestDropoutDetection(t *testing.T) {
 	defer cancel()
 
 	// Create a listener with short dropout time for testing
-	listener, err := NewMulticastListener("test", []int{15001}, []string{}, 200*time.Millisecond, nil)
+	listener, err := NewMulticastListener("test", []int{15001}, []string{}, 200*time.Millisecond, nil, false)
 	if err != nil {
 		t.Fatalf("failed to create listener: %v", err)
 	}
