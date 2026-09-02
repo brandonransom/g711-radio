@@ -20,6 +20,7 @@
   "mping": {
     "enabled": true,
     "executablePath": "C:\\TempX\\mping.exe",
+    "commandPath": "C:\\TempX",
     "port": 2600,
     "ttl": 32,
     "intervalMs": 120001

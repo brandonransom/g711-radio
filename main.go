@@ -84,9 +84,14 @@ type streamConfig struct {
 type streamInfo struct {
 	RegionName string `json:"regionName"`
 	GroupName  string `json:"groupName"`
+	ForestName string `json:"forestName"`
 	ID         string `json:"id"`
 	StreamName string `json:"streamName"`
 	UDPPort    int    `json:"udpPort"`
+}
+
+func (s streamInfo) displayName() string {
+	return fmt.Sprintf("%s / %s / %s", s.RegionName, s.GroupName, s.StreamName)
 }
 
 type subGroup struct {
@@ -129,17 +134,11 @@ type station struct {
 	multicastListener *MulticastListener
 
 	// packet health tracking (protected by mu)
-	lastPacketAt        time.Time
-	sourceAddr          string // first/expected source IP (no port)
-	conflictAddr        string // non-empty when a second source IP is detected
-	conflictClearCount  int    // consecutive packets from a single source seen after a conflict
-	conflictSingleSrc   string // which IP the consecutive run is from (primary or conflict addr)
-}
-
-func (s *station) logUnsupportedCodec(codec string, source string) {
-	if s.logger != nil {
-		s.logger.Printf("%s: unsupported codec %q from %s; dropping audio", s.info.StreamName, codec, source)
-	}
+	lastPacketAt       time.Time
+	sourceAddr         string // first/expected source IP (no port)
+	conflictAddr       string // non-empty when a second source IP is detected
+	conflictClearCount int    // consecutive packets from a single source seen after a conflict
+	conflictSingleSrc  string // which IP the consecutive run is from (primary or conflict addr)
 }
 
 type clipRecord struct {
@@ -320,10 +319,6 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 				return nil
 			}
 			frame := packet.data
-			if len(frame) > 0 && frame[0] != 0x00 {
-				s.logUnsupportedCodec(fmt.Sprintf("payload-type:%d", frame[0]), packet.sourceIP)
-				continue
-			}
 
 			now := time.Now()
 			s.mu.Lock()
@@ -456,6 +451,7 @@ func main() {
 				info := streamInfo{
 					RegionName: region.RegionName,
 					GroupName:  sg.GroupName,
+					ForestName: sg.GroupName,
 					ID:         fmt.Sprintf("stream-%d", cfg.UDPPort),
 					StreamName: cfg.StreamName,
 					UDPPort:    cfg.UDPPort,
@@ -571,7 +567,7 @@ func main() {
 					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
 
 					logger.Printf(
-						"configured stream %q in region %q, group %q on UDP ports %v, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+						"configured stream %q in region %q, forest %q on UDP ports %v, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
 						info.StreamName,
 						region.RegionName,
 						sg.GroupName,
@@ -613,7 +609,7 @@ func main() {
 					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
 
 					logger.Printf(
-						"configured stream %q in region %q, group %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+						"configured stream %q in region %q, forest %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
 						info.StreamName,
 						region.RegionName,
 						sg.GroupName,
@@ -1522,7 +1518,6 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 		last := st.lastPacketAt
 		conflict := st.conflictAddr
 		streamName := st.info.StreamName
-		udpPort := st.info.UDPPort
 		st.mu.RUnlock()
 
 		// Consider a stream "heard today" if live packets arrived in the last 24h,
@@ -1534,7 +1529,7 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 		// Generate server-side status message — decision logic stays on server
 		statusMessage := ""
 		if conflict != "" {
-			statusMessage = fmt.Sprintf("⚠ Multiple audio sources detected on UDP %d — this will cause audio problems", udpPort)
+			statusMessage = "⚠ Multiple audio sources detected for this stream — this will cause audio problems"
 		} else if !heardToday {
 			statusMessage = fmt.Sprintf(`Nothing heard from "%s" today`, streamName)
 		}

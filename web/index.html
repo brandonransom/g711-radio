@@ -401,6 +401,23 @@
         border: 1px solid var(--line);
       }
 
+      .vu-meter {
+        width: 100%;
+        height: 12px;
+        border-radius: 999px;
+        background: rgba(30, 36, 31, 0.08);
+        overflow: hidden;
+        margin-top: 10px;
+      }
+
+      .vu-meter-bar {
+        height: 100%;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--complement-2), var(--secondary1-2), var(--primary-2));
+        transition: width 80ms linear;
+      }
+
       .status strong {
         display: block;
         font-size: 0.78rem;
@@ -537,6 +554,7 @@
         <strong>Connection</strong>
         <div id="statusNotice" class="stream-notice" style="margin-bottom:6px" hidden></div>
         <div id="statusText">Idle.</div>
+        <div class="vu-meter" aria-label="Connection level meter"><div id="connectionVuBar" class="vu-meter-bar"></div></div>
         <div class="row">
           <button id="disconnectBtn" class="secondary" type="button" disabled>Disconnect</button>
         </div>
@@ -545,6 +563,7 @@
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
         <strong class="transcript-label">Recordings &amp; Transcripts</strong>
+        <div class="vu-meter" aria-label="Recordings level meter"><div id="recordingsVuBar" class="vu-meter-bar"></div></div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
 
@@ -561,6 +580,8 @@
       const statusText = document.getElementById("statusText");
       const statusNotice = document.getElementById("statusNotice");
       const player = document.getElementById("player");
+      const connectionVuBar = document.getElementById("connectionVuBar");
+      const recordingsVuBar = document.getElementById("recordingsVuBar");
       const streamsRoot = document.getElementById("streams");
       const transcriptPanel = document.getElementById("transcriptPanel");
       const transcriptLog = document.getElementById("transcriptLog");
@@ -586,6 +607,12 @@
       const regionBodyByName = new Map();
       let pollTimer = null;
       let pollIntervalMs = 30000;
+      let clipPlaybackQueue = [];
+      let clipPlaybackActive = null;
+      let clipPlaybackSerial = 0;
+      let connectionVuLevel = 0;
+      let recordingsVuLevel = 0;
+      let vuDecayTimer = null;
 
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
@@ -604,6 +631,97 @@
         const m = Math.floor(totalSec / 60);
         const s = totalSec % 60;
         return m > 0 ? `${m}m${s.toString().padStart(2, "0")}s` : `${s}s`;
+      }
+
+      function setVuLevel(bar, level) {
+        if (!bar) return;
+        const clamped = Math.max(0, Math.min(1, level));
+        bar.style.width = `${Math.round(clamped * 100)}%`;
+      }
+
+      function pulseVu(which, peak = 1) {
+        if (which === "connection") {
+          connectionVuLevel = Math.max(connectionVuLevel, peak);
+          setVuLevel(connectionVuBar, connectionVuLevel);
+        } else {
+          recordingsVuLevel = Math.max(recordingsVuLevel, peak);
+          setVuLevel(recordingsVuBar, recordingsVuLevel);
+        }
+
+        if (!vuDecayTimer) {
+          vuDecayTimer = setInterval(() => {
+            connectionVuLevel = Math.max(0, connectionVuLevel - 0.04);
+            recordingsVuLevel = Math.max(0, recordingsVuLevel - 0.04);
+            setVuLevel(connectionVuBar, connectionVuLevel);
+            setVuLevel(recordingsVuBar, recordingsVuLevel);
+            if (connectionVuLevel === 0 && recordingsVuLevel === 0) {
+              clearInterval(vuDecayTimer);
+              vuDecayTimer = null;
+            }
+          }, 50);
+        }
+      }
+
+      function updateClipPlayButtons() {
+        const activeId = clipPlaybackActive ? clipPlaybackActive.clipId : null;
+        transcriptLog.querySelectorAll(".transcript-play[data-clip-id]").forEach((button) => {
+          const clipId = button.dataset.clipId;
+          if (!clipId) return;
+          if (activeId === clipId) {
+            button.textContent = "◼";
+          } else if (clipPlaybackQueue.some((item) => item.clipId === clipId)) {
+            button.textContent = "⏳";
+          } else {
+            button.textContent = "▶";
+          }
+        });
+      }
+
+      function playNextQueuedClip() {
+        if (clipPlaybackActive || clipPlaybackQueue.length === 0) {
+          updateClipPlayButtons();
+          return;
+        }
+
+        const next = clipPlaybackQueue.shift();
+        const audio = new Audio(next.audioUrl);
+        clipPlaybackActive = { clipId: next.clipId, audio };
+        updateClipPlayButtons();
+        pulseVu("recordings", 1);
+
+        audio.addEventListener("ended", () => {
+          if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId) {
+            clipPlaybackActive = null;
+            updateClipPlayButtons();
+            playNextQueuedClip();
+          }
+        });
+
+        audio.addEventListener("pause", () => {
+          if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId && audio.ended) {
+            clipPlaybackActive = null;
+            updateClipPlayButtons();
+            playNextQueuedClip();
+          }
+        });
+
+        audio.play().catch(() => {
+          if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId) {
+            clipPlaybackActive = null;
+            updateClipPlayButtons();
+            playNextQueuedClip();
+          }
+        });
+      }
+
+      function enqueueClipPlayback(clipId, audioUrl) {
+        if (!audioUrl) return;
+        if (clipPlaybackQueue.some((item) => item.clipId === clipId) || (clipPlaybackActive && clipPlaybackActive.clipId === clipId)) {
+          return;
+        }
+        clipPlaybackQueue.push({ clipId, audioUrl, order: ++clipPlaybackSerial });
+        updateClipPlayButtons();
+        playNextQueuedClip();
       }
 
       function appendClip(clipId, isoTimestamp, audioUrl, durationMs, canTranscribe) {
@@ -635,14 +753,11 @@
           const playBtn = document.createElement("button");
           playBtn.type = "button";
           playBtn.className = "transcript-play";
+          playBtn.dataset.clipId = clipId;
           playBtn.title = "Play recording";
           playBtn.textContent = "▶";
           playBtn.addEventListener("click", () => {
-            const audio = new Audio(audioUrl);
-            audio.play();
-            playBtn.textContent = "◼";
-            audio.addEventListener("ended", () => { playBtn.textContent = "▶"; });
-            audio.addEventListener("pause", () => { playBtn.textContent = "▶"; });
+            enqueueClipPlayback(clipId, audioUrl);
           });
           entry.append(time, content, playBtn);
         } else {
@@ -676,6 +791,7 @@
 
         transcriptLog.append(entry);
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        updateClipPlayButtons();
       }
 
       function updateTranscript(clipId, text) {
@@ -814,6 +930,11 @@
       function stopTranscription() {
         if (sseWatchdogTimer) { clearInterval(sseWatchdogTimer); sseWatchdogTimer = null; }
         if (transcriptSSE) { transcriptSSE.close(); transcriptSSE = null; }
+        clipPlaybackQueue = [];
+        clipPlaybackActive = null;
+        updateClipPlayButtons();
+        recordingsVuLevel = 0;
+        setVuLevel(recordingsVuBar, 0);
         transcriptionStreamId = null;
         transcriptPanel.hidden = true;
         transcriptLog.innerHTML = "";
@@ -843,6 +964,9 @@
       function setConnectionState(state) {
         currentConnectionState = state;
         updatePageTitle();
+        if (state === "connected") {
+          pulseVu("connection", 1);
+        }
       }
 
       function flattenStreamGroups(regionGroups) {
@@ -884,6 +1008,10 @@
         return url;
       }
 
+      function formatStreamDisplayName(stream) {
+        return [stream.regionName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
+      }
+
       function syncURL(streamId, streamName) {
         window.history.replaceState(null, "", buildStreamURL(streamId, streamName).toString());
         renderPageChrome();
@@ -894,7 +1022,7 @@
       }
 
       function openStreamInNewTab(stream) {
-        window.open(buildStreamURL(stream.id, stream.streamName).toString(), "_blank", "noopener,noreferrer");
+        window.open(buildStreamURL(stream.id, formatStreamDisplayName(stream)).toString(), "_blank", "noopener,noreferrer");
       }
 
       function runAfterFirstPaint(task) {
@@ -946,13 +1074,13 @@
         card.className = "launch";
 
         const eyebrow = document.createElement("strong");
-        eyebrow.textContent = sharePageStream.groupName;
+        eyebrow.textContent = `${sharePageStream.regionName} / ${sharePageStream.groupName}`;
 
         const title = document.createElement("h2");
-        title.textContent = sharePageStream.streamName;
+        title.textContent = formatStreamDisplayName(sharePageStream);
 
         const description = document.createElement("p");
-        description.textContent = `UDP ${sharePageStream.udpPort}. Ready to connect.`;
+        description.textContent = "Ready to connect.";
 
         const actions = document.createElement("div");
         actions.className = "row";
@@ -1019,11 +1147,8 @@
 
         const header = document.createElement("header");
         const title = document.createElement("h3");
-        title.textContent = stream.streamName;
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent = `UDP ${stream.udpPort}`;
-        header.append(title, meta);
+        title.textContent = formatStreamDisplayName(stream);
+        header.append(title);
 
         const quietNotice = document.createElement("div");
         quietNotice.className = "stream-notice quiet";
@@ -1062,13 +1187,9 @@
         }
 
         const title = card.querySelector("h3");
-        if (title && title.textContent !== stream.streamName) {
-          title.textContent = stream.streamName;
-        }
-        const meta = card.querySelector(".meta");
-        const nextMeta = `UDP ${stream.udpPort}`;
-        if (meta && meta.textContent !== nextMeta) {
-          meta.textContent = nextMeta;
+        const nextTitle = formatStreamDisplayName(stream);
+        if (title && title.textContent !== nextTitle) {
+          title.textContent = nextTitle;
         }
 
         const button = card.querySelector("button");
@@ -1289,7 +1410,7 @@
 
         if (updateStatus) {
           if (showShareLanding()) {
-            setStatus(`Ready to start ${sharePageStream.streamName}.`);
+            setStatus(`Ready to start ${formatStreamDisplayName(sharePageStream)}.`);
           } else {
             setStatus("Disconnected.");
           }
@@ -1300,14 +1421,14 @@
         disconnect(false, true);
 
         currentStreamId = stream.id;
-        currentStreamName = stream.streamName;
+        currentStreamName = formatStreamDisplayName(stream);
         connectingStreamId = stream.id;
         reconnectAttempts = 0;
         syncURL(stream.id, stream.streamName);
         renderLaunchView();
         renderStreams();
         setConnectionState("connecting");
-        setStatus(`Creating peer connection for ${stream.streamName}...`);
+        setStatus(`Creating peer connection for ${formatStreamDisplayName(stream)}...`);
 
         const connection = new RTCPeerConnection();
         pc = connection;
@@ -1329,6 +1450,8 @@
           } catch (error) {
             setStatus(`Connected, but autoplay was blocked: ${error.message}`);
           }
+          event.track.addEventListener("unmute", () => pulseVu("connection", 0.9));
+          event.track.addEventListener("mute", () => pulseVu("connection", 0.2));
         });
 
         connection.addEventListener("connectionstatechange", () => {
@@ -1360,7 +1483,7 @@
           await connection.setLocalDescription(offer);
           await waitForIceGatheringComplete(connection);
 
-          setStatus(`Sending offer for ${stream.streamName}...`);
+          setStatus(`Sending offer for ${formatStreamDisplayName(stream)}...`);
           const response = await fetch("/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1380,7 +1503,7 @@
           if (pc === connection) {
             connectingStreamId = null;
             renderStreams();
-            setStatus(`Waiting for ${stream.streamName} audio...`);
+            setStatus(`Waiting for ${formatStreamDisplayName(stream)} audio...`);
           }
         } catch (error) {
           if (pc === connection) {
@@ -1436,7 +1559,7 @@
           sharePageStream = requestedStream;
           renderLaunchView();
           renderStreams();
-          setStatus(`Ready to start ${requestedStream.streamName}. Click "Start Stream" to connect.`);
+          setStatus(`Ready to start ${formatStreamDisplayName(requestedStream)}. Click "Start Stream" to connect.`);
           startTranscription(requestedStream.id);
           return;
         }

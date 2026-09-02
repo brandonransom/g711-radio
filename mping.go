@@ -13,17 +13,21 @@ import (
 
 // mpingConfig holds configuration for multicast route keep-alive using mping
 type mpingConfig struct {
-	Enabled      bool   `json:"enabled"`
-	ExecutablePath string `json:"executablePath"` // Path to mping.exe
-	Port         int    `json:"port"`            // Port for mping (typically 5750 or similar)
-	TTL          int    `json:"ttl"`             // Time to live (default 32)
-	IntervalMs   int    `json:"intervalMs"`      // Milliseconds between pings (default 1000)
+	Enabled           bool   `json:"enabled"`
+	ExecutablePath    string `json:"executablePath"`    // Path to mping.exe
+	CommandPath       string `json:"commandPath"`        // Directory to start the command window in
+	Port              int    `json:"port"`               // Port for mping (typically 5750 or similar)
+	TTL               int    `json:"ttl"`                // Time to live (default 32)
+	IntervalMs        int    `json:"intervalMs"`         // Milliseconds between pings (default 1000)
 }
 
 // setDefaults applies default values for mping configuration
 func (m *mpingConfig) setDefaults() {
 	if m.ExecutablePath == "" {
 		m.ExecutablePath = "mping.exe"
+	}
+	if m.CommandPath == "" {
+		m.CommandPath = filepath.Dir(m.ExecutablePath)
 	}
 	if m.Port == 0 {
 		m.Port = 5750
@@ -89,10 +93,10 @@ func (m *mpingManager) startMping(multicastAddr string) error {
 		"-i", strconv.Itoa(m.config.IntervalMs),
 	}
 
-	exeDir := filepath.Dir(m.config.ExecutablePath)
+	exeDir := m.config.CommandPath
 	exeName := filepath.Base(m.config.ExecutablePath)
 	cmdLine := strings.Join(append([]string{quoteCmdArg(exeName)}, quoteCmdArgs(args)...), " ")
-	cmd := exec.CommandContext(m.ctx, "cmd.exe", "/c", "start", "", "/D", exeDir, "cmd.exe", "/c", cmdLine)
+	cmd := exec.CommandContext(m.ctx, "cmd.exe", "/c", "start", "", "/D", exeDir, "cmd.exe", "/k", cmdLine)
 	cmd.Stdout = nil // Suppress stdout
 	cmd.Stderr = nil // Suppress stderr
 
