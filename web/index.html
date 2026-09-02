@@ -968,9 +968,6 @@
       function startTranscription(streamId) {
         // If already showing this stream, just ensure SSE is alive — do not wipe the log.
         if (transcriptionStreamId === streamId) {
-          if (!transcriptSSE || transcriptSSE.readyState === EventSource.CLOSED) {
-            openSseConnection(streamId);
-          }
           return;
         }
 
@@ -1774,10 +1771,6 @@
       // (covers app-switching on iOS/Android, screen lock, and bfcache restores).
       function handleVisibilityRestore() {
         if (document.visibilityState !== "visible") return;
-        // Reconnect SSE if it died while hidden — startTranscription is idempotent for same stream.
-        if (transcriptionStreamId && (!transcriptSSE || transcriptSSE.readyState === EventSource.CLOSED)) {
-          startTranscription(transcriptionStreamId);
-        }
         // Reconnect WebRTC if we have a stream but the peer connection is gone/failed.
         if (sharePageStream && currentStreamId && !connectingStreamId) {
           const state = pc ? pc.connectionState : null;
