@@ -584,11 +584,6 @@
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
         <strong class="transcript-label">Recordings &amp; Transcripts</strong>
-        <div class="vu-meter" aria-label="Recordings level meter">
-          <div id="recordingsVuGreen" class="vu-meter-bar vu-meter-green"></div>
-          <div id="recordingsVuYellow" class="vu-meter-bar vu-meter-yellow"></div>
-          <div id="recordingsVuRed" class="vu-meter-bar vu-meter-red"></div>
-        </div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
 
@@ -608,9 +603,6 @@
       const connectionVuGreen = document.getElementById("connectionVuGreen");
       const connectionVuYellow = document.getElementById("connectionVuYellow");
       const connectionVuRed = document.getElementById("connectionVuRed");
-      const recordingsVuGreen = document.getElementById("recordingsVuGreen");
-      const recordingsVuYellow = document.getElementById("recordingsVuYellow");
-      const recordingsVuRed = document.getElementById("recordingsVuRed");
       const streamsRoot = document.getElementById("streams");
       const transcriptPanel = document.getElementById("transcriptPanel");
       const transcriptLog = document.getElementById("transcriptLog");
@@ -642,11 +634,9 @@
       let clipPlaybackActive = null;
       let clipPlaybackSerial = 0;
       let connectionVuLevel = 0;
-      let recordingsVuLevel = 0;
       let vuDecayTimer = null;
       let connectionMeterTick = null;
       let connectionMeterStop = null;
-      let recordingsMeterTick = null;
 
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
@@ -689,18 +679,13 @@
         if (which === "connection") {
           connectionVuLevel = Math.max(connectionVuLevel, peak);
           setVuSegments(connectionVuGreen, connectionVuYellow, connectionVuRed, connectionVuLevel);
-        } else {
-          recordingsVuLevel = Math.max(recordingsVuLevel, peak);
-          setVuSegments(recordingsVuGreen, recordingsVuYellow, recordingsVuRed, recordingsVuLevel);
         }
 
         if (!vuDecayTimer) {
           vuDecayTimer = setInterval(() => {
             connectionVuLevel = Math.max(0, connectionVuLevel - 0.04);
-            recordingsVuLevel = Math.max(0, recordingsVuLevel - 0.04);
             setVuSegments(connectionVuGreen, connectionVuYellow, connectionVuRed, connectionVuLevel);
-            setVuSegments(recordingsVuGreen, recordingsVuYellow, recordingsVuRed, recordingsVuLevel);
-            if (connectionVuLevel === 0 && recordingsVuLevel === 0) {
+            if (connectionVuLevel === 0) {
               clearInterval(vuDecayTimer);
               vuDecayTimer = null;
             }
@@ -759,19 +744,6 @@
         }
       }
 
-      function startRecordingsMeter() {
-        if (recordingsMeterTick) return;
-        const tick = () => {
-          if (!clipAudio.paused && !clipAudio.ended) {
-            const duration = clipAudio.duration || 0;
-            const progress = duration > 0 ? clipAudio.currentTime / duration : 0;
-            pulseVu("recordings", Math.max(0.05, progress));
-          }
-          recordingsMeterTick = requestAnimationFrame(tick);
-        };
-        recordingsMeterTick = requestAnimationFrame(tick);
-      }
-
       function updateClipPlayButtons() {
         const activeId = clipPlaybackActive ? clipPlaybackActive.clipId : null;
         transcriptLog.querySelectorAll(".transcript-play[data-clip-id]").forEach((button) => {
@@ -799,8 +771,6 @@
         updateClipPlayButtons();
         audio.src = next.audioUrl;
         audio.currentTime = 0;
-        startRecordingsMeter();
-        audio.addEventListener("playing", () => pulseVu("recordings", 0.4), { once: true });
 
         audio.addEventListener("ended", () => {
           if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId) {
@@ -1016,12 +986,6 @@
         clipPlaybackQueue = [];
         clipPlaybackActive = null;
         updateClipPlayButtons();
-        recordingsVuLevel = 0;
-        setVuSegments(recordingsVuGreen, recordingsVuYellow, recordingsVuRed, 0);
-        if (recordingsMeterTick) {
-          cancelAnimationFrame(recordingsMeterTick);
-          recordingsMeterTick = null;
-        }
         transcriptionStreamId = null;
         transcriptPanel.hidden = true;
         transcriptLog.innerHTML = "";
