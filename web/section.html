@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>USDA Forest Service - Land Mobile Radio Streams</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --primary-1: #E34C48;
+        --primary-2: #D4211C;
+        --secondary1-2: #D48B1C;
+        --secondary2-1: #376394;
+        --secondary2-2: #1C508A;
+        --complement-2: #16A720;
+        --complement-3: #007207;
+        --bg: #f4efe6;
+        --panel: rgba(255, 252, 246, 0.92);
+        --ink: #1e241f;
+        --muted: #5f6d63;
+        --accent: var(--secondary2-2);
+        --line: rgba(30, 36, 31, 0.12);
+        --shadow: 0 20px 60px rgba(37, 45, 37, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(55, 99, 148, 0.28), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(0, 114, 7, 0.24), transparent 34%),
+          linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(920px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 32px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .breadcrumb {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+
+      .breadcrumb a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: clamp(1.8rem, 4.4vw, 3rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        font-weight: 700;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      p { margin: 0; color: var(--muted); font-size: 1.02rem; line-height: 1.6; }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 20px 0;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--secondary2-2);
+        color: #fffdf8;
+        transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.24);
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: var(--secondary2-1);
+      }
+
+      button:disabled { opacity: 0.55; cursor: wait; }
+
+      .secondary {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        box-shadow: none;
+      }
+
+      .secondary:hover:not(:disabled) {
+        background: rgba(28, 80, 138, 0.1);
+      }
+
+      .forest-group {
+        margin-top: 12px;
+      }
+
+      .forest-group h2 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 24px 0 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .streams {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      }
+
+      .stream {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        align-content: start;
+      }
+
+      .stream h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 600;
+      }
+
+      .stream-status {
+        color: var(--muted);
+        font-size: 0.88rem;
+        min-height: 1.2em;
+      }
+
+      .vu-meter {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(30, 36, 31, 0.08);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .vu-meter-bar {
+        position: absolute;
+        inset: 0;
+        height: 100%;
+        border-radius: inherit;
+        transition: clip-path 80ms linear, opacity 80ms linear;
+        opacity: 0;
+      }
+
+      .vu-meter-green { background: var(--complement-2); clip-path: inset(0 100% 0 0); }
+      .vu-meter-yellow { background: var(--secondary1-2); clip-path: inset(0 100% 0 0); }
+      .vu-meter-red { background: var(--primary-2); clip-path: inset(0 100% 0 0); }
+
+      .stream button {
+        width: 100%;
+        min-height: 42px;
+        border-radius: 12px;
+        font-size: 0.94rem;
+        font-weight: 700;
+      }
+
+      .stream button:disabled {
+        background: var(--muted);
+        opacity: 0.7;
+      }
+
+      .stream button.connected {
+        background: var(--complement-3);
+        box-shadow: 0 12px 24px rgba(0, 114, 7, 0.28);
+      }
+
+      .stream button.connected:hover:not(:disabled) {
+        background: var(--complement-2);
+      }
+
+      audio {
+        width: 100%;
+        border-radius: 999px;
+      }
+
+      .empty {
+        margin-top: 24px;
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+      }
+
+      .note {
+        margin-top: 28px;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="breadcrumb"><a href="/">&larr; All streams</a></div>
+      <h1 id="pageTitle">Loading...</h1>
+      <p class="subtitle" id="pageSubtitle"></p>
+
+      <div class="row">
+        <button id="connectAllBtn" type="button" disabled>Connect All</button>
+        <button id="disconnectAllBtn" class="secondary" type="button" disabled>Disconnect All</button>
+      </div>
+
+      <div id="content"></div>
+
+      <p class="note">
+        This service is provided by the USDA Forest Service CIO - Land Mobile Radio Innovation Team. This is a very early alpha phase of testing. DO NOT use this webpage as your primary means of radio communications. Contact <a href="mailto:brandon.r.thomas@usda.gov">Brandon Thomas</a> with any questions or feedback.
+      </p>
+    </main>
+
+    <script>
+      const pageTitle = document.getElementById("pageTitle");
+      const pageSubtitle = document.getElementById("pageSubtitle");
+      const content = document.getElementById("content");
+      const connectAllBtn = document.getElementById("connectAllBtn");
+      const disconnectAllBtn = document.getElementById("disconnectAllBtn");
+
+      // Every card in this page manages its own independent RTCPeerConnection
+      // and audio element, keyed by stream ID, so many streams can be live
+      // simultaneously. This is unlike the main index page, which only ever
+      // holds a single connection at a time.
+      const cards = new Map();
+
+      function formatStreamDisplayName(stream) {
+        return [stream.regionName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
+      }
+
+      function setVuSegments(card, level) {
+        const clamped = Math.max(0, Math.min(1, level));
+        const { vuGreen, vuYellow, vuRed } = card;
+        vuGreen.style.clipPath = `inset(0 ${Math.round((1 - clamped) * 100)}% 0 0)`;
+        vuGreen.style.opacity = clamped > 0 ? "1" : "0";
+        const yellowShown = clamped > 0.75;
+        vuYellow.style.clipPath = `inset(0 ${Math.round((1 - Math.max(clamped, 0.75)) * 100)}% 0 0)`;
+        vuYellow.style.opacity = yellowShown ? "1" : "0";
+        const redShown = clamped > 0.9375;
+        vuRed.style.clipPath = `inset(0 ${Math.round((1 - Math.max(clamped, 0.9375)) * 100)}% 0 0)`;
+        vuRed.style.opacity = redShown ? "1" : "0";
+      }
+
+      function pulseVu(card, peak = 1) {
+        card.vuLevel = Math.max(card.vuLevel, peak);
+        setVuSegments(card, card.vuLevel);
+        if (!card.vuDecayTimer) {
+          card.vuDecayTimer = setInterval(() => {
+            card.vuLevel = Math.max(0, card.vuLevel - 0.04);
+            setVuSegments(card, card.vuLevel);
+            if (card.vuLevel === 0) {
+              clearInterval(card.vuDecayTimer);
+              card.vuDecayTimer = null;
+            }
+          }, 50);
+        }
+      }
+
+      function stopMeter(card) {
+        if (card.meterTick) {
+          cancelAnimationFrame(card.meterTick);
+          card.meterTick = null;
+        }
+        if (card.meterStop) {
+          card.meterStop();
+          card.meterStop = null;
+        }
+        card.vuLevel = 0;
+        setVuSegments(card, 0);
+      }
+
+      function startMeter(card, track) {
+        stopMeter(card);
+        if (!track || typeof AudioContext === "undefined") return;
+        try {
+          const ctx = new AudioContext();
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 1024;
+          const source = ctx.createMediaStreamSource(new MediaStream([track.clone()]));
+          source.connect(analyser);
+          const data = new Uint8Array(analyser.fftSize);
+
+          card.meterStop = () => {
+            try { source.disconnect(); } catch (_) {}
+            try { analyser.disconnect(); } catch (_) {}
+            ctx.close().catch(() => {});
+          };
+
+          const tick = () => {
+            analyser.getByteTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+              const v = (data[i] - 128) / 128;
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / data.length);
+            const db = rms > 0 ? 20 * Math.log10(rms) : -120;
+            const level = Math.max(0, Math.min(1, (db + 60) / 60));
+            pulseVu(card, level);
+            card.meterTick = requestAnimationFrame(tick);
+          };
+
+          card.meterTick = requestAnimationFrame(tick);
+        } catch (_) {
+          stopMeter(card);
+        }
+      }
+
+      function setStatus(card, text) {
+        card.statusEl.textContent = text;
+      }
+
+      function updateAllButtons() {
+        const anyIdle = Array.from(cards.values()).some((c) => !c.pc && !c.connecting);
+        const anyActive = Array.from(cards.values()).some((c) => c.pc || c.connecting);
+        connectAllBtn.disabled = !anyIdle;
+        disconnectAllBtn.disabled = !anyActive;
+      }
+
+      function closeCard(card) {
+        stopMeter(card);
+        const connection = card.pc;
+        card.pc = null;
+        if (connection) connection.close();
+        card.audioEl.srcObject = null;
+      }
+
+      function disconnectCard(card, statusText = "Disconnected.") {
+        card.connecting = false;
+        closeCard(card);
+        card.button.textContent = "Connect";
+        card.button.classList.remove("connected");
+        card.button.disabled = false;
+        setStatus(card, statusText);
+        updateAllButtons();
+      }
+
+      async function connectCard(card) {
+        if (card.pc || card.connecting) return;
+        card.connecting = true;
+        card.button.textContent = "Connecting...";
+        card.button.disabled = true;
+        setStatus(card, "Creating peer connection...");
+        updateAllButtons();
+
+        const connectToken = ++card.connectToken;
+        const connection = new RTCPeerConnection();
+        card.pc = connection;
+        connection.addTransceiver("audio", { direction: "recvonly" });
+
+        connection.addEventListener("track", async (event) => {
+          if (card.pc !== connection) return;
+          if (event.streams && event.streams[0]) {
+            card.audioEl.srcObject = event.streams[0];
+          } else {
+            card.audioEl.srcObject = new MediaStream([event.track]);
+          }
+          try {
+            await card.audioEl.play();
+          } catch (error) {
+            setStatus(card, `Connected, but autoplay was blocked: ${error.message}`);
+          }
+          startMeter(card, event.track);
+          event.track.addEventListener("unmute", () => pulseVu(card, 0.9));
+          event.track.addEventListener("mute", () => pulseVu(card, 0.2));
+        });
+
+        connection.addEventListener("connectionstatechange", () => {
+          if (connectToken !== card.connectToken || card.pc !== connection) return;
+
+          if (connection.connectionState === "connected") {
+            card.connecting = false;
+            card.button.textContent = "Disconnect";
+            card.button.classList.add("connected");
+            card.button.disabled = false;
+            setStatus(card, "Connected.");
+            updateAllButtons();
+            return;
+          }
+
+          if (connection.connectionState === "disconnected") {
+            setStatus(card, "Connection interrupted, attempting to recover...");
+            return;
+          }
+
+          if (["failed", "closed"].includes(connection.connectionState)) {
+            disconnectCard(card, connection.connectionState === "failed" ? "Connection failed." : "Disconnected.");
+          }
+        });
+
+        try {
+          const offer = await connection.createOffer();
+          await connection.setLocalDescription(offer);
+          await new Promise((resolve) => {
+            if (connection.iceGatheringState === "complete") return resolve();
+            const check = () => {
+              if (connection.iceGatheringState === "complete") {
+                connection.removeEventListener("icegatheringstatechange", check);
+                resolve();
+              }
+            };
+            connection.addEventListener("icegatheringstatechange", check);
+          });
+
+          setStatus(card, "Sending offer...");
+          const response = await fetch("/offer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ streamId: card.stream.id, offer: connection.localDescription }),
+          });
+
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+
+          const answer = await response.json();
+          await connection.setRemoteDescription(answer);
+
+          if (connectToken === card.connectToken && card.pc === connection) {
+            setStatus(card, "Waiting for audio...");
+          }
+        } catch (error) {
+          if (connectToken === card.connectToken && card.pc === connection) {
+            closeCard(card);
+            disconnectCard(card, `Connection failed: ${error.message}`);
+          }
+        }
+      }
+
+      function buildCard(stream) {
+        const el = document.createElement("section");
+        el.className = "stream";
+
+        const title = document.createElement("h3");
+        title.textContent = stream.streamName;
+
+        const statusEl = document.createElement("div");
+        statusEl.className = "stream-status";
+        statusEl.textContent = "Idle.";
+
+        const vu = document.createElement("div");
+        vu.className = "vu-meter";
+        vu.setAttribute("aria-label", "Connection level meter");
+        const vuGreen = document.createElement("div");
+        vuGreen.className = "vu-meter-bar vu-meter-green";
+        const vuYellow = document.createElement("div");
+        vuYellow.className = "vu-meter-bar vu-meter-yellow";
+        const vuRed = document.createElement("div");
+        vuRed.className = "vu-meter-bar vu-meter-red";
+        vu.append(vuGreen, vuYellow, vuRed);
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Connect";
+
+        const audioEl = document.createElement("audio");
+        audioEl.controls = true;
+        audioEl.autoplay = true;
+        audioEl.playsInline = true;
+
+        el.append(title, statusEl, vu, button, audioEl);
+
+        const card = {
+          stream,
+          pc: null,
+          connecting: false,
+          connectToken: 0,
+          statusEl,
+          vuGreen,
+          vuYellow,
+          vuRed,
+          vuLevel: 0,
+          vuDecayTimer: null,
+          meterTick: null,
+          meterStop: null,
+          button,
+          audioEl,
+        };
+
+        button.addEventListener("click", () => {
+          if (card.pc || card.connecting) {
+            disconnectCard(card);
+          } else {
+            void connectCard(card);
+          }
+        });
+
+        cards.set(stream.id, card);
+        return el;
+      }
+
+      function renderStreamsGrid(streams) {
+        const grid = document.createElement("div");
+        grid.className = "streams";
+        for (const stream of streams) {
+          grid.append(buildCard(stream));
+        }
+        return grid;
+      }
+
+      function showError(message) {
+        pageTitle.textContent = "Not found";
+        pageSubtitle.textContent = "";
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = message;
+        content.append(empty);
+      }
+
+      async function init() {
+        const params = new URL(window.location.href).searchParams;
+        const regionParam = params.get("region") || "";
+        const forestParam = params.get("forest") || "";
+
+        let regionGroups;
+        try {
+          const response = await fetch(`/streams?t=${Date.now()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(await response.text());
+          regionGroups = await response.json();
+        } catch (error) {
+          showError(`Unable to load streams: ${error.message}`);
+          return;
+        }
+
+        const region = (regionGroups || []).find((r) => r.regionName === regionParam);
+        if (!region) {
+          showError(`Region "${regionParam}" was not found.`);
+          return;
+        }
+
+        if (forestParam) {
+          const forest = region.subGroups.find((g) => g.groupName === forestParam);
+          if (!forest) {
+            showError(`Forest "${forestParam}" was not found in region "${regionParam}".`);
+            return;
+          }
+
+          pageTitle.textContent = forest.groupName;
+          pageSubtitle.textContent = region.regionName;
+          content.append(renderStreamsGrid(forest.streams));
+        } else {
+          pageTitle.textContent = region.regionName;
+          pageSubtitle.textContent = "All forests in this region, grouped below.";
+
+          for (const group of region.subGroups) {
+            const section = document.createElement("section");
+            section.className = "forest-group";
+            const heading = document.createElement("h2");
+            heading.textContent = group.groupName;
+            section.append(heading, renderStreamsGrid(group.streams));
+            content.append(section);
+          }
+        }
+
+        if (cards.size === 0) {
+          showError("No streams are configured here.");
+          return;
+        }
+
+        updateAllButtons();
+      }
+
+      connectAllBtn.addEventListener("click", () => {
+        for (const card of cards.values()) {
+          if (!card.pc && !card.connecting) void connectCard(card);
+        }
+      });
+
+      disconnectAllBtn.addEventListener("click", () => {
+        for (const card of cards.values()) {
+          if (card.pc || card.connecting) disconnectCard(card);
+        }
+      });
+
+      window.addEventListener("beforeunload", () => {
+        for (const card of cards.values()) closeCard(card);
+      });
+
+      init();
+    </script>
+  </body>
+</html>

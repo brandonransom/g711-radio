@@ -191,6 +191,20 @@
         transition: transform 160ms ease;
       }
 
+      .section-link {
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-decoration: none;
+        opacity: 0.7;
+        white-space: nowrap;
+      }
+
+      .section-link:hover {
+        opacity: 1;
+        text-decoration: underline;
+        color: var(--accent);
+      }
+
       .region[open] .region-indicator {
         transform: rotate(180deg);
       }
@@ -1373,11 +1387,19 @@
           regionMeta.className = "region-meta";
           regionMeta.textContent = formatStreamCount(totalStreamsInRegion);
 
+          const regionLink = document.createElement("a");
+          regionLink.className = "section-link";
+          regionLink.textContent = "Region connection page ↗";
+          regionLink.href = `/section.html?region=${encodeURIComponent(region.regionName)}`;
+          regionLink.target = "_blank";
+          regionLink.rel = "noopener noreferrer";
+          regionLink.addEventListener("click", (event) => event.stopPropagation());
+
           const regionIndicator = document.createElement("div");
           regionIndicator.className = "region-indicator";
           regionIndicator.textContent = "▾";
 
-          regionInfo.append(regionTitle, regionMeta);
+          regionInfo.append(regionTitle, regionMeta, regionLink);
           regionSummary.append(regionInfo, regionIndicator);
           regionDetails.append(regionSummary);
 
@@ -1413,11 +1435,19 @@
             groupMeta.className = "group-meta";
             groupMeta.textContent = formatStreamCount(group.streams.length);
 
+            const groupLink = document.createElement("a");
+            groupLink.className = "section-link";
+            groupLink.textContent = "Forest connection page ↗";
+            groupLink.href = `/section.html?region=${encodeURIComponent(region.regionName)}&forest=${encodeURIComponent(group.groupName)}`;
+            groupLink.target = "_blank";
+            groupLink.rel = "noopener noreferrer";
+            groupLink.addEventListener("click", (event) => event.stopPropagation());
+
             const groupIndicator = document.createElement("div");
             groupIndicator.className = "group-indicator";
             groupIndicator.textContent = "▾";
 
-            groupInfo.append(groupTitle, groupMeta);
+            groupInfo.append(groupTitle, groupMeta, groupLink);
             groupSummary.append(groupInfo, groupIndicator);
             groupDetails.append(groupSummary);
 
