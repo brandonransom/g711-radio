@@ -724,10 +724,13 @@
         return `${streamId}:${clipId || `hist-${isoTimestamp}`}`;
       }
 
-      function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, canTranscribe) {
-        const empty = transcriptLog.querySelector(".transcript-empty");
-        if (empty) empty.remove();
-
+      // Builds one transcript-log row. Used both for single live SSE events
+      // and for bulk history rendering — bulk rendering bakes the resolved
+      // text in directly instead of appending-then-updating, since with the
+      // 8-day retention window a busy region can have thousands of rows and
+      // doing two DOM passes (and a forced layout per row) is what caused
+      // the page to lag/hang while history loaded.
+      function buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text) {
         const entry = document.createElement("div");
         entry.className = "transcript-entry";
         entry.dataset.clipKey = key;
@@ -750,8 +753,13 @@
         streamCol.textContent = streamName;
 
         const contentEl = document.createElement("span");
-        contentEl.className = "transcript-text transcript-pending";
-        contentEl.textContent = audioUrl ? "Recording received." : "";
+        if (text) {
+          contentEl.className = "transcript-text";
+          contentEl.textContent = text;
+        } else {
+          contentEl.className = "transcript-text transcript-pending";
+          contentEl.textContent = audioUrl ? "Recording received." : "";
+        }
 
         entry.append(time, streamCol, contentEl);
 
@@ -770,34 +778,36 @@
           entry.append(document.createElement("span"));
         }
 
-        if (canTranscribe) {
-          const transcribeBtn = document.createElement("button");
-          transcribeBtn.type = "button";
-          transcribeBtn.className = "transcript-play";
-          transcribeBtn.title = "Request transcription";
-          transcribeBtn.textContent = "Transcribe";
-          transcribeBtn.addEventListener("click", async () => {
-            transcribeBtn.disabled = true;
+        const transcribeBtn = document.createElement("button");
+        transcribeBtn.type = "button";
+        transcribeBtn.className = "transcript-play";
+        transcribeBtn.title = "Request transcription";
+        transcribeBtn.textContent = "Transcribe";
+        transcribeBtn.addEventListener("click", async () => {
+          transcribeBtn.disabled = true;
+          transcribeBtn.textContent = "Queued";
+          try {
+            const res = await fetch("/transcripts/request", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clipId: key.slice(key.indexOf(":") + 1), audioUrl }),
+            });
+            if (!res.ok) throw new Error("request failed");
             transcribeBtn.textContent = "Queued";
-            try {
-              const res = await fetch("/transcripts/request", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ clipId: key.slice(key.indexOf(":") + 1), audioUrl }),
-              });
-              if (!res.ok) throw new Error("request failed");
-              transcribeBtn.textContent = "Queued";
-            } catch (_) {
-              transcribeBtn.disabled = false;
-              transcribeBtn.textContent = "Transcribe";
-            }
-          });
-          entry.appendChild(transcribeBtn);
-        } else {
-          entry.append(document.createElement("span"));
-        }
+          } catch (_) {
+            transcribeBtn.disabled = false;
+            transcribeBtn.textContent = "Transcribe";
+          }
+        });
+        entry.appendChild(transcribeBtn);
 
-        transcriptLog.append(entry);
+        return entry;
+      }
+
+      function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs) {
+        const empty = transcriptLog.querySelector(".transcript-empty");
+        if (empty) empty.remove();
+        transcriptLog.append(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, ""));
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
         updateClipPlayButtons();
       }
@@ -811,8 +821,11 @@
             contentEl.classList.remove("transcript-pending");
           }
         } else {
-          appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, true);
-          updateTranscript(key, streamName, isoTimestamp, audioUrl, durationMs, text);
+          const empty = transcriptLog.querySelector(".transcript-empty");
+          if (empty) empty.remove();
+          transcriptLog.append(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text));
+          transcriptLog.scrollTop = transcriptLog.scrollHeight;
+          updateClipPlayButtons();
         }
       }
 
@@ -827,7 +840,7 @@
             if (!knownStreamIds.has(payload.streamId)) return;
             const key = clipKey(payload.streamId, payload.clipId, payload.timestamp);
             if (payload.type === "clip") {
-              appendClip(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs, true);
+              appendClip(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs);
             } else if (payload.type === "transcript") {
               updateTranscript(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs, payload.text);
             }
@@ -837,24 +850,47 @@
         transcriptSSE.onerror = () => {};
       }
 
+      // Caps how many merged history rows are actually rendered. The server
+      // now retains 8 days of history per stream, and a region page can
+      // aggregate dozens of streams, so the merged set can run into the
+      // thousands of rows — far more than is useful to scroll through, and
+      // expensive to build as DOM nodes. Only the most recent rows are shown.
+      const MAX_RENDERED_HISTORY = 300;
+
+      // Fetches history for `items`, running at most `limit` requests
+      // concurrently, so a large region doesn't fire dozens of simultaneous
+      // requests at once.
+      async function mapWithConcurrency(items, limit, fn) {
+        const results = new Array(items.length);
+        let next = 0;
+        async function worker() {
+          while (true) {
+            const i = next++;
+            if (i >= items.length) return;
+            results[i] = await fn(items[i], i);
+          }
+        }
+        await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+        return results;
+      }
+
       async function loadTranscriptHistory() {
         transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
 
         const cacheBuster = Date.now();
-        const results = await Promise.all(
-          Array.from(cards.values()).map(async (card) => {
-            try {
-              const response = await fetch(`/transcripts/history?streamId=${encodeURIComponent(card.stream.id)}&t=${cacheBuster}`, {
-                cache: "no-store",
-              });
-              if (!response.ok) return [];
-              const events = await response.json();
-              return (events || []).map((ev) => ({ ...ev, streamName: card.stream.streamName }));
-            } catch (_) {
-              return [];
-            }
-          })
-        );
+        const cardList = Array.from(cards.values());
+        const results = await mapWithConcurrency(cardList, 6, async (card) => {
+          try {
+            const response = await fetch(`/transcripts/history?streamId=${encodeURIComponent(card.stream.id)}&t=${cacheBuster}`, {
+              cache: "no-store",
+            });
+            if (!response.ok) return [];
+            const events = await response.json();
+            return (events || []).map((ev) => ({ ...ev, streamName: card.stream.streamName }));
+          } catch (_) {
+            return [];
+          }
+        });
 
         const merged = new Map();
         for (const events of results) {
@@ -879,12 +915,27 @@
           transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
         } else {
           const sorted = Array.from(merged.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-          for (const ev of sorted) {
-            appendClip(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, true);
-            if (ev.text) {
-              updateTranscript(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text);
-            }
+          const truncatedCount = sorted.length - MAX_RENDERED_HISTORY;
+          const toRender = truncatedCount > 0 ? sorted.slice(truncatedCount) : sorted;
+
+          if (truncatedCount > 0) {
+            const notice = document.createElement("div");
+            notice.className = "transcript-empty";
+            notice.textContent = `Showing the most recent ${MAX_RENDERED_HISTORY} of ${sorted.length} recordings from the last 8 days.`;
+            transcriptLog.append(notice);
           }
+
+          // Build every row into a detached fragment first so the browser
+          // only has to do one layout pass when it's attached, instead of
+          // one forced reflow per row (which is what made this hang on
+          // large regions).
+          const fragment = document.createDocumentFragment();
+          for (const ev of toRender) {
+            fragment.append(buildTranscriptEntry(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
+          }
+          transcriptLog.append(fragment);
+          transcriptLog.scrollTop = transcriptLog.scrollHeight;
+          updateClipPlayButtons();
         }
 
         openTranscriptsSSE();
