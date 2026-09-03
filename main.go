@@ -680,7 +680,7 @@ func main() {
 			http.Error(w, "unknown streamId", http.StatusNotFound)
 			return
 		}
-		events, err := hub.History(st.info.StreamName, 72*time.Hour)
+		events, err := hub.History(st.info.StreamName, 8*24*time.Hour)
 		if err != nil {
 			http.Error(w, "failed to read history", http.StatusInternalServerError)
 			logger.Printf("transcript history: %v", err)
@@ -713,9 +713,9 @@ func main() {
 		}
 	}()
 
-	// Background cleanup: delete audio WAV files, prune transcript logs older than 72h,
+	// Background cleanup: delete audio WAV files, prune transcript logs older than 8 days,
 	// and prune the server log file (entries older than 90 days).
-	const retentionPeriod = 72 * time.Hour
+	const retentionPeriod = 8 * 24 * time.Hour
 	const logRetentionPeriod = 90 * 24 * time.Hour
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
@@ -1239,9 +1239,7 @@ func pruneOldFiles(dir string, maxAge time.Duration, logger *log.Logger) {
 			return nil
 		}
 		if info.ModTime().Before(cutoff) {
-			if removeErr := os.Remove(path); removeErr == nil {
-				logger.Printf("pruned old audio: %s", path)
-			}
+			_ = os.Remove(path)
 		}
 		return nil
 	})

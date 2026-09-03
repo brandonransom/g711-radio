@@ -216,6 +216,101 @@
         border: 1px solid var(--line);
       }
 
+      .transcript-panel {
+        margin-top: 28px;
+        padding: 18px 20px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+      }
+
+      .transcript-label {
+        display: block;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+
+      .transcript-log {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 340px;
+        overflow-y: auto;
+        font-size: 0.96rem;
+        line-height: 1.5;
+      }
+
+      .transcript-entry {
+        display: grid;
+        grid-template-columns: 8rem 10rem 1fr auto auto;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--line);
+        align-items: start;
+      }
+
+      .transcript-entry:last-child {
+        border-bottom: none;
+      }
+
+      .transcript-time {
+        color: var(--muted);
+        font-size: 0.88rem;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        padding-top: 1px;
+      }
+
+      .transcript-stream {
+        color: var(--ink);
+        font-weight: 600;
+        font-size: 0.9rem;
+        overflow-wrap: anywhere;
+      }
+
+      .transcript-text {
+        color: var(--ink);
+      }
+
+      .transcript-pending {
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      .transcript-duration {
+        font-size: 0.75em;
+        color: var(--muted);
+        border-radius: 3px;
+        padding: 1px 4px;
+        margin-left: 4px;
+        vertical-align: middle;
+      }
+
+      .transcript-play {
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--ink);
+        box-shadow: none;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 0.82rem;
+        min-height: unset;
+      }
+
+      .transcript-play:hover {
+        color: var(--ink);
+        border-color: var(--ink);
+      }
+
+      .transcript-empty {
+        color: var(--muted);
+        font-size: 0.94rem;
+        font-style: italic;
+      }
+
       .note {
         margin-top: 28px;
         font-size: 0.9rem;
@@ -235,6 +330,11 @@
 
       <div id="content"></div>
 
+      <div id="transcriptPanel" class="transcript-panel" hidden>
+        <strong class="transcript-label">Recordings &amp; Transcripts</strong>
+        <div id="transcriptLog" class="transcript-log"></div>
+      </div>
+
       <p class="note">
         This service is provided by the USDA Forest Service CIO - Land Mobile Radio Innovation Team. This is a very early alpha phase of testing. DO NOT use this webpage as your primary means of radio communications. Contact <a href="mailto:brandon.r.thomas@usda.gov">Brandon Thomas</a> with any questions or feedback.
       </p>
@@ -246,12 +346,25 @@
       const content = document.getElementById("content");
       const connectAllBtn = document.getElementById("connectAllBtn");
       const disconnectAllBtn = document.getElementById("disconnectAllBtn");
+      const transcriptPanel = document.getElementById("transcriptPanel");
+      const transcriptLog = document.getElementById("transcriptLog");
+      const clipAudio = new Audio();
 
       // Every card in this page manages its own independent RTCPeerConnection
       // and audio element, keyed by stream ID, so many streams can be live
       // simultaneously. This is unlike the main index page, which only ever
       // holds a single connection at a time.
       const cards = new Map();
+
+      // Recordings & transcripts are aggregated across every stream shown on
+      // this page. knownStreamIds lets the shared SSE connection (which has
+      // no server-side stream filter) discard events for streams outside
+      // this region/forest.
+      const knownStreamIds = new Set();
+      let transcriptSSE = null;
+      let clipPlaybackQueue = [];
+      let clipPlaybackActive = null;
+      let clipPlaybackSerial = 0;
 
       function formatStreamDisplayName(stream) {
         return [stream.regionName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
@@ -530,10 +643,251 @@
       function showError(message) {
         pageTitle.textContent = "Not found";
         pageSubtitle.textContent = "";
+        document.title = "Not found - USDA FS Radio Streams";
         const empty = document.createElement("div");
         empty.className = "empty";
         empty.textContent = message;
         content.append(empty);
+      }
+
+      function formatTranscriptTime(isoString) {
+        const date = new Date(isoString);
+        const datePart = date.toLocaleDateString([], { month: "2-digit", day: "2-digit" });
+        const timePart = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+        return `${datePart} ${timePart}`;
+      }
+
+      function formatDuration(ms) {
+        if (!ms) return "";
+        const totalSec = Math.round(ms / 1000);
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        return m > 0 ? `${m}m${s.toString().padStart(2, "0")}s` : `${s}s`;
+      }
+
+      function updateClipPlayButtons() {
+        const activeKey = clipPlaybackActive ? clipPlaybackActive.key : null;
+        transcriptLog.querySelectorAll(".transcript-play[data-clip-key]").forEach((button) => {
+          const key = button.dataset.clipKey;
+          if (!key) return;
+          if (activeKey === key) {
+            button.textContent = "◼";
+          } else if (clipPlaybackQueue.some((item) => item.key === key)) {
+            button.textContent = "⏳";
+          } else {
+            button.textContent = "▶";
+          }
+        });
+      }
+
+      function playNextQueuedClip() {
+        if (clipPlaybackActive || clipPlaybackQueue.length === 0) {
+          updateClipPlayButtons();
+          return;
+        }
+
+        const next = clipPlaybackQueue.shift();
+        const audio = clipAudio;
+        clipPlaybackActive = { key: next.key, audio };
+        updateClipPlayButtons();
+        audio.src = next.audioUrl;
+        audio.currentTime = 0;
+
+        const finish = () => {
+          if (clipPlaybackActive && clipPlaybackActive.key === next.key) {
+            clipPlaybackActive = null;
+            audio.removeAttribute("src");
+            audio.load();
+            updateClipPlayButtons();
+            playNextQueuedClip();
+          }
+        };
+
+        audio.addEventListener("ended", finish, { once: true });
+        audio.play().catch(finish);
+      }
+
+      function enqueueClipPlayback(key, audioUrl) {
+        if (!audioUrl) return;
+        if (clipPlaybackQueue.some((item) => item.key === key) || (clipPlaybackActive && clipPlaybackActive.key === key)) {
+          return;
+        }
+        clipPlaybackQueue.push({ key, audioUrl, order: ++clipPlaybackSerial });
+        updateClipPlayButtons();
+        playNextQueuedClip();
+      }
+
+      // clipKey namespaces a clip/history entry by stream ID so identical
+      // clipIds (or timestamp-derived history IDs) from different streams on
+      // this aggregated page can never collide.
+      function clipKey(streamId, clipId, isoTimestamp) {
+        return `${streamId}:${clipId || `hist-${isoTimestamp}`}`;
+      }
+
+      function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, canTranscribe) {
+        const empty = transcriptLog.querySelector(".transcript-empty");
+        if (empty) empty.remove();
+
+        const entry = document.createElement("div");
+        entry.className = "transcript-entry";
+        entry.dataset.clipKey = key;
+
+        const time = document.createElement("span");
+        time.className = "transcript-time";
+        time.textContent = formatTranscriptTime(isoTimestamp);
+
+        const durStr = formatDuration(durationMs);
+        if (durStr) {
+          const dur = document.createElement("span");
+          dur.className = "transcript-duration";
+          dur.textContent = durStr;
+          time.textContent += " ";
+          time.appendChild(dur);
+        }
+
+        const streamCol = document.createElement("span");
+        streamCol.className = "transcript-stream";
+        streamCol.textContent = streamName;
+
+        const contentEl = document.createElement("span");
+        contentEl.className = "transcript-text transcript-pending";
+        contentEl.textContent = audioUrl ? "Recording received." : "";
+
+        entry.append(time, streamCol, contentEl);
+
+        if (audioUrl) {
+          const playBtn = document.createElement("button");
+          playBtn.type = "button";
+          playBtn.className = "transcript-play";
+          playBtn.dataset.clipKey = key;
+          playBtn.title = "Play recording";
+          playBtn.textContent = "▶";
+          playBtn.addEventListener("click", () => {
+            enqueueClipPlayback(key, audioUrl);
+          });
+          entry.append(playBtn);
+        } else {
+          entry.append(document.createElement("span"));
+        }
+
+        if (canTranscribe) {
+          const transcribeBtn = document.createElement("button");
+          transcribeBtn.type = "button";
+          transcribeBtn.className = "transcript-play";
+          transcribeBtn.title = "Request transcription";
+          transcribeBtn.textContent = "Transcribe";
+          transcribeBtn.addEventListener("click", async () => {
+            transcribeBtn.disabled = true;
+            transcribeBtn.textContent = "Queued";
+            try {
+              const res = await fetch("/transcripts/request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clipId: key.slice(key.indexOf(":") + 1), audioUrl }),
+              });
+              if (!res.ok) throw new Error("request failed");
+              transcribeBtn.textContent = "Queued";
+            } catch (_) {
+              transcribeBtn.disabled = false;
+              transcribeBtn.textContent = "Transcribe";
+            }
+          });
+          entry.appendChild(transcribeBtn);
+        } else {
+          entry.append(document.createElement("span"));
+        }
+
+        transcriptLog.append(entry);
+        transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        updateClipPlayButtons();
+      }
+
+      function updateTranscript(key, streamName, isoTimestamp, audioUrl, durationMs, text) {
+        const entry = transcriptLog.querySelector(`[data-clip-key="${key}"]`);
+        if (entry) {
+          const contentEl = entry.querySelector(".transcript-text");
+          if (contentEl) {
+            contentEl.textContent = text;
+            contentEl.classList.remove("transcript-pending");
+          }
+        } else {
+          appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, true);
+          updateTranscript(key, streamName, isoTimestamp, audioUrl, durationMs, text);
+        }
+      }
+
+      function openTranscriptsSSE() {
+        if (transcriptSSE) { transcriptSSE.close(); transcriptSSE = null; }
+
+        transcriptSSE = new EventSource("/transcripts");
+
+        transcriptSSE.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (!knownStreamIds.has(payload.streamId)) return;
+            const key = clipKey(payload.streamId, payload.clipId, payload.timestamp);
+            if (payload.type === "clip") {
+              appendClip(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs, true);
+            } else if (payload.type === "transcript") {
+              updateTranscript(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs, payload.text);
+            }
+          } catch (_) {}
+        };
+
+        transcriptSSE.onerror = () => {};
+      }
+
+      async function loadTranscriptHistory() {
+        transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
+
+        const cacheBuster = Date.now();
+        const results = await Promise.all(
+          Array.from(cards.values()).map(async (card) => {
+            try {
+              const response = await fetch(`/transcripts/history?streamId=${encodeURIComponent(card.stream.id)}&t=${cacheBuster}`, {
+                cache: "no-store",
+              });
+              if (!response.ok) return [];
+              const events = await response.json();
+              return (events || []).map((ev) => ({ ...ev, streamName: card.stream.streamName }));
+            } catch (_) {
+              return [];
+            }
+          })
+        );
+
+        const merged = new Map();
+        for (const events of results) {
+          for (const ev of events) {
+            const key = clipKey(ev.streamId, ev.clipId, ev.timestamp);
+            if (!merged.has(key)) merged.set(key, { key, streamName: ev.streamName });
+            const entry = merged.get(key);
+            if (ev.type === "clip" || !ev.type) {
+              entry.timestamp = ev.timestamp;
+              entry.audioUrl = ev.audioUrl;
+              if (ev.durationMs) entry.durationMs = ev.durationMs;
+            }
+            if (ev.type === "transcript" || !ev.type) {
+              if (ev.text) entry.text = ev.text;
+              if (!entry.timestamp) entry.timestamp = ev.timestamp;
+            }
+          }
+        }
+
+        transcriptLog.innerHTML = "";
+        if (merged.size === 0) {
+          transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
+        } else {
+          const sorted = Array.from(merged.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          for (const ev of sorted) {
+            appendClip(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, true);
+            if (ev.text) {
+              updateTranscript(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text);
+            }
+          }
+        }
+
+        openTranscriptsSSE();
       }
 
       async function init() {
@@ -566,10 +920,12 @@
 
           pageTitle.textContent = forest.groupName;
           pageSubtitle.textContent = region.regionName;
+          document.title = `${forest.groupName} / ${region.regionName} - USDA FS Radio Streams`;
           content.append(renderStreamsGrid(forest.streams));
         } else {
           pageTitle.textContent = region.regionName;
           pageSubtitle.textContent = "All forests in this region, grouped below.";
+          document.title = `${region.regionName} - USDA FS Radio Streams`;
 
           for (const group of region.subGroups) {
             const section = document.createElement("section");
@@ -586,7 +942,13 @@
           return;
         }
 
+        for (const streamId of cards.keys()) {
+          knownStreamIds.add(streamId);
+        }
+
         updateAllButtons();
+        transcriptPanel.hidden = false;
+        void loadTranscriptHistory();
       }
 
       connectAllBtn.addEventListener("click", () => {
@@ -603,6 +965,7 @@
 
       window.addEventListener("beforeunload", () => {
         for (const card of cards.values()) closeCard(card);
+        if (transcriptSSE) transcriptSSE.close();
       });
 
       init();
