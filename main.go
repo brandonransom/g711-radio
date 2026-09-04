@@ -91,9 +91,42 @@ type appConfig struct {
 	PFXFile          string                               `json:"pfxFile"`
 	PFXPassword      string                               `json:"pfxPassword"`
 	PFXKeyPassword   string                               `json:"pfxKeyPassword"`
+	ICEServers       []iceServerConfig                    `json:"iceServers"`
 
 	streamGroups []configuredRegion
 	totalStreams  int
+}
+
+// iceServerConfig mirrors webrtc.ICEServer for JSON configuration. Without at
+// least a STUN server, clients behind NAT (very commonly cellular/CGNAT
+// connections) can only offer host candidates, so their connection attempts
+// repeatedly gather, connect, and then fail.
+type iceServerConfig struct {
+	URLs       []string `json:"urls"`
+	Username   string   `json:"username"`
+	Credential string   `json:"credential"`
+}
+
+// defaultICEServers is used when the config omits "iceServers" entirely, so
+// NAT traversal works out of the box instead of silently only working for
+// clients on the same network as the server.
+var defaultICEServers = []webrtc.ICEServer{
+	{URLs: []string{"stun:stun.l.google.com:19302"}},
+}
+
+func (c appConfig) webrtcICEServers() []webrtc.ICEServer {
+	if len(c.ICEServers) == 0 {
+		return defaultICEServers
+	}
+	servers := make([]webrtc.ICEServer, 0, len(c.ICEServers))
+	for _, s := range c.ICEServers {
+		servers = append(servers, webrtc.ICEServer{
+			URLs:       s.URLs,
+			Username:   s.Username,
+			Credential: s.Credential,
+		})
+	}
+	return servers
 }
 
 type streamConfig struct {
@@ -205,6 +238,7 @@ type webrtcServer struct {
 	clipMu       sync.RWMutex
 	whisperPool  *whisperPool
 	audioLogDir  string
+	iceServers   []webrtc.ICEServer
 }
 
 func (s *webrtcServer) storeClip(rec clipRecord) {
@@ -453,6 +487,10 @@ func main() {
 		clips:        make(map[string]clipRecord),
 		whisperPool:  pool,
 		audioLogDir:  config.AudioLogDir,
+		iceServers:   config.webrtcICEServers(),
+	}
+	if len(config.ICEServers) == 0 {
+		logger.Printf("no iceServers configured; using default STUN server (%s) for NAT traversal", defaultICEServers[0].URLs[0])
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -889,10 +927,11 @@ func loadConfig(path string) (appConfig, error) {
 	if sf, err := os.Open(secretsPath); err == nil {
 		defer sf.Close()
 		var secrets struct {
-			PFXPassword    string `json:"pfxPassword"`
-			PFXKeyPassword string `json:"pfxKeyPassword"`
-			CertFile       string `json:"certFile"`
-			KeyFile        string `json:"keyFile"`
+			PFXPassword    string            `json:"pfxPassword"`
+			PFXKeyPassword string            `json:"pfxKeyPassword"`
+			CertFile       string            `json:"certFile"`
+			KeyFile        string            `json:"keyFile"`
+			ICEServers     []iceServerConfig `json:"iceServers"`
 		}
 		if err := json.NewDecoder(sf).Decode(&secrets); err != nil {
 			return appConfig{}, fmt.Errorf("decode %s: %w", secretsPath, err)
@@ -908,6 +947,11 @@ func loadConfig(path string) (appConfig, error) {
 		}
 		if secrets.KeyFile != "" {
 			config.KeyFile = secrets.KeyFile
+		}
+		if len(secrets.ICEServers) > 0 {
+			// TURN credentials are sensitive; let config.secrets.json fully
+			// replace the (public, non-secret) STUN-only list from config.json.
+			config.ICEServers = secrets.ICEServers
 		}
 	}
 	// Default to enabled for backward compatibility with existing configs.
@@ -1595,7 +1639,9 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pc, err := s.api.NewPeerConnection(webrtc.Configuration{})
+	pc, err := s.api.NewPeerConnection(webrtc.Configuration{
+		ICEServers: s.iceServers,
+	})
 	if err != nil {
 		http.Error(w, "failed to create peer connection", http.StatusInternalServerError)
 		return
