@@ -491,6 +491,14 @@ func main() {
 	}
 	if len(config.ICEServers) == 0 {
 		logger.Printf("no iceServers configured; using default STUN server (%s) for NAT traversal", defaultICEServers[0].URLs[0])
+	} else {
+		for _, ice := range server.iceServers {
+			if ice.Username != "" {
+				logger.Printf("ICE server configured: %v (username=%s)", ice.URLs, ice.Username)
+			} else {
+				logger.Printf("ICE server configured: %v", ice.URLs)
+			}
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
