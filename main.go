@@ -281,6 +281,10 @@ type station struct {
 	mu          sync.RWMutex
 	subscribers map[string]*subscriber
 
+	// broadcastChan decouples subscriber RTP writes from packet ingest; see
+	// enqueueBroadcast/runBroadcaster.
+	broadcastChan chan media.Sample
+
 	// multicast listener (non-nil if using multiple ports/multicast addresses)
 	multicastListener *MulticastListener
 
@@ -527,7 +531,7 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 				s.vad.Push(DecodePCMU(frame), time.Now())
 			}
 
-			s.broadcast(media.Sample{
+			s.enqueueBroadcast(media.Sample{
 				Data:     frame,
 				Duration: s.frameDuration,
 			})
@@ -673,7 +677,9 @@ func main() {
 					audioDumpDir:   config.AudioDumpDir,
 					subscribers:    make(map[string]*subscriber),
 					whisperPool:    pool,
+					broadcastChan:  make(chan media.Sample, 64),
 				}
+				go st.runBroadcaster()
 
 				if pool != nil || config.AudioLogDir != "" {
 					wCfg := &whisperConfig{}
@@ -808,6 +814,7 @@ func main() {
 						<-ctx.Done()
 						ml.Close()
 						st.closeSubscribers()
+						close(st.broadcastChan)
 					}(st, ml)
 
 					go func(st *station) {
@@ -841,6 +848,7 @@ func main() {
 						<-ctx.Done()
 						_ = conn.Close()
 						st.closeSubscribers()
+						close(st.broadcastChan)
 					}(st, conn)
 
 					go func(st *station, conn net.PacketConn) {
@@ -1322,7 +1330,7 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 				if s.vad != nil {
 					s.vad.Push(DecodePCMU(frame), time.Now())
 				}
-				s.broadcast(media.Sample{Data: frame, Duration: s.frameDuration})
+				s.enqueueBroadcast(media.Sample{Data: frame, Duration: s.frameDuration})
 				continue
 			}
 			// New conflicting source IP detected.
@@ -1391,7 +1399,7 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			s.vad.Push(DecodePCMU(frame), time.Now())
 		}
 
-		s.broadcast(media.Sample{
+		s.enqueueBroadcast(media.Sample{
 			Data:     frame,
 			Duration: s.frameDuration,
 		})
@@ -1692,6 +1700,12 @@ func (s *station) closeSubscribers() {
 	}
 }
 
+// broadcast performs the actual RTP writes to every ready subscriber. It
+// must only be called from runBroadcaster — never directly from an ingest
+// goroutine — since WriteSample() does real per-packet work (RTP
+// packetization, SRTP encryption, the underlying socket send) whose latency
+// would otherwise block UDP packet reads on every single frame, not just
+// occasionally like the VAD/disk-I/O work already moved off that path.
 func (s *station) broadcast(sample media.Sample) {
 	s.mu.RLock()
 	targets := make(map[string]*subscriber, len(s.subscribers))
@@ -1707,6 +1721,26 @@ func (s *station) broadcast(sample media.Sample) {
 			s.logger.Printf("%s: dropping %s after track write failure: %v", s.info.StreamName, id, err)
 			s.removeSubscriber(id)
 		}
+	}
+}
+
+// enqueueBroadcast hands a decoded audio frame off to this station's
+// dedicated broadcaster goroutine (see runBroadcaster) instead of writing to
+// subscribers inline. Called from the ingest goroutine; must never block it.
+func (s *station) enqueueBroadcast(sample media.Sample) {
+	select {
+	case s.broadcastChan <- sample:
+	default:
+		s.logger.Printf("%s: broadcast queue full; dropping a frame rather than blocking packet ingest", s.info.StreamName)
+	}
+}
+
+// runBroadcaster drains broadcastChan and performs the actual subscriber
+// writes, decoupled from packet ingest. Run once per station for its
+// lifetime; exits when broadcastChan is closed.
+func (s *station) runBroadcaster() {
+	for sample := range s.broadcastChan {
+		s.broadcast(sample)
 	}
 }
 
