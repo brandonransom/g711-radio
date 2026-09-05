@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"sort"
 	"time"
 )
 
@@ -42,6 +43,46 @@ func DecodePCMU(pcmu []byte) []int16 {
 	return out
 }
 
+// mulawLevels/mulawLevelBytes are the 256 representable µ-law PCM levels,
+// sorted ascending, paired with the byte that decodes to each. Built from
+// pcmuTable (rather than a separately implemented encode algorithm) so that
+// EncodePCMU is guaranteed to be the exact inverse of DecodePCMU.
+var mulawLevels [256]int16
+var mulawLevelBytes [256]byte
+
+func init() {
+	type pair struct {
+		level int16
+		b     byte
+	}
+	pairs := make([]pair, 256)
+	for i := 0; i < 256; i++ {
+		pairs[i] = pair{pcmuTable[i], byte(i)}
+	}
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].level < pairs[j].level })
+	for i, p := range pairs {
+		mulawLevels[i] = p.level
+		mulawLevelBytes[i] = p.b
+	}
+}
+
+// EncodePCMU converts a linear PCM sample to the nearest representable
+// G.711 µ-law byte, used to transcode non-native wire codecs (e.g. G.726)
+// into the µ-law frames the rest of this codebase assumes.
+func EncodePCMU(sample int16) byte {
+	i := sort.Search(256, func(i int) bool { return mulawLevels[i] >= sample })
+	if i == 0 {
+		return mulawLevelBytes[0]
+	}
+	if i == 256 {
+		return mulawLevelBytes[255]
+	}
+	if int(mulawLevels[i])-int(sample) < int(sample)-int(mulawLevels[i-1]) {
+		return mulawLevelBytes[i]
+	}
+	return mulawLevelBytes[i-1]
+}
+
 // rmsEnergy returns the root-mean-square energy of a PCM frame,
 // normalised to [0.0, 1.0] relative to int16 max.
 func rmsEnergy(samples []int16) float64 {
@@ -63,11 +104,11 @@ type vadState struct {
 	minClip      time.Duration // discard clips shorter than this (squelch noise)
 	maxClip      time.Duration // hard cap on clip length
 
-	speaking      bool
-	silenceStart  time.Time
-	clipBuf       []int16
-	clipStart     time.Time
-	onClip        func(samples []int16, start time.Time)
+	speaking     bool
+	silenceStart time.Time
+	clipBuf      []int16
+	clipStart    time.Time
+	onClip       func(samples []int16, start time.Time)
 }
 
 func newVADState(threshold float64, silenceGrace, minClip, maxClip time.Duration, onClip func([]int16, time.Time)) *vadState {

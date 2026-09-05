@@ -66,13 +66,46 @@ func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
 }
 
 const (
-	frameSizeBytes = 160
+	frameSizeBytes = 160 // G.711 µ-law audio payload size (8 bits/sample, 160 samples/20ms)
+	g726FrameBytes = 80  // G.726 ADPCM audio payload size (4 bits/sample, same 160 samples/20ms)
 	sampleRateHz   = 8000
 	skipBytes      = 12 // legacy/default header size; used only for startup diagnostics — actual header length is auto-detected per packet, see extractAudioFrame
 	maxHeaderBytes = 64 // sanity cap on the auto-detected header length; guards against unrelated traffic being misread as audio
 	configPath     = "config.json"
 	secretsPath    = "config.secrets.json"
 )
+
+// wireCodec identifies which audio codec produced a UDP packet's payload.
+type wireCodec int
+
+const (
+	wireCodecG711 wireCodec = iota
+	wireCodecG726
+)
+
+func (c wireCodec) String() string {
+	switch c {
+	case wireCodecG711:
+		return "G.711"
+	case wireCodecG726:
+		return "G.726"
+	default:
+		return "unknown"
+	}
+}
+
+// wireFrameSizes lists the known fixed audio-payload sizes that a packet's
+// header length is derived from (see extractAudioFrame). Devices may be
+// misconfigured, or even switch codecs mid-transmission; since detection is
+// purely a function of packet size (not content), every packet on every
+// stream is classified independently and automatically.
+var wireFrameSizes = []struct {
+	codec      wireCodec
+	frameBytes int
+}{
+	{wireCodecG711, frameSizeBytes},
+	{wireCodecG726, g726FrameBytes},
+}
 
 //go:embed web/*
 var webFiles embed.FS
@@ -94,7 +127,7 @@ type appConfig struct {
 	ICEServers       []iceServerConfig                    `json:"iceServers"`
 
 	streamGroups []configuredRegion
-	totalStreams  int
+	totalStreams int
 }
 
 // iceServerConfig mirrors webrtc.ICEServer for JSON configuration. Without at
@@ -130,10 +163,10 @@ func (c appConfig) webrtcICEServers() []webrtc.ICEServer {
 }
 
 type streamConfig struct {
-	StreamName    string   `json:"streamName"`
-	UDPPort       int      `json:"udpPort"`       // deprecated: use UDPPorts for multicast
-	UDPPorts      []int    `json:"udpPorts"`      // list of UDP ports to listen on (supports multicast)
-	MulticastAddr string   `json:"multicastAddr"` // single multicast group (if any) — deprecated
+	StreamName     string   `json:"streamName"`
+	UDPPort        int      `json:"udpPort"`        // deprecated: use UDPPorts for multicast
+	UDPPorts       []int    `json:"udpPorts"`       // list of UDP ports to listen on (supports multicast)
+	MulticastAddr  string   `json:"multicastAddr"`  // single multicast group (if any) — deprecated
 	MulticastAddrs []string `json:"multicastAddrs"` // list of multicast group addresses
 	DebugMulticast bool     `json:"debugMulticast"`
 }
@@ -171,18 +204,33 @@ type configuredRegion struct {
 	SubGroups  []configuredSubGroup
 }
 
+// audioFrame is one extracted, codec-tagged audio payload from a UDP packet.
+type audioFrame struct {
+	data        []byte
+	codec       wireCodec
+	headerBytes int
+}
+
 type station struct {
-	info          streamInfo
-	codec         webrtc.RTPCodecCapability
-	frameDuration time.Duration
-	logger        *log.Logger
+	info           streamInfo
+	codec          webrtc.RTPCodecCapability
+	frameDuration  time.Duration
+	logger         *log.Logger
 	debugMulticast bool
-	usageLogger   *usageLogger
-	audioLogDir   string
+	usageLogger    *usageLogger
+	audioLogDir    string
 
 	// whisperPool is non-nil when transcription is enabled.
 	whisperPool *whisperPool
 	vad         *vadState
+
+	// g726Dec/lastWireCodec are only ever touched by this station's single
+	// ingest goroutine (ingest or ingestMulticast; a station only ever runs
+	// one), so no lock is needed. g726Dec is (re)created whenever a stream
+	// switches into G.726 from some other codec, so stale predictor state
+	// from an unrelated prior signal never bleeds into a new transmission.
+	g726Dec       *g726Decoder
+	lastWireCodec wireCodec
 
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
@@ -209,10 +257,10 @@ type clipRecord struct {
 }
 
 type subscriber struct {
-	pc            *webrtc.PeerConnection
-	track         *webrtc.TrackLocalStaticSample
-	clientIP      string
-	connectionAt  time.Time
+	pc           *webrtc.PeerConnection
+	track        *webrtc.TrackLocalStaticSample
+	clientIP     string
+	connectionAt time.Time
 }
 
 type usageLogger struct {
@@ -376,7 +424,11 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 				// Channel closed
 				return nil
 			}
-			frame := packet.data
+			frame, err := s.toMulaw(audioFrame{data: packet.data, codec: packet.codec, headerBytes: packet.headerBytes})
+			if err != nil {
+				s.logger.Printf("%s: %v", s.info.StreamName, err)
+				continue
+			}
 
 			now := time.Now()
 			s.mu.Lock()
@@ -385,10 +437,11 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 
 			if packetsSeen == 0 {
 				s.logger.Printf(
-					"%s: first multicast packet received from %s, audio_bytes=%d, skip_bytes=%d",
+					"%s: first multicast packet received from %s, codec=%v, audio_bytes=%d, skip_bytes=%d",
 					s.info.StreamName,
 					packet.sourceIP,
-					len(frame),
+					packet.codec,
+					len(packet.data),
 					packet.headerBytes,
 				)
 			}
@@ -538,77 +591,77 @@ func main() {
 					whisperPool:    pool,
 				}
 
-					if pool != nil || config.AudioLogDir != "" {
-						wCfg := &whisperConfig{}
-						if config.Whisper != nil {
-							wCfg = config.Whisper
-							wCfg.setDefaults()
-						} else {
-							wCfg.setDefaults()
-						}
-						captureInfo := info
-						captureAudioLogDir := config.AudioLogDir
-						st.vad = newVADState(
-							wCfg.VADThreshold,
-							time.Duration(wCfg.SilenceMs)*time.Millisecond,
-							time.Duration(wCfg.MinClipMs)*time.Millisecond,
-							time.Duration(wCfg.MaxClipMs)*time.Millisecond,
-							func(samples []int16, start time.Time) {
-								clipID := nextClipID()
-								var wavPath, audioURL string
-								durationMs := len(samples) * 1000 / vadSampleRate
-								if captureAudioLogDir != "" {
-									var err error
+				if pool != nil || config.AudioLogDir != "" {
+					wCfg := &whisperConfig{}
+					if config.Whisper != nil {
+						wCfg = config.Whisper
+						wCfg.setDefaults()
+					} else {
+						wCfg.setDefaults()
+					}
+					captureInfo := info
+					captureAudioLogDir := config.AudioLogDir
+					st.vad = newVADState(
+						wCfg.VADThreshold,
+						time.Duration(wCfg.SilenceMs)*time.Millisecond,
+						time.Duration(wCfg.MinClipMs)*time.Millisecond,
+						time.Duration(wCfg.MaxClipMs)*time.Millisecond,
+						func(samples []int16, start time.Time) {
+							clipID := nextClipID()
+							var wavPath, audioURL string
+							durationMs := len(samples) * 1000 / vadSampleRate
+							if captureAudioLogDir != "" {
+								var err error
 
-									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
-									if err != nil {
-										logger.Printf("audio log: %v", err)
+								wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
+								if err != nil {
+									logger.Printf("audio log: %v", err)
+								}
+							}
+							// requestWavPath is the file used for on-demand transcription.
+							// Prefer the persisted audio log file; fall back to a temp file.
+							var requestWavPath string
+							if wavPath != "" {
+								requestWavPath = wavPath
+							} else if pool != nil {
+								wav, _ := encodePCM16WAV(samples, vadSampleRate)
+								tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
+								if err == nil {
+									if _, err := tmp.Write(wav); err == nil {
+										_ = tmp.Close()
+										requestWavPath = tmp.Name()
+									} else {
+										_ = tmp.Close()
+										_ = os.Remove(tmp.Name())
 									}
 								}
-								// requestWavPath is the file used for on-demand transcription.
-								// Prefer the persisted audio log file; fall back to a temp file.
-								var requestWavPath string
-								if wavPath != "" {
-									requestWavPath = wavPath
-								} else if pool != nil {
-									wav, _ := encodePCM16WAV(samples, vadSampleRate)
-									tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
-									if err == nil {
-										if _, err := tmp.Write(wav); err == nil {
-											_ = tmp.Close()
-											requestWavPath = tmp.Name()
-										} else {
-											_ = tmp.Close()
-											_ = os.Remove(tmp.Name())
-										}
-								}
-								}
-								// Publish clip event immediately so the UI shows the recording.
-								hub.Publish(transcriptEvent{
-									Type:       "clip",
-									ClipID:     clipID,
-									StreamID:   captureInfo.ID,
-									StreamName: captureInfo.StreamName,
-									RegionName: captureInfo.RegionName,
-									GroupName:  captureInfo.GroupName,
-									AudioURL:   audioURL,
-									DurationMs: durationMs,
-									Timestamp:  start,
-								})
-								server.storeClip(clipRecord{
-									clipID:   clipID,
-									info:     captureInfo,
-									wavPath:  requestWavPath,
-									audioURL: audioURL,
-									start:    start,
-									duration: durationMs,
-								})
-								if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
-									server.requestClipTranscription(clipID)
-								}
-							},
-						)
-					}
+							}
+							// Publish clip event immediately so the UI shows the recording.
+							hub.Publish(transcriptEvent{
+								Type:       "clip",
+								ClipID:     clipID,
+								StreamID:   captureInfo.ID,
+								StreamName: captureInfo.StreamName,
+								RegionName: captureInfo.RegionName,
+								GroupName:  captureInfo.GroupName,
+								AudioURL:   audioURL,
+								DurationMs: durationMs,
+								Timestamp:  start,
+							})
+							server.storeClip(clipRecord{
+								clipID:   clipID,
+								info:     captureInfo,
+								wavPath:  requestWavPath,
+								audioURL: audioURL,
+								start:    start,
+								duration: durationMs,
+							})
+							if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
+								server.requestClipTranscription(clipID)
+							}
+						},
+					)
+				}
 
 				// Extract ports and addresses from config
 				ports, addresses, err := getListenerConfig(cfg)
@@ -838,7 +891,7 @@ func buildTLSCertFromPFX(pfxFile, pfxPassword, keyPassword string, logger *log.L
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("read PFX: %w", err)
 	}
-	
+
 	// Try to decode with the PFX password first. If that fails and a separate key password
 	// is provided, try again with the key password (some CAs use separate passwords).
 	blocks, err := pkcs12.ToPEM(pfxData, pfxPassword)
@@ -849,7 +902,7 @@ func buildTLSCertFromPFX(pfxFile, pfxPassword, keyPassword string, logger *log.L
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("decode PFX: %w", err)
 	}
-	
+
 	var keyPEM []byte
 	var certPEMs [][]byte
 	for _, b := range blocks {
@@ -1063,7 +1116,7 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 				if streamName == "" {
 					return nil, 0, fmt.Errorf("%s region %q group %q entry %d is missing streamName", path, regionName, groupName, i)
 				}
-			
+
 				// Validate ports: UDPPorts (plural) takes precedence
 				var portsToValidate []int
 				if len(stream.UDPPorts) > 0 {
@@ -1087,11 +1140,11 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 				if len(stream.MulticastAddrs) > 1 && len(stream.MulticastAddrs) != len(portsToValidate) {
 					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has %d multicast addrs for %d ports; provide one address or one per port", path, regionName, groupName, i, len(stream.MulticastAddrs), len(portsToValidate))
 				}
-			
+
 				if len(portsToValidate) > 4 {
 					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has %d ports; maximum is 4", path, regionName, groupName, i, len(portsToValidate))
 				}
-			
+
 				// Validate each port
 				for _, port := range portsToValidate {
 					if port < 1 || port > 65535 {
@@ -1129,7 +1182,7 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			return err
 		}
 
-		frame, err := extractAudioFrame(buffer[:n])
+		af, err := extractAudioFrame(buffer[:n])
 		if err != nil {
 			// Non-audio control/keepalive packets are expected on some device
 			// types (e.g. DFSI gateways cycling their channel ports); only log
@@ -1137,6 +1190,12 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			if s.debugMulticast {
 				s.logger.Printf("%s: dropping UDP packet from %s: %v", s.info.StreamName, remoteAddr, err)
 			}
+			continue
+		}
+
+		frame, err := s.toMulaw(af)
+		if err != nil {
+			s.logger.Printf("%s: %v", s.info.StreamName, err)
 			continue
 		}
 
@@ -1183,22 +1242,22 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			if sourceIP == s.conflictSingleSrc {
 				s.conflictClearCount++
 				if s.conflictClearCount >= 500 {
-							oldConflict := s.conflictAddr
-							if sourceIP == s.conflictAddr {
-								// The "conflicting" source won — promote it as the new primary.
-								s.sourceAddr = sourceIP
-							}
-							s.conflictAddr = ""
-							s.conflictClearCount = 0
-							s.conflictSingleSrc = ""
-							newPrimary := s.sourceAddr
-							s.mu.Unlock()
-							s.logger.Printf(
-								"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
-								s.info.StreamName, s.info.UDPPort, newPrimary, oldConflict,
-							)
-							s.mu.Lock()
-						}
+					oldConflict := s.conflictAddr
+					if sourceIP == s.conflictAddr {
+						// The "conflicting" source won — promote it as the new primary.
+						s.sourceAddr = sourceIP
+					}
+					s.conflictAddr = ""
+					s.conflictClearCount = 0
+					s.conflictSingleSrc = ""
+					newPrimary := s.sourceAddr
+					s.mu.Unlock()
+					s.logger.Printf(
+						"INFO: %s (UDP %d) UDP source conflict resolved — packets now arriving only from %s (was also %s)",
+						s.info.StreamName, s.info.UDPPort, newPrimary, oldConflict,
+					)
+					s.mu.Lock()
+				}
 			} else if sourceIP == s.sourceAddr || sourceIP == s.conflictAddr {
 				// Switched to the other known source — start/reset the consecutive run.
 				s.conflictSingleSrc = sourceIP
@@ -1213,12 +1272,13 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 
 		if packetsSeen == 0 {
 			s.logger.Printf(
-				"%s: first UDP packet from %s, packet_bytes=%d, audio_bytes=%d, skip_bytes=%d",
+				"%s: first UDP packet from %s, packet_bytes=%d, codec=%v, audio_bytes=%d, skip_bytes=%d",
 				s.info.StreamName,
 				remoteAddr,
 				n,
-				frameSizeBytes,
-				n-frameSizeBytes,
+				af.codec,
+				len(af.data),
+				af.headerBytes,
 			)
 		}
 		packetsSeen++
@@ -1390,7 +1450,7 @@ func (ul *usageLogger) logUsage(action string, fields map[string]string) {
 	}
 	ul.mu.Lock()
 	defer ul.mu.Unlock()
-	
+
 	timestamp := time.Now().Format(time.RFC3339)
 	row := []string{
 		timestamp,
@@ -1705,35 +1765,71 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// extractAudioFrame extracts the fixed-size G.711 audio payload from a UDP packet.
+// extractAudioFrame extracts a fixed-size audio payload from a UDP packet and
+// identifies which codec produced it (see wireFrameSizes).
 //
-// Different source device types prepend headers of different lengths before the
-// audio — e.g. 12 bytes for legacy analog encoders, 14 bytes for DFSI-style
-// gateways, and 18 bytes on a DFSI gateway's first frame of a transmission
-// (which carries an extra start-of-stream marker). Header contents are never
-// used elsewhere in this codebase, and every audio-bearing packet observed so
-// far places the fixed-size G.711 payload at the very end of the packet, so
-// the header length is derived from the packet length instead of assumed to be
-// a fixed constant. This lets multiple device formats share the same ingest
-// path without per-stream configuration.
+// Different source device types prepend headers of different lengths before
+// the audio — e.g. 12 bytes for legacy analog encoders, 14 bytes for
+// DFSI-style gateways, and 18 bytes on a DFSI gateway's first frame of a
+// transmission (which carries an extra start-of-stream marker). Header
+// contents are never used elsewhere in this codebase, and every audio-bearing
+// packet observed so far places the fixed-size audio payload at the very end
+// of the packet, so the header length is derived from the packet length
+// instead of assumed to be a fixed constant. This lets multiple device
+// formats and codecs share the same ingest path without per-stream
+// configuration.
 //
-// Packets shorter than frameSizeBytes cannot hold a full audio frame; these are
-// non-audio control/keepalive packets (observed as short as 14 bytes from DFSI
-// gateways cycling through their channel ports) and are rejected so callers can
-// discard them quietly. Packets whose implied header exceeds maxHeaderBytes are
-// also rejected, as a sanity check against unrelated traffic landing on the
-// same port.
-func extractAudioFrame(payload []byte) ([]byte, error) {
-	if len(payload) < frameSizeBytes {
-		return nil, fmt.Errorf("packet is %d bytes, need at least %d (likely a non-audio control/keepalive packet)", len(payload), frameSizeBytes)
+// A packet's total length alone identifies its codec: G.711 and G.726
+// payload sizes (160 and 80 bytes respectively) are far enough apart that,
+// combined with maxHeaderBytes, their valid total-length ranges never
+// overlap. Packets shorter than the smallest known payload, or whose implied
+// header exceeds maxHeaderBytes for every known payload size, are rejected as
+// non-audio control/keepalive packets (observed as short as 14 bytes from
+// DFSI gateways cycling through their channel ports) so callers can discard
+// them quietly.
+func extractAudioFrame(payload []byte) (audioFrame, error) {
+	for _, wf := range wireFrameSizes {
+		if len(payload) < wf.frameBytes {
+			continue
+		}
+		header := len(payload) - wf.frameBytes
+		if header <= maxHeaderBytes {
+			return audioFrame{
+				data:        bytes.Clone(payload[header : header+wf.frameBytes]),
+				codec:       wf.codec,
+				headerBytes: header,
+			}, nil
+		}
 	}
+	return audioFrame{}, fmt.Errorf(
+		"packet is %d bytes; does not match any known audio frame format (need %d bytes for G.711 or %d bytes for G.726, plus a header up to %d bytes)",
+		len(payload), frameSizeBytes, g726FrameBytes, maxHeaderBytes)
+}
 
-	header := len(payload) - frameSizeBytes
-	if header > maxHeaderBytes {
-		return nil, fmt.Errorf("packet is %d bytes, implying a %d-byte header which exceeds the %d-byte sanity limit", len(payload), header, maxHeaderBytes)
+// toMulaw converts a raw wire-format audio frame to a 160-byte G.711 µ-law
+// frame ready for broadcast/VAD/recording. G.711 frames pass through
+// unchanged; G.726 frames are ADPCM-decoded to linear PCM and then µ-law
+// encoded, so everything downstream of ingest only ever sees µ-law audio
+// regardless of which codec a device actually sent.
+func (s *station) toMulaw(af audioFrame) ([]byte, error) {
+	switch af.codec {
+	case wireCodecG711:
+		s.lastWireCodec = af.codec
+		return af.data, nil
+	case wireCodecG726:
+		if s.g726Dec == nil || s.lastWireCodec != wireCodecG726 {
+			s.g726Dec = newG726Decoder()
+		}
+		s.lastWireCodec = af.codec
+		pcm := s.g726Dec.decodeG726Frame(af.data)
+		frame := make([]byte, len(pcm))
+		for i, sample := range pcm {
+			frame[i] = EncodePCMU(sample)
+		}
+		return frame, nil
+	default:
+		return nil, fmt.Errorf("unsupported wire codec %v", af.codec)
 	}
-
-	return bytes.Clone(payload[header : header+frameSizeBytes]), nil
 }
 
 func drainRTCP(sender *webrtc.RTPSender) {

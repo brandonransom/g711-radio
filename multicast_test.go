@@ -66,11 +66,11 @@ func TestMulticastListenerCreation(t *testing.T) {
 // TestGetListenerConfig validates configuration extraction
 func TestGetListenerConfig(t *testing.T) {
 	tests := []struct {
-		name           string
-		cfg            streamConfig
-		expectedPorts  []int
-		expectedAddrs  []string
-		shouldFail     bool
+		name          string
+		cfg           streamConfig
+		expectedPorts []int
+		expectedAddrs []string
+		shouldFail    bool
 	}{
 		{
 			name:          "Single port (udpPort)",
@@ -247,39 +247,62 @@ func TestExtractAudioFrame(t *testing.T) {
 
 	t.Run("legacy 12-byte header (172-byte packet)", func(t *testing.T) {
 		pkt := makePacket(12, 0xAA)
-		frame, err := extractAudioFrame(pkt)
+		af, err := extractAudioFrame(pkt)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !bytes.Equal(frame, createTestG711Frame(frameSizeBytes)) {
+		if af.codec != wireCodecG711 {
+			t.Errorf("expected wireCodecG711, got %v", af.codec)
+		}
+		if !bytes.Equal(af.data, createTestG711Frame(frameSizeBytes)) {
 			t.Errorf("extracted frame does not match expected audio bytes")
 		}
 	})
 
 	t.Run("DFSI 14-byte header (174-byte packet)", func(t *testing.T) {
 		pkt := makePacket(14, 0xBB)
-		frame, err := extractAudioFrame(pkt)
+		af, err := extractAudioFrame(pkt)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !bytes.Equal(frame, createTestG711Frame(frameSizeBytes)) {
+		if !bytes.Equal(af.data, createTestG711Frame(frameSizeBytes)) {
 			t.Errorf("extracted frame does not match expected audio bytes")
 		}
 	})
 
 	t.Run("DFSI 18-byte header, first frame of burst (178-byte packet)", func(t *testing.T) {
 		pkt := makePacket(18, 0xCC)
-		frame, err := extractAudioFrame(pkt)
+		af, err := extractAudioFrame(pkt)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !bytes.Equal(frame, createTestG711Frame(frameSizeBytes)) {
+		if !bytes.Equal(af.data, createTestG711Frame(frameSizeBytes)) {
 			t.Errorf("extracted frame does not match expected audio bytes")
 		}
 	})
 
+	t.Run("G.726 12-byte header (92-byte packet)", func(t *testing.T) {
+		payload := make([]byte, 12+g726FrameBytes)
+		for i := 0; i < 12; i++ {
+			payload[i] = 0xEE
+		}
+		for i := 0; i < g726FrameBytes; i++ {
+			payload[12+i] = byte(i % 256)
+		}
+		af, err := extractAudioFrame(payload)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if af.codec != wireCodecG726 {
+			t.Errorf("expected wireCodecG726, got %v", af.codec)
+		}
+		if len(af.data) != g726FrameBytes {
+			t.Errorf("expected %d-byte G.726 frame, got %d", g726FrameBytes, len(af.data))
+		}
+	})
+
 	t.Run("short non-audio control/keepalive packets are rejected", func(t *testing.T) {
-		for _, size := range []int{14, 16, 17, 28, 36, 84} {
+		for _, size := range []int{14, 16, 17, 28, 36, 79} {
 			if _, err := extractAudioFrame(make([]byte, size)); err == nil {
 				t.Errorf("expected error for %d-byte non-audio packet, got nil", size)
 			}

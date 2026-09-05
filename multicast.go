@@ -18,26 +18,27 @@ import (
 type MulticastListener struct {
 	streamName  string
 	ports       []int
-	addresses   []string     // multicast group addresses (empty string = unicast)
+	addresses   []string // multicast group addresses (empty string = unicast)
 	listeners   []net.PacketConn
 	frameChan   chan multicastFrame
 	logger      *log.Logger
 	debug       bool
 	dropoutTime time.Duration
 
-	mu              sync.Mutex
-	activePort      int           // -1 = no active port (listening), 0-based index
-	lastPacketTime  time.Time
-	portAddr        map[int]string // track which port:addr pair each listener handles
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
+	mu             sync.Mutex
+	activePort     int // -1 = no active port (listening), 0-based index
+	lastPacketTime time.Time
+	portAddr       map[int]string // track which port:addr pair each listener handles
+	ctx            context.Context
+	cancel         context.CancelFunc
+	wg             sync.WaitGroup
 }
 
 type multicastFrame struct {
 	data        []byte
 	sourceIP    string
 	headerBytes int // header length auto-detected for this packet (packet length minus audio frame size)
+	codec       wireCodec
 }
 
 // NewMulticastListener creates a listener for multiple UDP ports/multicast addresses.
@@ -184,7 +185,7 @@ func (ml *MulticastListener) readFrom(listenerIdx int, conn net.PacketConn) {
 					ml.streamName, listenerIdx, ml.portAddr[listenerIdx], remoteAddr, n)
 			}
 
-			frame, err := extractAudioFrame(buffer[:n])
+			af, err := extractAudioFrame(buffer[:n])
 			if err != nil {
 				// Non-audio control/keepalive packets are expected on some device
 				// types (e.g. DFSI gateways cycling their channel ports); only log
@@ -196,14 +197,14 @@ func (ml *MulticastListener) readFrom(listenerIdx int, conn net.PacketConn) {
 				continue
 			}
 
-			ml.handlePacket(listenerIdx, remoteAddr, frame, n-len(frame))
+			ml.handlePacket(listenerIdx, remoteAddr, af)
 		}
 	}
 }
 
 // handlePacket is called when a valid frame is received on a listener.
 // It implements port priority: first port to send a packet wins until dropout.
-func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, frame []byte, headerBytes int) {
+func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, af audioFrame) {
 	ml.mu.Lock()
 	now := time.Now()
 	prevActive := ml.activePort
@@ -232,15 +233,15 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 		ml.mu.Unlock()
 
 		// Make a copy of frame and send it (non-blocking)
-		frameCopy := make([]byte, len(frame))
-		copy(frameCopy, frame)
+		frameCopy := make([]byte, len(af.data))
+		copy(frameCopy, af.data)
 		sourceIP := ""
 		if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
 			sourceIP = udpAddr.IP.String()
 		}
 
 		select {
-		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: headerBytes}:
+		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: af.headerBytes, codec: af.codec}:
 		case <-ml.ctx.Done():
 		default:
 			ml.logger.Printf("%s: frame queue full on listener %d", ml.streamName, listenerIdx)
@@ -254,15 +255,15 @@ func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, 
 		}
 		ml.mu.Unlock()
 
-		frameCopy := make([]byte, len(frame))
-		copy(frameCopy, frame)
+		frameCopy := make([]byte, len(af.data))
+		copy(frameCopy, af.data)
 		sourceIP := ""
 		if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
 			sourceIP = udpAddr.IP.String()
 		}
 
 		select {
-		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: headerBytes}:
+		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: af.headerBytes, codec: af.codec}:
 		case <-ml.ctx.Done():
 		default:
 			ml.logger.Printf("%s: frame queue full on active listener %d", ml.streamName, listenerIdx)
