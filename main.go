@@ -252,12 +252,20 @@ type station struct {
 
 	// audioDumpDir/dump* support the diagnostic pipeline dump feature (see
 	// appConfig.AudioDumpDir). Only touched by this station's single ingest
-	// goroutine, opened lazily on first use.
+	// goroutine, opened lazily on first use. Writes go through a buffered
+	// writer (flushed periodically, not per-packet) so the dump feature
+	// itself doesn't introduce synchronous per-packet disk I/O on the ingest
+	// hot path — that would confound exactly the kind of real-time pacing
+	// measurement this feature exists to make.
 	audioDumpDir     string
 	dumpWireFile     *os.File
 	dumpMulawFile    *os.File
 	dumpTimingFile   *os.File
+	dumpWireBuf      *bufio.Writer
+	dumpMulawBuf     *bufio.Writer
+	dumpTimingBuf    *bufio.Writer
 	dumpLastPacketAt time.Time
+	dumpPacketCount  int
 
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
@@ -314,6 +322,26 @@ type webrtcServer struct {
 	whisperPool  *whisperPool
 	audioLogDir  string
 	iceServers   []webrtc.ICEServer
+
+	// clipJobs offloads VAD clip finalization (WAV file write, hub publish,
+	// whisper submission) off each station's ingest goroutine. Without this,
+	// that synchronous disk I/O blocks UDP packet reads for the duration of
+	// the write, causing packets to queue up in the kernel socket buffer and
+	// then get drained/broadcast in a burst — which live WebRTC playback
+	// (unlike a batch-written WAV) is very sensitive to.
+	clipJobs chan func()
+}
+
+// startClipWorkers launches the background workers that drain clipJobs.
+// Call once at startup; workers run for the life of the process.
+func (s *webrtcServer) startClipWorkers(n int) {
+	for i := 0; i < n; i++ {
+		go func() {
+			for job := range s.clipJobs {
+				job()
+			}
+		}()
+	}
 }
 
 func (s *webrtcServer) storeClip(rec clipRecord) {
@@ -570,7 +598,9 @@ func main() {
 		whisperPool:  pool,
 		audioLogDir:  config.AudioLogDir,
 		iceServers:   config.webrtcICEServers(),
+		clipJobs:     make(chan func(), 256),
 	}
+	server.startClipWorkers(4)
 	if len(config.ICEServers) == 0 {
 		logger.Printf("no iceServers configured; using default STUN server (%s) for NAT traversal", defaultICEServers[0].URLs[0])
 	} else {
@@ -643,57 +673,75 @@ func main() {
 						time.Duration(wCfg.MinClipMs)*time.Millisecond,
 						time.Duration(wCfg.MaxClipMs)*time.Millisecond,
 						func(samples []int16, start time.Time) {
-							clipID := nextClipID()
-							var wavPath, audioURL string
-							durationMs := len(samples) * 1000 / vadSampleRate
-							if captureAudioLogDir != "" {
-								var err error
+							// The work below includes synchronous disk I/O
+							// (WAV file write). vad.Push() calls this callback
+							// inline from the station's ingest goroutine, so
+							// doing that work here would block UDP packet
+							// reads for its duration — letting packets queue
+							// up in the kernel socket buffer and then get
+							// drained/broadcast in a burst, which live WebRTC
+							// playback is much more sensitive to than a
+							// batch-written WAV. Dispatch it to a background
+							// worker instead so this callback returns
+							// immediately.
+							job := func() {
+								clipID := nextClipID()
+								var wavPath, audioURL string
+								durationMs := len(samples) * 1000 / vadSampleRate
+								if captureAudioLogDir != "" {
+									var err error
 
-								wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
-								if err != nil {
-									logger.Printf("audio log: %v", err)
-								}
-							}
-							// requestWavPath is the file used for on-demand transcription.
-							// Prefer the persisted audio log file; fall back to a temp file.
-							var requestWavPath string
-							if wavPath != "" {
-								requestWavPath = wavPath
-							} else if pool != nil {
-								wav, _ := encodePCM16WAV(samples, vadSampleRate)
-								tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
-								if err == nil {
-									if _, err := tmp.Write(wav); err == nil {
-										_ = tmp.Close()
-										requestWavPath = tmp.Name()
-									} else {
-										_ = tmp.Close()
-										_ = os.Remove(tmp.Name())
+									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
+									if err != nil {
+										logger.Printf("audio log: %v", err)
 									}
 								}
+								// requestWavPath is the file used for on-demand transcription.
+								// Prefer the persisted audio log file; fall back to a temp file.
+								var requestWavPath string
+								if wavPath != "" {
+									requestWavPath = wavPath
+								} else if pool != nil {
+									wav, _ := encodePCM16WAV(samples, vadSampleRate)
+									tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
+									if err == nil {
+										if _, err := tmp.Write(wav); err == nil {
+											_ = tmp.Close()
+											requestWavPath = tmp.Name()
+										} else {
+											_ = tmp.Close()
+											_ = os.Remove(tmp.Name())
+										}
+									}
+								}
+								// Publish clip event immediately so the UI shows the recording.
+								hub.Publish(transcriptEvent{
+									Type:       "clip",
+									ClipID:     clipID,
+									StreamID:   captureInfo.ID,
+									StreamName: captureInfo.StreamName,
+									RegionName: captureInfo.RegionName,
+									GroupName:  captureInfo.GroupName,
+									AudioURL:   audioURL,
+									DurationMs: durationMs,
+									Timestamp:  start,
+								})
+								server.storeClip(clipRecord{
+									clipID:   clipID,
+									info:     captureInfo,
+									wavPath:  requestWavPath,
+									audioURL: audioURL,
+									start:    start,
+									duration: durationMs,
+								})
+								if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
+									server.requestClipTranscription(clipID)
+								}
 							}
-							// Publish clip event immediately so the UI shows the recording.
-							hub.Publish(transcriptEvent{
-								Type:       "clip",
-								ClipID:     clipID,
-								StreamID:   captureInfo.ID,
-								StreamName: captureInfo.StreamName,
-								RegionName: captureInfo.RegionName,
-								GroupName:  captureInfo.GroupName,
-								AudioURL:   audioURL,
-								DurationMs: durationMs,
-								Timestamp:  start,
-							})
-							server.storeClip(clipRecord{
-								clipID:   clipID,
-								info:     captureInfo,
-								wavPath:  requestWavPath,
-								audioURL: audioURL,
-								start:    start,
-								duration: durationMs,
-							})
-							if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
-								server.requestClipTranscription(clipID)
+							select {
+							case server.clipJobs <- job:
+							default:
+								logger.Printf("%s: clip job queue full; dropping clip finalization (disk/whisper backlog)", captureInfo.StreamName)
 							}
 						},
 					)
@@ -1872,7 +1920,9 @@ func (s *station) toMulaw(af audioFrame) ([]byte, error) {
 // dumpPipelineStage writes raw wire bytes and the resulting broadcast µ-law
 // frame to disk for offline diagnosis, along with a per-packet timing log,
 // when audioDumpDir is configured. Only called from this station's single
-// ingest goroutine, so file handles need no locking.
+// ingest goroutine, so file handles need no locking. Writes are buffered and
+// flushed only periodically so this diagnostic feature doesn't itself add
+// synchronous per-packet disk I/O to the ingest hot path.
 func (s *station) dumpPipelineStage(af audioFrame, mulawFrame []byte) {
 	if s.audioDumpDir == "" {
 		return
@@ -1903,8 +1953,11 @@ func (s *station) dumpPipelineStage(af audioFrame, mulawFrame []byte) {
 			s.audioDumpDir = ""
 			return
 		}
+		s.dumpWireBuf = bufio.NewWriterSize(s.dumpWireFile, 64*1024)
+		s.dumpMulawBuf = bufio.NewWriterSize(s.dumpMulawFile, 64*1024)
+		s.dumpTimingBuf = bufio.NewWriterSize(s.dumpTimingFile, 64*1024)
 		if fi, statErr := s.dumpTimingFile.Stat(); statErr == nil && fi.Size() == 0 {
-			fmt.Fprintln(s.dumpTimingFile, "unix_nano,codec,wire_bytes,mulaw_bytes,gap_ms_since_prev_packet")
+			fmt.Fprintln(s.dumpTimingBuf, "unix_nano,codec,wire_bytes,mulaw_bytes,gap_ms_since_prev_packet")
 		}
 		s.logger.Printf("%s: audio pipeline dump enabled: %s", s.info.StreamName, s.audioDumpDir)
 	}
@@ -1916,9 +1969,19 @@ func (s *station) dumpPipelineStage(af audioFrame, mulawFrame []byte) {
 	}
 	s.dumpLastPacketAt = now
 
-	_, _ = s.dumpWireFile.Write(af.data)
-	_, _ = s.dumpMulawFile.Write(mulawFrame)
-	fmt.Fprintf(s.dumpTimingFile, "%d,%v,%d,%d,%.3f\n", now.UnixNano(), af.codec, len(af.data), len(mulawFrame), gapMs)
+	_, _ = s.dumpWireBuf.Write(af.data)
+	_, _ = s.dumpMulawBuf.Write(mulawFrame)
+	fmt.Fprintf(s.dumpTimingBuf, "%d,%v,%d,%d,%.3f\n", now.UnixNano(), af.codec, len(af.data), len(mulawFrame), gapMs)
+
+	// Flush roughly once a second (at 20ms/frame, ~50 packets) rather than
+	// every packet, so the periodic flush's I/O cost is amortized and can't
+	// itself masquerade as the jitter this feature is meant to diagnose.
+	s.dumpPacketCount++
+	if s.dumpPacketCount%50 == 0 {
+		_ = s.dumpWireBuf.Flush()
+		_ = s.dumpMulawBuf.Flush()
+		_ = s.dumpTimingBuf.Flush()
+	}
 }
 
 func drainRTCP(sender *webrtc.RTPSender) {
