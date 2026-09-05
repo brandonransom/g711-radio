@@ -17,6 +17,35 @@ package main
 // the high-order nibble. This matches common ADPCM/G.726 RTP packetization
 // practice. If a decoded stream sounds garbled/noisy rather than like voice
 // audio, try swapping the order in decodeG726Frame below.
+//
+// Two debug toggles are provided below to help pin down a wire-format
+// mismatch without needing a full code review each time:
+//
+//   - g726SwapNibbleOrder: flips which sample (first/second in time) comes
+//     from which nibble. A wrong setting here tends to badly garble audio
+//     (each sample is decoded using the wrong neighbor's data), not just add
+//     noise, so this is the less likely culprit if audio is intelligible.
+//
+//   - g726ReverseCodeBits: reverses the 4 bits within each codeword nibble
+//     before decoding. Because ADPCM's adaptive predictor still tracks a
+//     signal's general sign/direction even when the finer-grained bits are
+//     wrong, a bit-order mismatch here typically produces exactly the
+//     symptom of "intelligible speech with a persistent grainy/hissy noise
+//     floor" rather than outright garbling — this is the most likely
+//     candidate to try first if that's what you're hearing.
+//
+// Flip one at a time, rebuild, and listen; leave both false once the correct
+// combination is found (or if neither helps, the mismatch is likely deeper
+// than wire packing — e.g. the device's "G.726" isn't bit-exact ITU G.726).
+// Set via config.json's "g726ReverseCodeBits"/"g726SwapNibbleOrder" fields
+// (see loadConfig) rather than editing these defaults directly.
+var (
+	g726SwapNibbleOrder = false
+	g726ReverseCodeBits = false
+)
+
+// reverse4 reverses the low 4 bits of a nibble (bit 0 <-> bit 3, bit 1 <-> bit 2).
+var reverse4 = [16]byte{0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15}
 
 // dqlntab maps a G.721/G.726-32 codeword to a reconstructed difference
 // signal log-magnitude value.
@@ -391,11 +420,20 @@ func (d *g726Decoder) decodeSample(code int) int16 {
 
 // decodeG726Frame decodes a G.726-32 wire frame (2 packed 4-bit codewords per
 // byte) into linear PCM samples, advancing the decoder's persistent state.
+// See the g726SwapNibbleOrder/g726ReverseCodeBits toggles above for a quick
+// way to test wire-format assumptions against real captured audio.
 func (d *g726Decoder) decodeG726Frame(codes []byte) []int16 {
 	pcm := make([]int16, len(codes)*2)
 	for i, b := range codes {
 		lo := int(b & 0x0F)
 		hi := int(b >> 4)
+		if g726SwapNibbleOrder {
+			lo, hi = hi, lo
+		}
+		if g726ReverseCodeBits {
+			lo = int(reverse4[lo])
+			hi = int(reverse4[hi])
+		}
 		pcm[i*2] = d.decodeSample(lo)
 		pcm[i*2+1] = d.decodeSample(hi)
 	}

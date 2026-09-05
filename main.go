@@ -126,6 +126,13 @@ type appConfig struct {
 	PFXKeyPassword   string                               `json:"pfxKeyPassword"`
 	ICEServers       []iceServerConfig                    `json:"iceServers"`
 
+	// G726ReverseCodeBits/G726SwapNibbleOrder are debug toggles for
+	// diagnosing a wire-format mismatch with a real G.726 device (see
+	// g726.go); leave both false/omitted once the correct combination for
+	// your devices is confirmed.
+	G726ReverseCodeBits bool `json:"g726ReverseCodeBits"`
+	G726SwapNibbleOrder bool `json:"g726SwapNibbleOrder"`
+
 	streamGroups []configuredRegion
 	totalStreams int
 }
@@ -552,6 +559,12 @@ func main() {
 				logger.Printf("ICE server configured: %v", ice.URLs)
 			}
 		}
+	}
+
+	g726ReverseCodeBits = config.G726ReverseCodeBits
+	g726SwapNibbleOrder = config.G726SwapNibbleOrder
+	if g726ReverseCodeBits || g726SwapNibbleOrder {
+		logger.Printf("G.726 debug toggles active: reverseCodeBits=%t swapNibbleOrder=%t", g726ReverseCodeBits, g726SwapNibbleOrder)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
