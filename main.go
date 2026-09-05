@@ -2034,20 +2034,25 @@ func (s *station) dumpPipelineStage(af audioFrame, mulawFrame []byte) {
 			s.audioDumpDir = "" // disable further attempts for this station
 			return
 		}
+		// Timestamp the filenames (once, at first use) so each run/restart
+		// produces its own distinct set of files instead of silently
+		// appending onto whatever was left from a previous test session.
+		ts := time.Now().UTC().Format("2006-01-02T15_04_05Z")
+		prefix := fmt.Sprintf("%s_%s", safe, ts)
 		var err error
-		s.dumpWireFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, safe+"_wire.bin"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		s.dumpWireFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, prefix+"_wire.bin"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			s.logger.Printf("%s: audio dump: %v", s.info.StreamName, err)
 			s.audioDumpDir = ""
 			return
 		}
-		s.dumpMulawFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, safe+"_live_mulaw.bin"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		s.dumpMulawFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, prefix+"_live_mulaw.bin"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			s.logger.Printf("%s: audio dump: %v", s.info.StreamName, err)
 			s.audioDumpDir = ""
 			return
 		}
-		s.dumpTimingFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, safe+"_timing.csv"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		s.dumpTimingFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, prefix+"_timing.csv"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			s.logger.Printf("%s: audio dump: %v", s.info.StreamName, err)
 			s.audioDumpDir = ""
