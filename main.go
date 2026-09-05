@@ -242,13 +242,23 @@ type station struct {
 	whisperPool *whisperPool
 	vad         *vadState
 
-	// g726Dec/lastWireCodec are only ever touched by this station's single
-	// ingest goroutine (ingest or ingestMulticast; a station only ever runs
-	// one), so no lock is needed. g726Dec is (re)created whenever a stream
-	// switches into G.726 from some other codec, so stale predictor state
-	// from an unrelated prior signal never bleeds into a new transmission.
-	g726Dec       *g726Decoder
-	lastWireCodec wireCodec
+	// g726Dec/lastWireCodec/lastG726PacketAt are only ever touched by this
+	// station's single ingest goroutine (ingest or ingestMulticast; a
+	// station only ever runs one), so no lock is needed. g726Dec is
+	// (re)created whenever a stream switches into G.726 from some other
+	// codec, so stale predictor state from an unrelated prior signal never
+	// bleeds into a new transmission. It's also reset after a real gap in
+	// G.726 packets (see g726ResetGap in toMulaw) — a genuinely silent
+	// source (no filler/comfort-noise packets between transmissions, unlike
+	// the existing continuous G.711 hardware) means no packet ever changes
+	// lastWireCodec away from G.726 during the gap, so without this the
+	// decoder's adaptive state would otherwise carry over stale from the
+	// end of the previous transmission into the start of the next one, even
+	// though the real encoder on the other end almost certainly resets its
+	// own state at the start of each new transmission.
+	g726Dec          *g726Decoder
+	lastWireCodec    wireCodec
+	lastG726PacketAt time.Time
 
 	// audioDumpDir/dump* support the diagnostic pipeline dump feature (see
 	// appConfig.AudioDumpDir). Only touched by this station's single ingest
@@ -296,6 +306,14 @@ type subscriber struct {
 	track        *webrtc.TrackLocalStaticSample
 	clientIP     string
 	connectionAt time.Time
+
+	// ready is false until the underlying PeerConnection reports it has
+	// actually connected (ICE + DTLS complete). Broadcasting audio to a
+	// brand-new subscriber before then wastes writes on a transport that
+	// isn't ready to send, and produces exactly the kind of bursty/delayed
+	// delivery a real-time audio jitter buffer struggles with — see the
+	// connection warm-up investigation in git history for measurements.
+	ready atomic.Bool
 }
 
 type usageLogger struct {
@@ -1676,17 +1694,42 @@ func (s *station) closeSubscribers() {
 
 func (s *station) broadcast(sample media.Sample) {
 	s.mu.RLock()
-	targets := make(map[string]*webrtc.TrackLocalStaticSample, len(s.subscribers))
+	targets := make(map[string]*subscriber, len(s.subscribers))
 	for id, sub := range s.subscribers {
-		targets[id] = sub.track
+		if sub.ready.Load() {
+			targets[id] = sub
+		}
 	}
 	s.mu.RUnlock()
 
-	for id, track := range targets {
-		if err := track.WriteSample(sample); err != nil {
+	for id, sub := range targets {
+		if err := sub.track.WriteSample(sample); err != nil {
 			s.logger.Printf("%s: dropping %s after track write failure: %v", s.info.StreamName, id, err)
 			s.removeSubscriber(id)
 		}
+	}
+}
+
+// markSubscriberReady flags a subscriber as ready to receive broadcast audio.
+// Called once its PeerConnection reports it has actually connected.
+func (s *station) markSubscriberReady(id string) {
+	s.mu.RLock()
+	sub, ok := s.subscribers[id]
+	s.mu.RUnlock()
+	if ok {
+		sub.ready.Store(true)
+	}
+}
+
+// markSubscriberNotReady stops broadcasting audio to a subscriber whose
+// connection has left the Connected state (disconnecting, failed, or
+// closed), symmetric with markSubscriberReady.
+func (s *station) markSubscriberNotReady(id string) {
+	s.mu.RLock()
+	sub, ok := s.subscribers[id]
+	s.mu.RUnlock()
+	if ok {
+		sub.ready.Store(false)
 	}
 }
 
@@ -1817,7 +1860,19 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		s.logger.Printf("%s %s state: %s", station.info.StreamName, peerID, state.String())
 		switch state {
+		case webrtc.PeerConnectionStateConnected:
+			station.markSubscriberReady(peerID)
+		case webrtc.PeerConnectionStateDisconnected:
+			// Stop broadcasting the instant the connection leaves the
+			// Connected state — symmetric with markSubscriberReady, so a
+			// subscriber that's disconnecting doesn't keep receiving writes
+			// into a transport that's no longer reliably delivering them
+			// (the teardown-side counterpart to the connection warm-up
+			// issue: bursty/delayed delivery at the very start of a
+			// connection).
+			station.markSubscriberNotReady(peerID)
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
+			station.markSubscriberNotReady(peerID)
 			station.removeSubscriber(peerID)
 		}
 	})
@@ -1891,6 +1946,14 @@ func extractAudioFrame(payload []byte) (audioFrame, error) {
 		len(payload), frameSizeBytes, g726FrameBytes, maxHeaderBytes)
 }
 
+// g726ResetGap is how long a gap in G.726 packets must be before we treat
+// the next packet as the start of a brand-new transmission and reset the
+// decoder's adaptive state, rather than assuming continuous audio. Normal
+// packet-to-packet jitter is well under this; a genuinely silent source
+// (no filler/keepalive packets between transmissions) leaves a gap of at
+// least hundreds of milliseconds to seconds between separate transmissions.
+const g726ResetGap = 300 * time.Millisecond
+
 // toMulaw converts a raw wire-format audio frame to a 160-byte G.711 µ-law
 // frame ready for broadcast/VAD/recording. G.711 frames pass through
 // unchanged; G.726 frames are ADPCM-decoded to linear PCM and then µ-law
@@ -1902,10 +1965,13 @@ func (s *station) toMulaw(af audioFrame) ([]byte, error) {
 		s.lastWireCodec = af.codec
 		return af.data, nil
 	case wireCodecG726:
-		if s.g726Dec == nil || s.lastWireCodec != wireCodecG726 {
+		now := time.Now()
+		gap := now.Sub(s.lastG726PacketAt)
+		if s.g726Dec == nil || s.lastWireCodec != wireCodecG726 || (!s.lastG726PacketAt.IsZero() && gap > g726ResetGap) {
 			s.g726Dec = newG726Decoder()
 		}
 		s.lastWireCodec = af.codec
+		s.lastG726PacketAt = now
 		pcm := s.g726Dec.decodeG726Frame(af.data)
 		frame := make([]byte, len(pcm))
 		for i, sample := range pcm {
