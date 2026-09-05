@@ -133,6 +133,17 @@ type appConfig struct {
 	G726ReverseCodeBits bool `json:"g726ReverseCodeBits"`
 	G726SwapNibbleOrder bool `json:"g726SwapNibbleOrder"`
 
+	// AudioDumpDir, when non-empty, makes every station write raw
+	// pipeline-stage dumps for offline diagnosis: <dir>/<streamName>_wire.bin
+	// (the codec-native bytes exactly as received, pre-transcode),
+	// <dir>/<streamName>_live_mulaw.bin (the exact µ-law bytes broadcast to
+	// WebRTC — the "live" audio), and <dir>/<streamName>_timing.csv (a
+	// per-packet log of arrival time and inter-packet gaps, to catch
+	// real-time pacing issues that a batch-written WAV wouldn't reveal). Use
+	// cmd/mulaw-to-wav to turn either .bin file into a WAV for listening.
+	// Leave empty in normal operation — this is a diagnostic-only feature.
+	AudioDumpDir string `json:"audioDumpDir"`
+
 	streamGroups []configuredRegion
 	totalStreams int
 }
@@ -238,6 +249,15 @@ type station struct {
 	// from an unrelated prior signal never bleeds into a new transmission.
 	g726Dec       *g726Decoder
 	lastWireCodec wireCodec
+
+	// audioDumpDir/dump* support the diagnostic pipeline dump feature (see
+	// appConfig.AudioDumpDir). Only touched by this station's single ingest
+	// goroutine, opened lazily on first use.
+	audioDumpDir     string
+	dumpWireFile     *os.File
+	dumpMulawFile    *os.File
+	dumpTimingFile   *os.File
+	dumpLastPacketAt time.Time
 
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
@@ -431,11 +451,13 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 				// Channel closed
 				return nil
 			}
-			frame, err := s.toMulaw(audioFrame{data: packet.data, codec: packet.codec, headerBytes: packet.headerBytes})
+			af := audioFrame{data: packet.data, codec: packet.codec, headerBytes: packet.headerBytes}
+			frame, err := s.toMulaw(af)
 			if err != nil {
 				s.logger.Printf("%s: %v", s.info.StreamName, err)
 				continue
 			}
+			s.dumpPipelineStage(af, frame)
 
 			now := time.Now()
 			s.mu.Lock()
@@ -600,6 +622,7 @@ func main() {
 					debugMulticast: cfg.DebugMulticast,
 					usageLogger:    server.usageLogger,
 					audioLogDir:    config.AudioLogDir,
+					audioDumpDir:   config.AudioDumpDir,
 					subscribers:    make(map[string]*subscriber),
 					whisperPool:    pool,
 				}
@@ -1211,6 +1234,7 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			s.logger.Printf("%s: %v", s.info.StreamName, err)
 			continue
 		}
+		s.dumpPipelineStage(af, frame)
 
 		addrStr := remoteAddr.String()
 		// Extract just the IP for conflict detection — port changes on the same
@@ -1843,6 +1867,58 @@ func (s *station) toMulaw(af audioFrame) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unsupported wire codec %v", af.codec)
 	}
+}
+
+// dumpPipelineStage writes raw wire bytes and the resulting broadcast µ-law
+// frame to disk for offline diagnosis, along with a per-packet timing log,
+// when audioDumpDir is configured. Only called from this station's single
+// ingest goroutine, so file handles need no locking.
+func (s *station) dumpPipelineStage(af audioFrame, mulawFrame []byte) {
+	if s.audioDumpDir == "" {
+		return
+	}
+	safe := unsafeChars.ReplaceAllString(s.info.StreamName, "_")
+	if s.dumpWireFile == nil {
+		if err := os.MkdirAll(s.audioDumpDir, 0755); err != nil {
+			s.logger.Printf("%s: audio dump: mkdir %s: %v", s.info.StreamName, s.audioDumpDir, err)
+			s.audioDumpDir = "" // disable further attempts for this station
+			return
+		}
+		var err error
+		s.dumpWireFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, safe+"_wire.bin"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			s.logger.Printf("%s: audio dump: %v", s.info.StreamName, err)
+			s.audioDumpDir = ""
+			return
+		}
+		s.dumpMulawFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, safe+"_live_mulaw.bin"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			s.logger.Printf("%s: audio dump: %v", s.info.StreamName, err)
+			s.audioDumpDir = ""
+			return
+		}
+		s.dumpTimingFile, err = os.OpenFile(filepath.Join(s.audioDumpDir, safe+"_timing.csv"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			s.logger.Printf("%s: audio dump: %v", s.info.StreamName, err)
+			s.audioDumpDir = ""
+			return
+		}
+		if fi, statErr := s.dumpTimingFile.Stat(); statErr == nil && fi.Size() == 0 {
+			fmt.Fprintln(s.dumpTimingFile, "unix_nano,codec,wire_bytes,mulaw_bytes,gap_ms_since_prev_packet")
+		}
+		s.logger.Printf("%s: audio pipeline dump enabled: %s", s.info.StreamName, s.audioDumpDir)
+	}
+
+	now := time.Now()
+	gapMs := -1.0
+	if !s.dumpLastPacketAt.IsZero() {
+		gapMs = float64(now.Sub(s.dumpLastPacketAt).Microseconds()) / 1000.0
+	}
+	s.dumpLastPacketAt = now
+
+	_, _ = s.dumpWireFile.Write(af.data)
+	_, _ = s.dumpMulawFile.Write(mulawFrame)
+	fmt.Fprintf(s.dumpTimingFile, "%d,%v,%d,%d,%.3f\n", now.UnixNano(), af.codec, len(af.data), len(mulawFrame), gapMs)
 }
 
 func drainRTCP(sender *webrtc.RTPSender) {
