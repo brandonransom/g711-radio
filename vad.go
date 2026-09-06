@@ -67,8 +67,8 @@ func init() {
 }
 
 // EncodePCMU converts a linear PCM sample to the nearest representable
-// G.711 µ-law byte, used to transcode non-native wire codecs (e.g. G.726)
-// into the µ-law frames the rest of this codebase assumes.
+// G.711 µ-law byte, used to transcode non-native wire codecs (e.g. Telex
+// 32k) into the µ-law frames the rest of this codebase assumes.
 func EncodePCMU(sample int16) byte {
 	i := sort.Search(256, func(i int) bool { return mulawLevels[i] >= sample })
 	if i == 0 {

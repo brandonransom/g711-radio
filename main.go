@@ -66,13 +66,13 @@ func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
 }
 
 const (
-	frameSizeBytes = 160 // G.711 µ-law audio payload size (8 bits/sample, 160 samples/20ms)
-	g726FrameBytes = 80  // G.726 ADPCM audio payload size (4 bits/sample, same 160 samples/20ms)
-	sampleRateHz   = 8000
-	skipBytes      = 12 // legacy/default header size; used only for startup diagnostics — actual header length is auto-detected per packet, see extractAudioFrame
-	maxHeaderBytes = 64 // sanity cap on the auto-detected header length; guards against unrelated traffic being misread as audio
-	configPath     = "config.json"
-	secretsPath    = "config.secrets.json"
+	frameSizeBytes  = 160 // G.711 µ-law audio payload size (8 bits/sample, 160 samples/20ms)
+	telexFrameBytes = 80  // Telex 32k audio payload size (4 bits/sample, same 160 samples/20ms)
+	sampleRateHz    = 8000
+	skipBytes       = 12 // legacy/default header size; used only for startup diagnostics — actual header length is auto-detected per packet, see extractAudioFrame
+	maxHeaderBytes  = 64 // sanity cap on the auto-detected header length; guards against unrelated traffic being misread as audio
+	configPath      = "config.json"
+	secretsPath     = "config.secrets.json"
 )
 
 // wireCodec identifies which audio codec produced a UDP packet's payload.
@@ -80,15 +80,15 @@ type wireCodec int
 
 const (
 	wireCodecG711 wireCodec = iota
-	wireCodecG726
+	wireCodecTelex
 )
 
 func (c wireCodec) String() string {
 	switch c {
 	case wireCodecG711:
 		return "G.711"
-	case wireCodecG726:
-		return "G.726"
+	case wireCodecTelex:
+		return "Telex 32k"
 	default:
 		return "unknown"
 	}
@@ -104,7 +104,7 @@ var wireFrameSizes = []struct {
 	frameBytes int
 }{
 	{wireCodecG711, frameSizeBytes},
-	{wireCodecG726, g726FrameBytes},
+	{wireCodecTelex, telexFrameBytes},
 }
 
 //go:embed web/*
@@ -126,13 +126,6 @@ type appConfig struct {
 	PFXKeyPassword   string                               `json:"pfxKeyPassword"`
 	ICEServers       []iceServerConfig                    `json:"iceServers"`
 
-	// G726ReverseCodeBits/G726SwapNibbleOrder are debug toggles for
-	// diagnosing a wire-format mismatch with a real G.726 device (see
-	// g726.go); leave both false/omitted once the correct combination for
-	// your devices is confirmed.
-	G726ReverseCodeBits bool `json:"g726ReverseCodeBits"`
-	G726SwapNibbleOrder bool `json:"g726SwapNibbleOrder"`
-
 	// AudioDumpDir, when non-empty, makes every station write raw
 	// pipeline-stage dumps for offline diagnosis: <dir>/<streamName>_wire.bin
 	// (the codec-native bytes exactly as received, pre-transcode),
@@ -143,6 +136,12 @@ type appConfig struct {
 	// cmd/mulaw-to-wav to turn either .bin file into a WAV for listening.
 	// Leave empty in normal operation — this is a diagnostic-only feature.
 	AudioDumpDir string `json:"audioDumpDir"`
+
+	// TelexOutputGain overrides defaultTelexOutputGain (see telex.go) for
+	// the Telex 32k decoder's fixed linear output gain. Leave 0/omitted to
+	// use the default; raise it if Telex audio is consistently too quiet,
+	// lower it if loud transmissions are clipping.
+	TelexOutputGain float64 `json:"telexOutputGain"`
 
 	streamGroups []configuredRegion
 	totalStreams int
@@ -242,23 +241,23 @@ type station struct {
 	whisperPool *whisperPool
 	vad         *vadState
 
-	// g726Dec/lastWireCodec/lastG726PacketAt are only ever touched by this
+	// telexDec/lastWireCodec/lastTelexPacketAt are only ever touched by this
 	// station's single ingest goroutine (ingest or ingestMulticast; a
-	// station only ever runs one), so no lock is needed. g726Dec is
-	// (re)created whenever a stream switches into G.726 from some other
-	// codec, so stale predictor state from an unrelated prior signal never
+	// station only ever runs one), so no lock is needed. telexDec is
+	// (re)created whenever a stream switches into Telex 32k from some other
+	// codec, so stale decoder state from an unrelated prior signal never
 	// bleeds into a new transmission. It's also reset after a real gap in
-	// G.726 packets (see g726ResetGap in toMulaw) — a genuinely silent
+	// Telex packets (see telexResetGap in toMulaw) — a genuinely silent
 	// source (no filler/comfort-noise packets between transmissions, unlike
 	// the existing continuous G.711 hardware) means no packet ever changes
-	// lastWireCodec away from G.726 during the gap, so without this the
+	// lastWireCodec away from Telex during the gap, so without this the
 	// decoder's adaptive state would otherwise carry over stale from the
 	// end of the previous transmission into the start of the next one, even
 	// though the real encoder on the other end almost certainly resets its
 	// own state at the start of each new transmission.
-	g726Dec          *g726Decoder
-	lastWireCodec    wireCodec
-	lastG726PacketAt time.Time
+	telexDec          *telexDecoder
+	lastWireCodec     wireCodec
+	lastTelexPacketAt time.Time
 
 	// audioDumpDir/dump* support the diagnostic pipeline dump feature (see
 	// appConfig.AudioDumpDir). Only touched by this station's single ingest
@@ -635,14 +634,13 @@ func main() {
 		}
 	}
 
-	g726ReverseCodeBits = config.G726ReverseCodeBits
-	g726SwapNibbleOrder = config.G726SwapNibbleOrder
-	if g726ReverseCodeBits || g726SwapNibbleOrder {
-		logger.Printf("G.726 debug toggles active: reverseCodeBits=%t swapNibbleOrder=%t", g726ReverseCodeBits, g726SwapNibbleOrder)
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if config.TelexOutputGain > 0 {
+		telexOutputGain = config.TelexOutputGain
+		logger.Printf("Telex 32k output gain overridden to %.2f (default %.2f)", telexOutputGain, defaultTelexOutputGain)
+	}
 
 	for _, region := range config.streamGroups {
 		apiRegion := regionGroup{
@@ -1953,7 +1951,7 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 // formats and codecs share the same ingest path without per-stream
 // configuration.
 //
-// A packet's total length alone identifies its codec: G.711 and G.726
+// A packet's total length alone identifies its codec: G.711 and Telex 32k
 // payload sizes (160 and 80 bytes respectively) are far enough apart that,
 // combined with maxHeaderBytes, their valid total-length ranges never
 // overlap. Packets shorter than the smallest known payload, or whose implied
@@ -1976,21 +1974,21 @@ func extractAudioFrame(payload []byte) (audioFrame, error) {
 		}
 	}
 	return audioFrame{}, fmt.Errorf(
-		"packet is %d bytes; does not match any known audio frame format (need %d bytes for G.711 or %d bytes for G.726, plus a header up to %d bytes)",
-		len(payload), frameSizeBytes, g726FrameBytes, maxHeaderBytes)
+		"packet is %d bytes; does not match any known audio frame format (need %d bytes for G.711 or %d bytes for Telex 32k, plus a header up to %d bytes)",
+		len(payload), frameSizeBytes, telexFrameBytes, maxHeaderBytes)
 }
 
-// g726ResetGap is how long a gap in G.726 packets must be before we treat
+// telexResetGap is how long a gap in Telex packets must be before we treat
 // the next packet as the start of a brand-new transmission and reset the
 // decoder's adaptive state, rather than assuming continuous audio. Normal
 // packet-to-packet jitter is well under this; a genuinely silent source
 // (no filler/keepalive packets between transmissions) leaves a gap of at
 // least hundreds of milliseconds to seconds between separate transmissions.
-const g726ResetGap = 300 * time.Millisecond
+const telexResetGap = 300 * time.Millisecond
 
 // toMulaw converts a raw wire-format audio frame to a 160-byte G.711 µ-law
 // frame ready for broadcast/VAD/recording. G.711 frames pass through
-// unchanged; G.726 frames are ADPCM-decoded to linear PCM and then µ-law
+// unchanged; Telex 32k frames are decoded to linear PCM and then µ-law
 // encoded, so everything downstream of ingest only ever sees µ-law audio
 // regardless of which codec a device actually sent.
 func (s *station) toMulaw(af audioFrame) ([]byte, error) {
@@ -1998,15 +1996,15 @@ func (s *station) toMulaw(af audioFrame) ([]byte, error) {
 	case wireCodecG711:
 		s.lastWireCodec = af.codec
 		return af.data, nil
-	case wireCodecG726:
+	case wireCodecTelex:
 		now := time.Now()
-		gap := now.Sub(s.lastG726PacketAt)
-		if s.g726Dec == nil || s.lastWireCodec != wireCodecG726 || (!s.lastG726PacketAt.IsZero() && gap > g726ResetGap) {
-			s.g726Dec = newG726Decoder()
+		gap := now.Sub(s.lastTelexPacketAt)
+		if s.telexDec == nil || s.lastWireCodec != wireCodecTelex || (!s.lastTelexPacketAt.IsZero() && gap > telexResetGap) {
+			s.telexDec = newTelexDecoder()
 		}
 		s.lastWireCodec = af.codec
-		s.lastG726PacketAt = now
-		pcm := s.g726Dec.decodeG726Frame(af.data)
+		s.lastTelexPacketAt = now
+		pcm := s.telexDec.decodeTelexFrame(af.data)
 		frame := make([]byte, len(pcm))
 		for i, sample := range pcm {
 			frame[i] = EncodePCMU(sample)
