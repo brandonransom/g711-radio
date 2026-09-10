@@ -28,10 +28,8 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
   "whisper": {
     "modelPath": "C:\\path\\to\\ggml-medium.bin",
     "workers": 3,
-    "vadThreshold": 0.02,
-    "silenceMs": 600,
-    "minClipMs": 300,
-    "maxClipMs": 30000
+    "gapMs": 4000,
+    "maxClipMs": 600000
   },
   "regions": {
     "California": {
@@ -180,8 +178,8 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 
 ### How transcription works
 
-- Each stream runs energy-based **Voice Activity Detection (VAD)** on the incoming audio
-- When a transmission is detected, audio is buffered until silence holds for `silenceMs`
+- Recording is presence-based: a WAV clip starts the moment a stream's incoming audio packets begin, with no voice/energy detection — the upstream source devices already gate transmission with their own VOX/squelch
+- Gaps between packets of up to `gapMs` are bridged into the same clip (with silence inserted to keep the file's timeline matching real elapsed time); a longer gap, or hitting `maxClipMs`, finalizes the clip
 - The clip is submitted to a worker pool that calls `whisper-cli` as a subprocess
 - Transcripts are broadcast to connected browsers via **Server-Sent Events** at `/transcripts`
 - The individual stream page displays a live scrollable transcript panel
@@ -263,10 +261,8 @@ The WebRTC host does **not** need whisper.cpp installed in this mode. Just set `
   "whisper": {
     "remoteHost": "whisper-host.local:8090",
     "workers": 3,
-    "vadThreshold": 0.02,
-    "silenceMs": 600,
-    "minClipMs": 300,
-    "maxClipMs": 30000
+    "gapMs": 4000,
+    "maxClipMs": 600000
   }
 }
 ```

@@ -12,10 +12,8 @@
     "workers": 3,
     "timeoutMs": 3600000,
     "autoTranscribeMinClipMs": 20000,
-    "vadThreshold": 0.02,
-    "silenceMs": 900,
-    "minClipMs": 1000,
-    "maxClipMs": 30000
+    "gapMs": 4000,
+    "maxClipMs": 600000
   },
   "keepalive": {
     "enabled": true,

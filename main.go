@@ -66,29 +66,29 @@ func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
 }
 
 const (
-	frameSizeBytes  = 160 // G.711 µ-law audio payload size (8 bits/sample, 160 samples/20ms)
-	telexFrameBytes = 80  // Telex 32k audio payload size (4 bits/sample, same 160 samples/20ms)
-	sampleRateHz    = 8000
-	skipBytes       = 12 // legacy/default header size; used only for startup diagnostics — actual header length is auto-detected per packet, see extractAudioFrame
-	maxHeaderBytes  = 64 // sanity cap on the auto-detected header length; guards against unrelated traffic being misread as audio
-	configPath      = "config.json"
-	secretsPath     = "config.secrets.json"
+	frameSizeBytes = 160 // G.711 µ-law audio payload size (8 bits/sample, 160 samples/20ms)
+	sampleRateHz   = 8000
+	skipBytes      = 12 // legacy/default header size; used only for startup diagnostics — actual header length is auto-detected per packet, see extractAudioFrame
+	maxHeaderBytes = 64 // sanity cap on the auto-detected header length; guards against unrelated traffic being misread as audio
+	configPath     = "config.json"
+	secretsPath    = "config.secrets.json"
 )
 
 // wireCodec identifies which audio codec produced a UDP packet's payload.
+// G.711 is currently the only supported wire codec (an earlier "Telex 32k"
+// vocoder was attempted and removed after extensive reverse-engineering
+// failed to produce usable audio quality — see git history. Source devices
+// using that hardware should be reconfigured to transmit G.711 instead).
 type wireCodec int
 
 const (
 	wireCodecG711 wireCodec = iota
-	wireCodecTelex
 )
 
 func (c wireCodec) String() string {
 	switch c {
 	case wireCodecG711:
 		return "G.711"
-	case wireCodecTelex:
-		return "Telex 32k"
 	default:
 		return "unknown"
 	}
@@ -96,15 +96,14 @@ func (c wireCodec) String() string {
 
 // wireFrameSizes lists the known fixed audio-payload sizes that a packet's
 // header length is derived from (see extractAudioFrame). Devices may be
-// misconfigured, or even switch codecs mid-transmission; since detection is
-// purely a function of packet size (not content), every packet on every
-// stream is classified independently and automatically.
+// misconfigured; since detection is purely a function of packet size (not
+// content), every packet on every stream is classified independently and
+// automatically.
 var wireFrameSizes = []struct {
 	codec      wireCodec
 	frameBytes int
 }{
 	{wireCodecG711, frameSizeBytes},
-	{wireCodecTelex, telexFrameBytes},
 }
 
 //go:embed web/*
@@ -136,12 +135,6 @@ type appConfig struct {
 	// cmd/mulaw-to-wav to turn either .bin file into a WAV for listening.
 	// Leave empty in normal operation — this is a diagnostic-only feature.
 	AudioDumpDir string `json:"audioDumpDir"`
-
-	// TelexOutputGain overrides defaultTelexOutputGain (see telex.go) for
-	// the Telex 32k decoder's fixed linear output gain. Leave 0/omitted to
-	// use the default; raise it if Telex audio is consistently too quiet,
-	// lower it if loud transmissions are clipping.
-	TelexOutputGain float64 `json:"telexOutputGain"`
 
 	streamGroups []configuredRegion
 	totalStreams int
@@ -239,25 +232,7 @@ type station struct {
 
 	// whisperPool is non-nil when transcription is enabled.
 	whisperPool *whisperPool
-	vad         *vadState
-
-	// telexDec/lastWireCodec/lastTelexPacketAt are only ever touched by this
-	// station's single ingest goroutine (ingest or ingestMulticast; a
-	// station only ever runs one), so no lock is needed. telexDec is
-	// (re)created whenever a stream switches into Telex 32k from some other
-	// codec, so stale decoder state from an unrelated prior signal never
-	// bleeds into a new transmission. It's also reset after a real gap in
-	// Telex packets (see telexResetGap in toMulaw) — a genuinely silent
-	// source (no filler/comfort-noise packets between transmissions, unlike
-	// the existing continuous G.711 hardware) means no packet ever changes
-	// lastWireCodec away from Telex during the gap, so without this the
-	// decoder's adaptive state would otherwise carry over stale from the
-	// end of the previous transmission into the start of the next one, even
-	// though the real encoder on the other end almost certainly resets its
-	// own state at the start of each new transmission.
-	telexDec          *telexDecoder
-	lastWireCodec     wireCodec
-	lastTelexPacketAt time.Time
+	recorder    *recorderState
 
 	// audioDumpDir/dump* support the diagnostic pipeline dump feature (see
 	// appConfig.AudioDumpDir). Only touched by this station's single ingest
@@ -344,12 +319,12 @@ type webrtcServer struct {
 	audioLogDir  string
 	iceServers   []webrtc.ICEServer
 
-	// clipJobs offloads VAD clip finalization (WAV file write, hub publish,
-	// whisper submission) off each station's ingest goroutine. Without this,
-	// that synchronous disk I/O blocks UDP packet reads for the duration of
-	// the write, causing packets to queue up in the kernel socket buffer and
-	// then get drained/broadcast in a burst — which live WebRTC playback
-	// (unlike a batch-written WAV) is very sensitive to.
+	// clipJobs offloads recorder clip finalization (WAV file write, hub
+	// publish, whisper submission) off each station's ingest goroutine.
+	// Without this, that synchronous disk I/O blocks UDP packet reads for
+	// the duration of the write, causing packets to queue up in the kernel
+	// socket buffer and then get drained/broadcast in a burst — which live
+	// WebRTC playback (unlike a batch-written WAV) is very sensitive to.
 	clipJobs chan func()
 }
 
@@ -525,9 +500,11 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 			}
 			packetsSeen++
 
-			// Run VAD if transcription is enabled.
-			if s.vad != nil {
-				s.vad.Push(DecodePCMU(frame), time.Now())
+			// Feed the recorder (whenever transcription/audio logging is
+			// enabled) so it can bridge/finalize clips based purely on
+			// packet presence — see recorderState in vad.go.
+			if s.recorder != nil {
+				s.recorder.Push(DecodePCMU(frame), time.Now())
 			}
 
 			s.enqueueBroadcast(media.Sample{
@@ -637,11 +614,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if config.TelexOutputGain > 0 {
-		telexOutputGain = config.TelexOutputGain
-		logger.Printf("Telex 32k output gain overridden to %.2f (default %.2f)", telexOutputGain, defaultTelexOutputGain)
-	}
-
 	for _, region := range config.streamGroups {
 		apiRegion := regionGroup{
 			RegionName: region.RegionName,
@@ -689,27 +661,25 @@ func main() {
 					}
 					captureInfo := info
 					captureAudioLogDir := config.AudioLogDir
-					st.vad = newVADState(
-						wCfg.VADThreshold,
-						time.Duration(wCfg.SilenceMs)*time.Millisecond,
-						time.Duration(wCfg.MinClipMs)*time.Millisecond,
+					st.recorder = newRecorderState(
+						time.Duration(wCfg.GapMs)*time.Millisecond,
 						time.Duration(wCfg.MaxClipMs)*time.Millisecond,
 						func(samples []int16, start time.Time) {
 							// The work below includes synchronous disk I/O
-							// (WAV file write). vad.Push() calls this callback
-							// inline from the station's ingest goroutine, so
-							// doing that work here would block UDP packet
-							// reads for its duration — letting packets queue
-							// up in the kernel socket buffer and then get
-							// drained/broadcast in a burst, which live WebRTC
-							// playback is much more sensitive to than a
-							// batch-written WAV. Dispatch it to a background
-							// worker instead so this callback returns
-							// immediately.
+							// (WAV file write). recorder.Push() calls this
+							// callback inline from the station's ingest
+							// goroutine, so doing that work here would block
+							// UDP packet reads for its duration — letting
+							// packets queue up in the kernel socket buffer
+							// and then get drained/broadcast in a burst,
+							// which live WebRTC playback is much more
+							// sensitive to than a batch-written WAV.
+							// Dispatch it to a background worker instead so
+							// this callback returns immediately.
 							job := func() {
 								clipID := nextClipID()
 								var wavPath, audioURL string
-								durationMs := len(samples) * 1000 / vadSampleRate
+								durationMs := len(samples) * 1000 / recSampleRate
 								if captureAudioLogDir != "" {
 									var err error
 
@@ -724,7 +694,7 @@ func main() {
 								if wavPath != "" {
 									requestWavPath = wavPath
 								} else if pool != nil {
-									wav, _ := encodePCM16WAV(samples, vadSampleRate)
+									wav, _ := encodePCM16WAV(samples, recSampleRate)
 									tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
 									if err == nil {
 										if _, err := tmp.Write(wav); err == nil {
@@ -1325,8 +1295,8 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 			if packetsSeen < 500 {
 				s.mu.Unlock()
 				packetsSeen++
-				if s.vad != nil {
-					s.vad.Push(DecodePCMU(frame), time.Now())
+				if s.recorder != nil {
+					s.recorder.Push(DecodePCMU(frame), time.Now())
 				}
 				s.enqueueBroadcast(media.Sample{Data: frame, Duration: s.frameDuration})
 				continue
@@ -1392,9 +1362,11 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 		}
 		packetsSeen++
 
-		// Run VAD if transcription is enabled.
-		if s.vad != nil {
-			s.vad.Push(DecodePCMU(frame), time.Now())
+		// Feed the recorder (whenever transcription/audio logging is
+		// enabled) so it can bridge/finalize clips based purely on packet
+		// presence — see recorderState in vad.go.
+		if s.recorder != nil {
+			s.recorder.Push(DecodePCMU(frame), time.Now())
 		}
 
 		s.enqueueBroadcast(media.Sample{
@@ -1404,8 +1376,9 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 	}
 }
 
-// saveAudioClip writes a VAD clip as an 8kHz mono WAV file under audioLogDir.
-// Returns the absolute file path and the relative URL path for browser playback.
+// saveAudioClip writes a recorded clip as an 8kHz mono WAV file under
+// audioLogDir. Returns the absolute file path and the relative URL path for
+// browser playback.
 // Path: <audioLogDir>/<region>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
 func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) (string, string, error) {
 	safe := func(s string) string {
@@ -1421,7 +1394,7 @@ func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start t
 	filename := fmt.Sprintf("%s_%s.wav", safe(info.StreamName), ts)
 	absPath := filepath.Join(absDir, filename)
 
-	wav, err := encodePCM16WAV(samples, vadSampleRate)
+	wav, err := encodePCM16WAV(samples, recSampleRate)
 	if err != nil {
 		return "", "", fmt.Errorf("encode %s: %w", absPath, err)
 	}
@@ -1703,7 +1676,7 @@ func (s *station) closeSubscribers() {
 // goroutine — since WriteSample() does real per-packet work (RTP
 // packetization, SRTP encryption, the underlying socket send) whose latency
 // would otherwise block UDP packet reads on every single frame, not just
-// occasionally like the VAD/disk-I/O work already moved off that path.
+// occasionally like the recorder's disk-I/O work already moved off that path.
 func (s *station) broadcast(sample media.Sample) {
 	s.mu.RLock()
 	targets := make(map[string]*subscriber, len(s.subscribers))
@@ -1951,14 +1924,12 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 // formats and codecs share the same ingest path without per-stream
 // configuration.
 //
-// A packet's total length alone identifies its codec: G.711 and Telex 32k
-// payload sizes (160 and 80 bytes respectively) are far enough apart that,
-// combined with maxHeaderBytes, their valid total-length ranges never
-// overlap. Packets shorter than the smallest known payload, or whose implied
-// header exceeds maxHeaderBytes for every known payload size, are rejected as
-// non-audio control/keepalive packets (observed as short as 14 bytes from
-// DFSI gateways cycling through their channel ports) so callers can discard
-// them quietly.
+// A packet's total length alone identifies its codec: G.711 payload size
+// (160 bytes), combined with maxHeaderBytes, is used to derive the header
+// length. Packets shorter than the payload size, or whose implied header
+// exceeds maxHeaderBytes, are rejected as non-audio control/keepalive
+// packets (observed as short as 14 bytes from DFSI gateways cycling through
+// their channel ports) so callers can discard them quietly.
 func extractAudioFrame(payload []byte) (audioFrame, error) {
 	for _, wf := range wireFrameSizes {
 		if len(payload) < wf.frameBytes {
@@ -1974,42 +1945,19 @@ func extractAudioFrame(payload []byte) (audioFrame, error) {
 		}
 	}
 	return audioFrame{}, fmt.Errorf(
-		"packet is %d bytes; does not match any known audio frame format (need %d bytes for G.711 or %d bytes for Telex 32k, plus a header up to %d bytes)",
-		len(payload), frameSizeBytes, telexFrameBytes, maxHeaderBytes)
+		"packet is %d bytes; does not match any known audio frame format (need %d bytes for G.711, plus a header up to %d bytes)",
+		len(payload), frameSizeBytes, maxHeaderBytes)
 }
 
-// telexResetGap is how long a gap in Telex packets must be before we treat
-// the next packet as the start of a brand-new transmission and reset the
-// decoder's adaptive state, rather than assuming continuous audio. Normal
-// packet-to-packet jitter is well under this; a genuinely silent source
-// (no filler/keepalive packets between transmissions) leaves a gap of at
-// least hundreds of milliseconds to seconds between separate transmissions.
-const telexResetGap = 300 * time.Millisecond
-
-// toMulaw converts a raw wire-format audio frame to a 160-byte G.711 µ-law
-// frame ready for broadcast/VAD/recording. G.711 frames pass through
-// unchanged; Telex 32k frames are decoded to linear PCM and then µ-law
-// encoded, so everything downstream of ingest only ever sees µ-law audio
-// regardless of which codec a device actually sent.
+// toMulaw returns the raw wire-format audio frame unchanged. G.711 is the
+// only supported wire codec, so this is currently an identity pass-through;
+// it remains a named step so downstream code (broadcast/recording) doesn't
+// need to know the wire format directly, and so a future codec could be
+// added here without touching callers.
 func (s *station) toMulaw(af audioFrame) ([]byte, error) {
 	switch af.codec {
 	case wireCodecG711:
-		s.lastWireCodec = af.codec
 		return af.data, nil
-	case wireCodecTelex:
-		now := time.Now()
-		gap := now.Sub(s.lastTelexPacketAt)
-		if s.telexDec == nil || s.lastWireCodec != wireCodecTelex || (!s.lastTelexPacketAt.IsZero() && gap > telexResetGap) {
-			s.telexDec = newTelexDecoder()
-		}
-		s.lastWireCodec = af.codec
-		s.lastTelexPacketAt = now
-		pcm := s.telexDec.decodeTelexFrame(af.data)
-		frame := make([]byte, len(pcm))
-		for i, sample := range pcm {
-			frame[i] = EncodePCMU(sample)
-		}
-		return frame, nil
 	default:
 		return nil, fmt.Errorf("unsupported wire codec %v", af.codec)
 	}

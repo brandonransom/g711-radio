@@ -281,26 +281,6 @@ func TestExtractAudioFrame(t *testing.T) {
 		}
 	})
 
-	t.Run("Telex 32k 12-byte header (92-byte packet)", func(t *testing.T) {
-		payload := make([]byte, 12+telexFrameBytes)
-		for i := 0; i < 12; i++ {
-			payload[i] = 0xEE
-		}
-		for i := 0; i < telexFrameBytes; i++ {
-			payload[12+i] = byte(i % 256)
-		}
-		af, err := extractAudioFrame(payload)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if af.codec != wireCodecTelex {
-			t.Errorf("expected wireCodecTelex, got %v", af.codec)
-		}
-		if len(af.data) != telexFrameBytes {
-			t.Errorf("expected %d-byte Telex frame, got %d", telexFrameBytes, len(af.data))
-		}
-	})
-
 	t.Run("short non-audio control/keepalive packets are rejected", func(t *testing.T) {
 		for _, size := range []int{14, 16, 17, 28, 36, 79} {
 			if _, err := extractAudioFrame(make([]byte, size)); err == nil {

@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// transcriptJob is submitted by VAD when a transmission clip is ready.
+// transcriptJob is submitted when a recorded clip is ready.
 type transcriptJob struct {
 	info     streamInfo
 	clipID   string    // unique ID correlating the clip event with its later transcript
@@ -26,35 +26,28 @@ type transcriptJob struct {
 	manual   bool
 }
 
-// whisperConfig holds runtime configuration for the Whisper worker pool.
+// whisperConfig holds runtime configuration for the Whisper worker pool and
+// the presence-based recorder (see recorder.go).
 type whisperConfig struct {
-	BinaryPath              string  `json:"binaryPath"`
-	ModelPath               string  `json:"modelPath"`
-	RemoteHost              string  `json:"remoteHost"`
-	Workers                 int     `json:"workers"`
-	VADThreshold            float64 `json:"vadThreshold"`
-	SilenceMs               int     `json:"silenceMs"`
-	MinClipMs               int     `json:"minClipMs"`
-	MaxClipMs               int     `json:"maxClipMs"`
-	TimeoutMs               int     `json:"timeoutMs"`
-	AutoTranscribeMinClipMs int     `json:"autoTranscribeMinClipMs"`
+	BinaryPath              string `json:"binaryPath"`
+	ModelPath               string `json:"modelPath"`
+	RemoteHost              string `json:"remoteHost"`
+	Workers                 int    `json:"workers"`
+	GapMs                   int    `json:"gapMs"`
+	MaxClipMs               int    `json:"maxClipMs"`
+	TimeoutMs               int    `json:"timeoutMs"`
+	AutoTranscribeMinClipMs int    `json:"autoTranscribeMinClipMs"`
 }
 
 func (c *whisperConfig) setDefaults() {
 	if c.Workers <= 0 {
 		c.Workers = 2
 	}
-	if c.VADThreshold <= 0 {
-		c.VADThreshold = 0.02
-	}
-	if c.SilenceMs <= 0 {
-		c.SilenceMs = 600
-	}
-	if c.MinClipMs <= 0 {
-		c.MinClipMs = 300
+	if c.GapMs <= 0 {
+		c.GapMs = 4000
 	}
 	if c.MaxClipMs <= 0 {
-		c.MaxClipMs = 30000
+		c.MaxClipMs = 600000
 	}
 	if c.TimeoutMs <= 0 {
 		c.TimeoutMs = 60000
