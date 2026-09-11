@@ -516,6 +516,27 @@
         border-bottom: none;
       }
 
+      .transcript-scrub {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 0 6px;
+      }
+
+      .transcript-scrub-time {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-variant-numeric: tabular-nums;
+        min-width: 2.6em;
+        text-align: center;
+      }
+
+      .transcript-scrub-range {
+        flex: 1;
+        accent-color: var(--accent);
+      }
+
       .transcript-time {
         color: var(--muted);
         font-size: 0.88rem;
@@ -773,6 +794,84 @@
         });
       }
 
+      // Scrubbing UI: a single shared scrub bar (current-time label, seek
+      // range, duration label) is moved into whichever transcript entry is
+      // currently playing, since only one clip plays at a time (see
+      // clipPlaybackActive/clipAudio above). It's created once here and
+      // reparented via attachClipScrubBar/detachClipScrubBar rather than
+      // building a new one per entry.
+      const clipScrub = document.createElement("div");
+      clipScrub.className = "transcript-scrub";
+      clipScrub.hidden = true;
+      const clipScrubCurrent = document.createElement("span");
+      clipScrubCurrent.className = "transcript-scrub-time";
+      clipScrubCurrent.textContent = "0:00";
+      const clipScrubRange = document.createElement("input");
+      clipScrubRange.type = "range";
+      clipScrubRange.className = "transcript-scrub-range";
+      clipScrubRange.min = "0";
+      clipScrubRange.max = "1000";
+      clipScrubRange.value = "0";
+      const clipScrubDuration = document.createElement("span");
+      clipScrubDuration.className = "transcript-scrub-time";
+      clipScrubDuration.textContent = "0:00";
+      clipScrub.append(clipScrubCurrent, clipScrubRange, clipScrubDuration);
+
+      let clipScrubDragging = false;
+
+      function formatClockTime(totalSeconds) {
+        if (!Number.isFinite(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
+        const m = Math.floor(totalSeconds / 60);
+        const s = Math.floor(totalSeconds % 60);
+        return `${m}:${s.toString().padStart(2, "0")}`;
+      }
+
+      function updateClipScrubUI() {
+        const duration = Number.isFinite(clipAudio.duration) ? clipAudio.duration : 0;
+        clipScrubDuration.textContent = formatClockTime(duration);
+        clipScrubCurrent.textContent = formatClockTime(clipAudio.currentTime);
+        if (!clipScrubDragging) {
+          clipScrubRange.value = duration > 0 ? String(Math.round((clipAudio.currentTime / duration) * 1000)) : "0";
+        }
+      }
+
+      clipAudio.addEventListener("timeupdate", updateClipScrubUI);
+      clipAudio.addEventListener("loadedmetadata", updateClipScrubUI);
+      clipAudio.addEventListener("durationchange", updateClipScrubUI);
+
+      clipScrubRange.addEventListener("input", () => {
+        clipScrubDragging = true;
+        const duration = Number.isFinite(clipAudio.duration) ? clipAudio.duration : 0;
+        if (duration > 0) {
+          clipAudio.currentTime = (Number(clipScrubRange.value) / 1000) * duration;
+        }
+        updateClipScrubUI();
+      });
+      clipScrubRange.addEventListener("change", () => {
+        clipScrubDragging = false;
+      });
+
+      function attachClipScrubBar(clipId) {
+        const entry = transcriptLog.querySelector(`[data-clip-id="${CSS.escape(clipId)}"]`);
+        clipScrubDragging = false;
+        clipScrubRange.value = "0";
+        clipScrubCurrent.textContent = "0:00";
+        clipScrubDuration.textContent = "0:00";
+        if (entry) {
+          entry.append(clipScrub);
+          clipScrub.hidden = false;
+        } else {
+          detachClipScrubBar();
+        }
+      }
+
+      function detachClipScrubBar() {
+        clipScrub.hidden = true;
+        if (clipScrub.parentElement) {
+          clipScrub.parentElement.removeChild(clipScrub);
+        }
+      }
+
       function playNextQueuedClip() {
         if (clipPlaybackActive || clipPlaybackQueue.length === 0) {
           updateClipPlayButtons();
@@ -783,6 +882,7 @@
         const audio = clipAudio;
         clipPlaybackActive = { clipId: next.clipId, audio };
         updateClipPlayButtons();
+        attachClipScrubBar(next.clipId);
         audio.src = next.audioUrl;
         audio.currentTime = 0;
 
@@ -791,6 +891,7 @@
             clipPlaybackActive = null;
             audio.removeAttribute("src");
             audio.load();
+            detachClipScrubBar();
             updateClipPlayButtons();
             playNextQueuedClip();
           }
@@ -801,6 +902,7 @@
             clipPlaybackActive = null;
             audio.removeAttribute("src");
             audio.load();
+            detachClipScrubBar();
             updateClipPlayButtons();
             playNextQueuedClip();
           }
@@ -811,6 +913,7 @@
             clipPlaybackActive = null;
             audio.removeAttribute("src");
             audio.load();
+            detachClipScrubBar();
             updateClipPlayButtons();
             playNextQueuedClip();
           }

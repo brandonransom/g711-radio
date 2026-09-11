@@ -136,6 +136,16 @@ type appConfig struct {
 	// Leave empty in normal operation — this is a diagnostic-only feature.
 	AudioDumpDir string `json:"audioDumpDir"`
 
+	// TranscriptArchiveFile, when non-empty, makes every transcribed clip
+	// (across all streams) get appended as a plain-text line — timestamp,
+	// stream name, transcript text — to this single file, in addition to
+	// the normal per-stream JSON logs under the "transcripts" directory.
+	// Unlike those per-stream logs (and every other log/recording in this
+	// program), this file is never pruned/rotated/cleaned up: it exists
+	// specifically as a permanent, append-only record. Defaults to
+	// "transcripts_archive.log" in the working directory if left empty.
+	TranscriptArchiveFile string `json:"transcriptArchiveFile"`
+
 	streamGroups []configuredRegion
 	totalStreams int
 }
@@ -568,7 +578,16 @@ func main() {
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
 
-	hub := newTranscriptHub("transcripts", logger)
+	transcriptArchiveFile := config.TranscriptArchiveFile
+	if transcriptArchiveFile == "" {
+		transcriptArchiveFile = "transcripts_archive.log"
+	}
+	if abs, err := filepath.Abs(transcriptArchiveFile); err == nil {
+		transcriptArchiveFile = abs
+	}
+	logger.Printf("transcript archive file: %s (permanent, never pruned)", transcriptArchiveFile)
+
+	hub := newTranscriptHub("transcripts", transcriptArchiveFile, logger)
 
 	var pool *whisperPool
 	if config.Whisper != nil && (config.Whisper.ModelPath != "" || config.Whisper.RemoteHost != "") {
