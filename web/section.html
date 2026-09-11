@@ -50,6 +50,17 @@
         backdrop-filter: blur(14px);
       }
 
+      @media (max-width: 480px) {
+        body {
+          padding: 12px;
+        }
+
+        main {
+          padding: 20px;
+          border-radius: 18px;
+        }
+      }
+
       .breadcrumb {
         font-size: 0.85rem;
         color: var(--muted);
@@ -134,7 +145,7 @@
       .streams {
         display: grid;
         gap: 14px;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
       }
 
       .stream {
@@ -254,6 +265,21 @@
 
       .transcript-entry:last-child {
         border-bottom: none;
+      }
+
+      @media (max-width: 640px) {
+        .transcript-entry {
+          grid-template-columns: 1fr auto;
+          row-gap: 4px;
+        }
+
+        .transcript-stream {
+          grid-column: 1 / -1;
+        }
+
+        .transcript-text {
+          grid-column: 1 / -1;
+        }
       }
 
       .transcript-scrub {

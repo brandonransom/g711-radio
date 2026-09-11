@@ -100,6 +100,21 @@
         { "streamName": "Smokey Bear RD", "udpPort": 10820 },
         { "streamName": "BLM Roswell FO", "udpPort": 10840 },
         { "streamName": "BIA Mescalero", "udpPort": 10850 }
+      ],
+      "Gila NF": [
+        { "streamName": "NFF", "udpPort": 10610 },
+        { "streamName": "Fire N Quemado/Luna", "udpPort": 10620 },
+        { "streamName": "Fire N Reserve/Glenwood", "udpPort": 10630 },
+        { "streamName": "Fire S Wilderness/Black Range", "udpPort": 10640 },
+        { "streamName": "Fire S Silver City", "udpPort": 10650 }
+      ],
+      "Cibola NF": [
+        { "streamName": "South Baldy", "udpPort": 10310 },
+        { "streamName": "Capilla", "udpPort": 10320 },
+        { "streamName": "LaMosca", "udpPort": 10330 },
+        { "streamName": "Kiowa", "udpPort": 10340 },
+        { "streamName": "Cedro Pk", "udpPort": 10350 },
+        { "streamName": "NFF", "udpPort": 10360 }
       ]
     },
     "Oregon": {
