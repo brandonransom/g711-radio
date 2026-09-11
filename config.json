@@ -6,6 +6,7 @@
   "certFile": "",
   "keyFile": "",
   "pfxFile": "C:\\Certs\\radiostreams_27.pfx",
+  "transcriptArchiveFile": "C:\\path\\to\\wherever.log",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
     "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-medium.bin",
