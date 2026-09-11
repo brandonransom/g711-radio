@@ -1,1 +1,1567 @@
 timestamp,action,client_ip,stream,peer_id,clip_id,source,duration_ms,path
+2026-09-01T20:08:28-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T20:08:44-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T20:10:17-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T20:10:17-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,,
+2026-09-01T20:10:20-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,112671,
+2026-09-01T20:10:29-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,12489,
+2026-09-01T20:10:30-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,105996,
+2026-09-01T20:10:33-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-01T20:12:07-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,,
+2026-09-01T20:12:18-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-3,,,,
+2026-09-01T20:12:22-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,125362,
+2026-09-01T20:12:23-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,109560,
+2026-09-01T20:21:23-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,555915,
+2026-09-01T20:21:24-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-3,,,546558,
+2026-09-01T20:21:25-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-4,,,,
+2026-09-01T20:21:26-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,,
+2026-09-01T20:22:33-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-5,,,,
+2026-09-01T20:22:35-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,,
+2026-09-01T20:22:51-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-7,,,,
+2026-09-01T20:22:54-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,87971,
+2026-09-01T20:22:54-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-6,,,,
+2026-09-01T20:22:55-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-8,,,,
+2026-09-01T20:23:02-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-4,,,96351,
+2026-09-01T20:23:12-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-9,,,,
+2026-09-01T20:23:17-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-5,,,44577,
+2026-09-01T20:23:30-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,54186,
+2026-09-01T20:23:32-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-7,,,41355,
+2026-09-01T20:23:35-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-10,,,,
+2026-09-01T20:23:48-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-11,,,,
+2026-09-01T20:23:53-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-8,,,57730,
+2026-09-01T20:23:59-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-9,,,47184,
+2026-09-01T20:24:30-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-12,,,,
+2026-09-01T20:24:30-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-10,,,55357,
+2026-09-01T20:24:51-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-13,,,,
+2026-09-01T20:25:04-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-11,,,75662,
+2026-09-01T20:25:27-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-6,,,152524,
+2026-09-01T20:25:27-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-7,,,,
+2026-09-01T20:26:17-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-14,,,,
+2026-09-01T20:26:19-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-13,,,87281,
+2026-09-01T20:27:03-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-15,,,,
+2026-09-01T20:27:03-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-8,,,,
+2026-09-01T20:27:04-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-12,,,154211,
+2026-09-01T20:27:04-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-7,,,96458,
+2026-09-01T20:27:04-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-14,,,47075,
+2026-09-01T20:27:10-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-16,,,,
+2026-09-01T20:27:44-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-17,,,,
+2026-09-01T20:28:00-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-9,,,,
+2026-09-01T20:28:02-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-16,,,51312,
+2026-09-01T20:28:08-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-18,,,,
+2026-09-01T20:28:10-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-15,,,66477,
+2026-09-01T20:28:30-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-19,,,,
+2026-09-01T20:28:33-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-17,,,48341,
+2026-09-01T20:28:38-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-8,,,94035,
+2026-09-01T20:28:46-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-20,,,,
+2026-09-01T20:28:56-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-18,,,47935,
+2026-09-01T20:29:09-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-21,,,,
+2026-09-01T20:29:09-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-10,,,,
+2026-09-01T20:29:13-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-9,,,72574,
+2026-09-01T20:29:23-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-1,,,,
+2026-09-01T20:29:35-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-11,,,,
+2026-09-01T20:29:36-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-22,,,,
+2026-09-01T20:29:36-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-10,,,27281,
+2026-09-01T20:29:37-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-21,,,28372,
+2026-09-01T20:29:39-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-23,,,,
+2026-09-01T20:29:42-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-19,,,69729,
+2026-09-01T20:29:56-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-12,,,,
+2026-09-01T20:33:20-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-1,,,,
+2026-09-01T20:33:20-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T20:33:20-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T20:33:20-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T20:35:35-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-01T20:35:35-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,,
+2026-09-01T20:35:41-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,140886,
+2026-09-01T20:35:47-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,147022,
+2026-09-01T20:36:03-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,,
+2026-09-01T20:36:03-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,,
+2026-09-01T20:36:04-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-2,,,,
+2026-09-01T20:36:04-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,28920,
+2026-09-01T20:36:05-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,165116,
+2026-09-01T20:36:08-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-1,,,168685,
+2026-09-01T20:36:46-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-3,,,,
+2026-09-01T20:36:47-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,,
+2026-09-01T20:36:48-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,44342,
+2026-09-01T20:36:55-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-2,,,51096,
+2026-09-01T20:37:05-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-3,,,,
+2026-09-01T20:37:10-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,66436,
+2026-09-01T20:37:14-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-7,,,,
+2026-09-01T20:37:18-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,31422,
+2026-09-01T20:37:22-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-8,,,,
+2026-09-01T20:37:36-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,120634,
+2026-09-01T20:37:56-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-7,,,39656,
+2026-09-01T20:38:07-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-3,,,80937,
+2026-09-01T20:38:10-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-4,,,,
+2026-09-01T20:38:36-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-5,,,,
+2026-09-01T20:38:36-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-4,,,25978,
+2026-09-01T20:38:42-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-4,,,,
+2026-09-01T20:38:45-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-3,,,100505,
+2026-09-01T20:38:53-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-8,,,91583,
+2026-09-01T20:38:54-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-9,,,,
+2026-09-01T20:38:58-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-6,,,,
+2026-09-01T20:39:08-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-5,,,32290,
+2026-09-01T20:39:47-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-5,,,,
+2026-09-01T20:39:56-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-4,,,74039,
+2026-09-01T20:39:57-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-7,,,,
+2026-09-01T20:39:58-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-6,,,59318,
+2026-09-01T20:40:11-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-9,,,77232,
+2026-09-01T20:40:25-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-8,,,,
+2026-09-01T20:40:26-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-10,,,,
+2026-09-01T20:40:29-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-5,,,42654,
+2026-09-01T20:40:33-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-6,,,,
+2026-09-01T20:54:37-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T20:54:37-08:00,connect,199.131.68.69,KD Reflector,stream-67-peer-1,,,,
+2026-09-01T20:54:40-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T20:55:43-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T20:55:49-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,68845,
+2026-09-01T20:55:49-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,,
+2026-09-01T20:56:00-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,82831,
+2026-09-01T20:56:12-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-01T20:56:13-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,29822,
+2026-09-01T20:56:31-08:00,disconnect,199.131.68.69,KD Reflector,stream-67-peer-1,,,113378,
+2026-09-01T20:58:11-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T20:58:11-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:00:12-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,,
+2026-09-01T21:00:13-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,121999,
+2026-09-01T21:01:54-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T21:01:54-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:12:26-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:12:26-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T21:14:07-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-2,,,,
+2026-09-01T21:14:14-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,107297,
+2026-09-01T21:16:13-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T21:16:13-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:16:30-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-01T21:16:49-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T21:16:56-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-2,,,,
+2026-09-01T21:17:23-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-1,,,53098,
+2026-09-01T21:17:36-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-2,,,40813,
+2026-09-01T21:17:39-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-01T21:17:39-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-3,,,,
+2026-09-01T21:17:39-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,,
+2026-09-01T21:17:44-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,91452,
+2026-09-01T21:17:56-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,,
+2026-09-01T21:17:57-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-4,,,,
+2026-09-01T21:18:02-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,72863,
+2026-09-01T21:18:27-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-3,,,48286,
+2026-09-01T21:18:28-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,,
+2026-09-01T21:18:32-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-5,,,,
+2026-09-01T21:18:35-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,56620,
+2026-09-01T21:20:04-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:20:04-08:00,connect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,,
+2026-09-01T21:20:18-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-01T21:20:32-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T21:20:46-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-11-peer-1,,,42650,
+2026-09-01T21:20:47-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,43106,
+2026-09-01T21:27:20-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-01T21:27:29-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:27:37-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net_-_Multicast/Juneau_Net_-_Multicast_2026-09-02T05_20_44Z.wav
+2026-09-01T21:28:03-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T21:46:25-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-01T21:46:36-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:47:59-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-01T21:48:00-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-01T21:49:47-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-1,,,,
+2026-09-01T21:51:23-08:00,connect,199.131.68.69,North Net,stream-38-peer-1,,,,
+2026-09-01T21:58:32-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-2,,,,
+2026-09-01T21:59:22-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-1,,,682093,
+2026-09-01T22:04:51-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-3,,,,
+2026-09-01T22:05:29-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-2,,,416984,
+2026-09-01T22:06:59-08:00,connect,199.131.68.69,North Net,stream-38-peer-2,,,,
+2026-09-01T22:07:33-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-1,,,969853,
+2026-09-01T22:21:35-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-2,,,,
+2026-09-01T22:22:09-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-1,,,1942110,
+2026-09-01T22:26:06-08:00,connect,199.139.48.70,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-01T22:30:22-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-01T22:31:09-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,2589326,
+2026-09-01T22:32:12-08:00,connect,199.131.68.69,North Net,stream-38-peer-3,,,,
+2026-09-01T22:32:44-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-2,,,1545084,
+2026-09-01T22:38:02-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-4,,,,
+2026-09-01T22:38:38-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-3,,,2027033,
+2026-09-01T22:56:58-08:00,connect,199.131.68.69,North Net,stream-38-peer-4,,,,
+2026-09-01T22:57:41-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-3,,,1529451,
+2026-09-01T23:11:04-08:00,connect,199.139.48.70,Juneau Net - Multicast,stream-5-peer-4,,,,
+2026-09-01T23:11:36-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,,
+2026-09-01T23:11:45-08:00,disconnect,199.139.48.70,Juneau Net - Multicast,stream-5-peer-2,,,2739742,
+2026-09-01T23:11:54-08:00,disconnect,199.139.48.70,Juneau Net - Multicast,stream-5-peer-4,,,49272,
+2026-09-01T23:12:21-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,2518960,
+2026-09-01T23:36:35-08:00,connect,199.131.68.69,North Net,stream-38-peer-5,,,,
+2026-09-01T23:37:07-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-4,,,2409026,
+2026-09-02T00:11:53-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-5,,,,
+2026-09-02T00:12:19-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-4,,,5655421,
+2026-09-02T00:30:48-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,,
+2026-09-02T00:30:48-08:00,connect,199.131.68.69,North Net,stream-38-peer-6,,,,
+2026-09-02T00:30:49-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-6,,,,
+2026-09-02T00:30:49-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-3,,,,
+2026-09-02T00:31:12-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,4776399,
+2026-09-02T00:31:14-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-5,,,3279310,
+2026-09-02T00:31:15-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-2,,,7780370,
+2026-09-02T00:31:24-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-5,,,1170539,
+2026-09-02T00:33:48-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-7,,,,
+2026-09-02T00:34:27-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,218316,
+2026-09-02T00:35:39-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-8,,,,
+2026-09-02T00:35:58-08:00,connect,199.131.68.69,North Net,stream-38-peer-7,,,,
+2026-09-02T00:36:17-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-7,,,148756,
+2026-09-02T00:36:40-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-6,,,351847,
+2026-09-02T05:18:28-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-9,,,,
+2026-09-02T05:19:11-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-8,,,17012499,
+2026-09-02T05:25:06-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-7,,,,
+2026-09-02T05:25:19-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-10,,,,
+2026-09-02T05:25:19-08:00,connect,199.131.68.69,North Net,stream-38-peer-8,,,,
+2026-09-02T05:25:55-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-6,,,17706014,
+2026-09-02T05:26:00-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-9,,,451254,
+2026-09-02T05:26:39-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-7,,,17441687,
+2026-09-02T05:27:23-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-11,,,,
+2026-09-02T05:27:32-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-4,,,,
+2026-09-02T05:28:08-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-10,,,168468,
+2026-09-02T05:28:08-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-12-peer-3,,,17838940,
+2026-09-02T08:24:38-08:00,connect,199.139.48.55,Juneau Net - Multicast,stream-5-peer-12,,,,
+2026-09-02T08:25:12-08:00,disconnect,199.139.48.55,Juneau Net - Multicast,stream-5-peer-12,,,33365,
+2026-09-02T09:27:58-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-8,,,,
+2026-09-02T09:27:58-08:00,disconnect,199.131.68.69,North Net,stream-38-peer-8,,,14559167,
+2026-09-02T09:28:14-08:00,connect,199.131.68.69,Cordova Net,stream-3-peer-1,,,,
+2026-09-02T09:32:49-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-7,,,14862668,
+2026-09-02T10:32:31-08:00,connect,166.5.98.180,Admin Net,stream-15-peer-1,,,,
+2026-09-02T10:51:15-08:00,connect,166.5.98.180,Admin Net,stream-15-peer-2,,,,
+2026-09-02T10:57:10-08:00,connect,199.131.68.69,Ironwood Net,stream-36-peer-1,,,,
+2026-09-02T11:06:44-08:00,connect,199.131.68.69,Ontonagon Net,stream-37-peer-1,,,,
+2026-09-02T11:27:44-08:00,disconnect,166.5.98.180,Admin Net,stream-15-peer-2,,,2189246,
+2026-09-02T12:44:38-08:00,connect,166.5.98.180,Admin Net,stream-15-peer-3,,,,
+2026-09-02T12:45:09-08:00,disconnect,166.5.98.180,Admin Net,stream-15-peer-1,,,7958427,
+2026-09-02T12:47:31-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-9,,,,
+2026-09-02T12:47:31-08:00,connect,199.131.68.69,Ontonagon Net,stream-37-peer-2,,,,
+2026-09-02T12:47:32-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-10,,,,
+2026-09-02T12:47:32-08:00,connect,199.131.68.69,Ontonagon Net,stream-37-peer-3,,,,
+2026-09-02T12:48:05-08:00,disconnect,199.131.68.69,Ontonagon Net,stream-37-peer-1,,,6081061,
+2026-09-02T12:48:16-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-8,,,12018543,
+2026-09-02T12:48:28-08:00,disconnect,199.131.68.69,Ontonagon Net,stream-37-peer-2,,,56893,
+2026-09-02T12:48:29-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-9,,,58059,
+2026-09-02T12:58:58-08:00,connect,166.5.98.180,Forest Net,stream-16-peer-1,,,,
+2026-09-02T13:34:53-08:00,disconnect,199.131.68.69,Ironwood Net,stream-36-peer-1,,,9462931,
+2026-09-02T14:43:03-08:00,disconnect,166.5.98.180,Admin Net,stream-15-peer-3,,,7105608,
+2026-09-02T14:44:44-08:00,connect,166.5.98.180,Admin Net,stream-15-peer-4,,,,
+2026-09-02T14:46:03-08:00,connect,199.131.68.69,Revillagigedo Net,stream-12-peer-1,,,,
+2026-09-02T14:46:03-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-02T14:46:05-08:00,connect,166.5.98.180,Admin Net,stream-16-peer-1,,,,
+2026-09-02T14:46:07-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-1,,,,
+2026-09-02T14:46:07-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-1,,,,
+2026-09-02T14:46:08-08:00,connect,199.131.68.69,Cordova Net,stream-3-peer-1,,,,
+2026-09-02T14:46:09-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-02T14:47:24-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-1,,,,
+2026-09-02T14:48:15-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-2,,,,
+2026-09-02T14:48:15-08:00,connect,199.131.68.69,Revillagigedo Net,stream-12-peer-2,,,,
+2026-09-02T14:48:19-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-2,,,,
+2026-09-02T14:48:27-08:00,connect,166.5.98.180,Admin Net,stream-16-peer-2,,,,
+2026-09-02T14:48:39-08:00,connect,199.131.68.69,Cordova Net,stream-3-peer-2,,,,
+2026-09-02T14:48:42-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-02T14:48:42-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-2,,,,
+2026-09-02T14:49:05-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-12-peer-1,,,181829,
+2026-09-02T14:49:05-08:00,disconnect,199.131.68.69,Cordova Net,stream-3-peer-1,,,177929,
+2026-09-02T14:49:08-08:00,disconnect,166.5.98.180,Admin Net,stream-16-peer-1,,,182842,
+2026-09-02T14:49:15-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-1,,,188306,
+2026-09-02T14:49:19-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-1,,,115519,
+2026-09-02T14:49:24-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-1,,,200316,
+2026-09-02T14:49:48-08:00,connect,166.5.98.180,Admin Net,stream-16-peer-3,,,,
+2026-09-02T14:49:55-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,226467,
+2026-09-02T14:50:26-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-3,,,,
+2026-09-02T14:50:34-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T17_05_29Z.wav
+2026-09-02T14:50:50-08:00,disconnect,166.5.98.180,Admin Net,stream-16-peer-2,,,142954,
+2026-09-02T14:51:16-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-2,,,176474,
+2026-09-02T14:51:32-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-3,,,,
+2026-09-02T14:51:33-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-4,,,,
+2026-09-02T14:51:35-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-02T14:51:51-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-2,,,,
+2026-09-02T14:52:07-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-2,,,231647,
+2026-09-02T14:52:25-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-1,,,377652,
+2026-09-02T14:52:32-08:00,connect,166.5.98.180,Admin Net,stream-16-peer-4,,,,
+2026-09-02T14:52:44-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,242862,
+2026-09-02T14:52:46-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-5,,,,
+2026-09-02T14:52:46-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-3,,,139811,
+2026-09-02T14:52:50-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,,
+2026-09-02T14:53:18-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-6,,,,
+2026-09-02T14:53:28-08:00,connect,166.5.98.180,Forest Net,stream-15-peer-7,,,,
+2026-09-02T14:53:37-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,121775,
+2026-09-02T14:53:53-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-4,,,140515,
+2026-09-02T14:54:04-08:00,disconnect,166.5.98.180,Admin Net,stream-16-peer-3,,,255924,
+2026-09-02T14:54:17-08:00,connect,166.5.98.180,Admin Net,stream-16-peer-5,,,,
+2026-09-02T14:54:19-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-5,,,92131,
+2026-09-02T14:54:27-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-3,,,,
+2026-09-02T14:54:31-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-6,,,66336,
+2026-09-02T14:54:37-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-4,,,,
+2026-09-02T14:54:38-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,,
+2026-09-02T14:54:58-08:00,audio_download,166.6.143.33,,,,,,/audio/Oregon/Deschutes_NF/DEF_South/DEF_South_2026-09-02T21_01_11Z.wav
+2026-09-02T14:55:01-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-4,,,130911,
+2026-09-02T14:55:01-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-3,,,209178,
+2026-09-02T14:55:05-08:00,connect,166.6.143.33,DEF Central,stream-48-peer-1,,,,
+2026-09-02T14:55:10-08:00,disconnect,166.5.98.180,Admin Net,stream-16-peer-4,,,157490,
+2026-09-02T14:55:10-08:00,audio_download,166.6.143.33,,,,,,/audio/Oregon/Deschutes_NF/DEF_South/DEF_South_2026-09-02T22_14_09Z.wav
+2026-09-02T14:55:15-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-2,,,393018,
+2026-09-02T14:55:16-08:00,audio_download,166.6.143.33,,,,,,/audio/Oregon/Deschutes_NF/DEF_South/DEF_South_2026-09-02T18_42_32Z.wav
+2026-09-02T14:55:50-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-3,,,,
+2026-09-02T14:55:52-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-4,,,,
+2026-09-02T14:55:52-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-5,,,,
+2026-09-02T14:56:23-08:00,disconnect,166.5.98.180,Forest Net,stream-15-peer-7,,,174758,
+2026-09-02T14:56:23-08:00,disconnect,166.5.98.180,Admin Net,stream-16-peer-5,,,126157,
+2026-09-02T14:56:30-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-2,,,277831,
+2026-09-02T14:56:32-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-4,,,112643,
+2026-09-02T14:56:43-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-3,,,135624,
+2026-09-02T14:56:44-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-4,,,,
+2026-09-02T14:57:23-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-3,,,93191,
+2026-09-02T14:57:52-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-5,,,,
+2026-09-02T14:58:07-08:00,disconnect,166.6.143.33,DEF Central,stream-48-peer-1,,,182523,
+2026-09-02T14:58:22-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-6,,,,
+2026-09-02T14:58:33-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-4,,,109426,
+2026-09-02T14:59:08-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-5,,,,
+2026-09-02T14:59:10-08:00,connect,199.131.68.69,Revillagigedo Net,stream-12-peer-3,,,,
+2026-09-02T14:59:11-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-5,,,273359,
+2026-09-02T14:59:43-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-6,,,,
+2026-09-02T15:00:03-08:00,connect,199.131.68.69,Cordova Net,stream-3-peer-3,,,,
+2026-09-02T15:00:09-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-6,,,,
+2026-09-02T15:00:18-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-12-peer-2,,,722593,
+2026-09-02T15:00:21-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-5,,,269329,
+2026-09-02T15:00:24-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-4,,,272455,
+2026-09-02T15:00:50-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-7,,,,
+2026-09-02T15:00:52-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-6,,,,
+2026-09-02T15:00:53-08:00,disconnect,199.131.68.69,Cordova Net,stream-3-peer-2,,,733939,
+2026-09-02T15:00:53-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-5,,,181289,
+2026-09-02T15:02:08-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-8,,,,
+2026-09-02T15:02:20-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-7,,,,
+2026-09-02T15:02:21-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-6,,,132843,
+2026-09-02T15:02:21-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-5,,,193172,
+2026-09-02T15:02:26-08:00,connect,199.131.68.69,Revillagigedo Net,stream-12-peer-4,,,,
+2026-09-02T15:17:48-08:00,connect,199.131.68.69,Cordova Net,stream-3-peer-1,,,,
+2026-09-02T15:17:48-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-1,,,,
+2026-09-02T15:17:48-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,,
+2026-09-02T15:17:49-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-1,,,,
+2026-09-02T15:17:49-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-1,,,,
+2026-09-02T15:17:49-08:00,connect,199.131.68.69,Revillagigedo Net,stream-12-peer-1,,,,
+2026-09-02T15:19:39-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,,
+2026-09-02T15:20:24-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-1,,,155737,
+2026-09-02T15:20:28-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T17_07_21Z.wav
+2026-09-02T15:20:51-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T17_05_08Z.wav
+2026-09-02T15:21:02-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T17_05_06Z.wav
+2026-09-02T15:21:24-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T22_38_09Z.wav
+2026-09-02T15:22:21-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-2,,,,
+2026-09-02T15:23:07-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-1,,,317536,
+2026-09-02T15:25:51-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T22_37_35Z.wav
+2026-09-02T15:25:55-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T18_30_08Z.wav
+2026-09-02T15:26:59-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-02T19_05_03Z.wav
+2026-09-02T15:29:21-08:00,connect,166.6.82.96,DEF North,stream-47-peer-1,,,,
+2026-09-02T15:29:49-08:00,audio_download,166.6.82.96,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-02T22_08_20Z.wav
+2026-09-02T15:30:03-08:00,audio_download,166.6.82.96,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-02T22_08_07Z.wav
+2026-09-02T15:30:12-08:00,transcript_request,166.6.82.96,,,clip-6020,audiourl_fallback,,
+2026-09-02T15:30:49-08:00,connect,166.6.82.96,OCH Central,stream-52-peer-1,,,,
+2026-09-02T15:30:59-08:00,audio_download,166.6.82.96,,,,,,/audio/Oregon/Ochoco_NF/OCH_West/OCH_West_2026-09-02T21_09_06Z.wav
+2026-09-02T15:31:02-08:00,disconnect,166.6.82.96,DEF North,stream-47-peer-1,,,101575,
+2026-09-02T15:31:57-08:00,disconnect,166.6.82.96,OCH Central,stream-52-peer-1,,,68886,
+2026-09-02T15:40:42-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-2,,,1262878,
+2026-09-02T15:40:42-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-12-peer-1,,,1373415,
+2026-09-02T15:40:43-08:00,disconnect,199.131.68.69,Cordova Net,stream-3-peer-1,,,1374728,
+2026-09-02T15:40:43-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-1,,,1374668,
+2026-09-02T15:40:45-08:00,disconnect,199.131.68.69,Ironwood Net,stream-37-peer-2,,,1104464,
+2026-09-02T15:40:50-08:00,disconnect,199.131.68.69,Glacier Net,stream-1-peer-1,,,1381168,
+2026-09-02T15:42:35-08:00,connect,199.131.68.69,Glacier Net,stream-1-peer-2,,,,
+2026-09-02T15:42:35-08:00,connect,199.131.68.69,Cordova Net,stream-3-peer-2,,,,
+2026-09-02T15:42:36-08:00,connect,199.131.68.69,Revillagigedo Net,stream-12-peer-2,,,,
+2026-09-02T15:42:36-08:00,connect,199.131.68.69,Ironwood Net,stream-37-peer-3,,,,
+2026-09-02T15:42:46-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-13-peer-2,,,,
+2026-09-02T15:42:46-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-5-peer-3,,,,
+2026-09-02T16:01:25-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-3eab9fcd5481864da8e434ea6dffeb4f-peer-1,,,,
+2026-09-02T16:10:38-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Revilla_Net_-_DFSI_Multicast/Revilla_Net_-_DFSI_Multicast_2026-09-03T00_02_50Z.wav
+2026-09-02T16:10:45-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Revillagigedo_Net/Revillagigedo_Net_2026-09-03T00_10_21Z.wav
+2026-09-02T16:12:20-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Revilla_Net_-_DFSI_Multicast/Revilla_Net_-_DFSI_Multicast_2026-09-03T00_11_41Z.wav
+2026-09-02T16:12:27-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Revilla_Net_-_DFSI_Multicast/Revilla_Net_-_DFSI_Multicast_2026-09-03T00_11_39Z.wav
+2026-09-02T16:12:31-08:00,transcript_request,199.131.68.69,,,clip-103,registry,,
+2026-09-02T16:12:33-08:00,transcript_request,199.131.68.69,,,clip-101,registry,,
+2026-09-02T16:34:56-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Revilla_Net_-_DFSI_Multicast/Revilla_Net_-_DFSI_Multicast_2026-09-03T00_02_14Z.wav
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Glacier Net,stream-50b921d60b3348a5e0872500245c061f-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Seward Net,stream-291564230fbd36622fa77091deaa9ec5-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Cordova Net,stream-7d9be559d2bd4f869ca3f6f6754c0a62-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-698582769f8081f5b6e14356a8fe98e5-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Revillagigedo Net,stream-3c49fb50ddd94495e9cfccf9665ccf00-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Hoonah Net,stream-15948c78fbb35416e009d3613435c8cd-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Yakutat Net,stream-46c944f14bfd4bc8717a475cdd65073a-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Petersburg Net,stream-34168a6c8de2929088ff539872de2beb-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Sitka Net,stream-f9efcbc461c0e99a3bbed1c66dc08acf-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-ea55b4bce8aa70dd035eef2fbd989ff0-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Prince of Wales Net,stream-f06e2e9745957d362948e2f1b69d3108-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-0682892442a1057b6e52fa207ac875d3-peer-1,,,,
+2026-09-02T16:43:10-08:00,connect,199.131.68.69,Juneau Net,stream-b59874b478b030f741bed259685d4496-peer-1,,,,
+2026-09-02T16:43:20-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-ea55b4bce8aa70dd035eef2fbd989ff0-peer-1,,,10502,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-698582769f8081f5b6e14356a8fe98e5-peer-1,,,11042,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-3c49fb50ddd94495e9cfccf9665ccf00-peer-1,,,11061,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-0682892442a1057b6e52fa207ac875d3-peer-1,,,11002,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Petersburg Net,stream-34168a6c8de2929088ff539872de2beb-peer-1,,,11174,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Sitka Net,stream-f9efcbc461c0e99a3bbed1c66dc08acf-peer-1,,,11174,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Hoonah Net,stream-15948c78fbb35416e009d3613435c8cd-peer-1,,,11241,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Juneau Net,stream-b59874b478b030f741bed259685d4496-peer-1,,,11274,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Yakutat Net,stream-46c944f14bfd4bc8717a475cdd65073a-peer-1,,,11589,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Cordova Net,stream-7d9be559d2bd4f869ca3f6f6754c0a62-peer-1,,,11637,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Glacier Net,stream-50b921d60b3348a5e0872500245c061f-peer-1,,,11821,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Seward Net,stream-291564230fbd36622fa77091deaa9ec5-peer-1,,,11820,
+2026-09-02T16:43:21-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-f06e2e9745957d362948e2f1b69d3108-peer-1,,,11711,
+2026-09-02T16:43:24-08:00,connect,199.131.68.69,Glacier Net,stream-50b921d60b3348a5e0872500245c061f-peer-2,,,,
+2026-09-02T16:43:24-08:00,connect,199.131.68.69,Cordova Net,stream-7d9be559d2bd4f869ca3f6f6754c0a62-peer-2,,,,
+2026-09-02T16:43:24-08:00,connect,199.131.68.69,Seward Net,stream-291564230fbd36622fa77091deaa9ec5-peer-2,,,,
+2026-09-02T16:43:37-08:00,disconnect,199.131.68.69,Seward Net,stream-291564230fbd36622fa77091deaa9ec5-peer-2,,,12909,
+2026-09-02T16:43:37-08:00,disconnect,199.131.68.69,Cordova Net,stream-7d9be559d2bd4f869ca3f6f6754c0a62-peer-2,,,13000,
+2026-09-02T16:43:37-08:00,disconnect,199.131.68.69,Glacier Net,stream-50b921d60b3348a5e0872500245c061f-peer-2,,,13233,
+2026-09-02T16:43:42-08:00,connect,199.131.68.69,Apalachicola Net,stream-6db1bdc68a7c2f0032bf89a61ae84117-peer-1,,,,
+2026-09-02T16:43:42-08:00,connect,199.131.68.69,Osceola Net,stream-e33532c05149ceadefbb1537c73b5dd4-peer-1,,,,
+2026-09-02T16:43:42-08:00,connect,199.131.68.69,Ocala Net,stream-e71bc3e8ac85cfe88c0da0875225fba9-peer-1,,,,
+2026-09-02T16:43:46-08:00,disconnect,199.131.68.69,Ocala Net,stream-e71bc3e8ac85cfe88c0da0875225fba9-peer-1,,,4730,
+2026-09-02T16:43:47-08:00,disconnect,199.131.68.69,Apalachicola Net,stream-6db1bdc68a7c2f0032bf89a61ae84117-peer-1,,,4868,
+2026-09-02T16:43:47-08:00,disconnect,199.131.68.69,Osceola Net,stream-e33532c05149ceadefbb1537c73b5dd4-peer-1,,,4910,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Admin Net,stream-430bea643b267bbf27ccca207cc174a3-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Forest West Net,stream-cfb831eea0a305eb2ddcc49250f47b0b-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Forest Net,stream-a8e45c6c82088285ef4884d3119828f5-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Admin Net,stream-a58acf2ea9a74a756b2bb82f2f1ad886-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Forest Net,stream-ae1cf02b170a374a8ebc3873486226f7-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Service Net,stream-6def8f1539cbe59f9ba4e52e29d62343-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Pine Cove South Ops,stream-758d54321d602d21d4912e5fdfc68c65-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Keller South Ops,stream-038446e505911095e5492a669cf281bf-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Admin ATB,stream-bb1c4a8ef5caa7cf00616ae9a61708d2-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Fire East Net,stream-5d53e1144e53c6a5b2496a4d2eefa18a-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Fire West Net,stream-796e6a3d9666118df37648ae0c060337-peer-1,,,,
+2026-09-02T16:43:59-08:00,connect,199.131.68.69,Forest East Net,stream-d576639f9f4208a1e950151fd41f427d-peer-1,,,,
+2026-09-02T16:45:02-08:00,disconnect,199.131.68.69,Admin Net,stream-430bea643b267bbf27ccca207cc174a3-peer-1,,,63569,
+2026-09-02T16:45:02-08:00,disconnect,199.131.68.69,Forest West Net,stream-cfb831eea0a305eb2ddcc49250f47b0b-peer-1,,,63595,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Pine Cove South Ops,stream-758d54321d602d21d4912e5fdfc68c65-peer-1,,,63947,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Service Net,stream-6def8f1539cbe59f9ba4e52e29d62343-peer-1,,,63953,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Forest Net,stream-ae1cf02b170a374a8ebc3873486226f7-peer-1,,,63954,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Admin Net,stream-a58acf2ea9a74a756b2bb82f2f1ad886-peer-1,,,63954,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Keller South Ops,stream-038446e505911095e5492a669cf281bf-peer-1,,,63955,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Forest East Net,stream-d576639f9f4208a1e950151fd41f427d-peer-1,,,63939,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Fire West Net,stream-796e6a3d9666118df37648ae0c060337-peer-1,,,63956,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Admin ATB,stream-bb1c4a8ef5caa7cf00616ae9a61708d2-peer-1,,,63956,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Fire East Net,stream-5d53e1144e53c6a5b2496a4d2eefa18a-peer-1,,,63956,
+2026-09-02T16:45:03-08:00,disconnect,199.131.68.69,Forest Net,stream-a8e45c6c82088285ef4884d3119828f5-peer-1,,,63962,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Yakutat Net,stream-46c944f14bfd4bc8717a475cdd65073a-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-0682892442a1057b6e52fa207ac875d3-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Juneau Net,stream-b59874b478b030f741bed259685d4496-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Hoonah Net,stream-15948c78fbb35416e009d3613435c8cd-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Sitka Net,stream-f9efcbc461c0e99a3bbed1c66dc08acf-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Petersburg Net,stream-34168a6c8de2929088ff539872de2beb-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Prince of Wales Net,stream-f06e2e9745957d362948e2f1b69d3108-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-698582769f8081f5b6e14356a8fe98e5-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-ea55b4bce8aa70dd035eef2fbd989ff0-peer-2,,,,
+2026-09-02T16:45:10-08:00,connect,199.131.68.69,Revillagigedo Net,stream-3c49fb50ddd94495e9cfccf9665ccf00-peer-2,,,,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Yakutat Net,stream-46c944f14bfd4bc8717a475cdd65073a-peer-2,,,55258,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-0682892442a1057b6e52fa207ac875d3-peer-2,,,55488,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Juneau Net,stream-b59874b478b030f741bed259685d4496-peer-2,,,55558,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-698582769f8081f5b6e14356a8fe98e5-peer-2,,,55538,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-f06e2e9745957d362948e2f1b69d3108-peer-2,,,55543,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-ea55b4bce8aa70dd035eef2fbd989ff0-peer-2,,,55520,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Petersburg Net,stream-34168a6c8de2929088ff539872de2beb-peer-2,,,55548,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Sitka Net,stream-f9efcbc461c0e99a3bbed1c66dc08acf-peer-2,,,55552,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Hoonah Net,stream-15948c78fbb35416e009d3613435c8cd-peer-2,,,55556,
+2026-09-02T16:46:05-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-3c49fb50ddd94495e9cfccf9665ccf00-peer-2,,,55512,
+2026-09-02T16:46:13-08:00,connect,199.131.68.69,Admin Net,stream-a58acf2ea9a74a756b2bb82f2f1ad886-peer-2,,,,
+2026-09-02T16:46:13-08:00,connect,199.131.68.69,Service Net,stream-6def8f1539cbe59f9ba4e52e29d62343-peer-2,,,,
+2026-09-02T16:46:13-08:00,connect,199.131.68.69,Forest Net,stream-ae1cf02b170a374a8ebc3873486226f7-peer-2,,,,
+2026-09-02T16:47:33-08:00,disconnect,199.131.68.69,Admin Net,stream-a58acf2ea9a74a756b2bb82f2f1ad886-peer-2,,,80117,
+2026-09-02T16:47:33-08:00,disconnect,199.131.68.69,Forest Net,stream-ae1cf02b170a374a8ebc3873486226f7-peer-2,,,80114,
+2026-09-02T16:47:34-08:00,disconnect,199.131.68.69,Service Net,stream-6def8f1539cbe59f9ba4e52e29d62343-peer-2,,,80232,
+2026-09-02T16:50:21-08:00,connect,199.131.68.69,Apalachicola Net,stream-6db1bdc68a7c2f0032bf89a61ae84117-peer-2,,,,
+2026-09-02T16:50:46-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Yakutat_Net/Yakutat_Net_2026-09-03T00_45_20Z.wav
+2026-09-02T16:50:55-08:00,disconnect,199.131.68.69,Apalachicola Net,stream-6db1bdc68a7c2f0032bf89a61ae84117-peer-2,,,34105,
+2026-09-02T16:57:51-08:00,connect,199.131.68.69,Glacier Net,stream-3a57e9119898ebfa6b9c25d31c5347e7-peer-1,,,,
+2026-09-02T16:57:55-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Chugach_NF/Glacier_Net/Glacier_Net_2026-09-02T21_35_40Z.wav
+2026-09-02T16:59:58-08:00,connect,199.131.68.69,Prince of Wales Net,stream-85013d0b3c038fd29d68f27ee2ca0104-peer-1,,,,
+2026-09-02T17:12:06-08:00,connect,199.131.68.69,Seward Net,stream-1862889d1452a07fd9741ef4ce503b3b-peer-1,,,,
+2026-09-02T17:12:06-08:00,connect,199.131.68.69,Glacier Net,stream-3a57e9119898ebfa6b9c25d31c5347e7-peer-2,,,,
+2026-09-02T17:12:06-08:00,connect,199.131.68.69,Cordova Net,stream-d1ce656c5b570d82db9cdba094e0523a-peer-1,,,,
+2026-09-02T17:12:29-08:00,disconnect,199.131.68.69,Glacier Net,stream-3a57e9119898ebfa6b9c25d31c5347e7-peer-1,,,878301,
+2026-09-02T17:15:39-08:00,disconnect,199.131.68.69,Glacier Net,stream-3a57e9119898ebfa6b9c25d31c5347e7-peer-2,,,212781,
+2026-09-02T17:15:39-08:00,disconnect,199.131.68.69,Cordova Net,stream-d1ce656c5b570d82db9cdba094e0523a-peer-1,,,212823,
+2026-09-02T17:15:39-08:00,disconnect,199.131.68.69,Seward Net,stream-1862889d1452a07fd9741ef4ce503b3b-peer-1,,,212883,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Yakutat Net,stream-7667dc044e9ce953d126bfab1f71409a-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-640e590b4db6edbcefadb7281e92cb8c-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-6e24b4aa0f1dfcb24d174d8132cba6f5-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Revillagigedo Net,stream-35ab38c21a117b9f64d83f61202088b2-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-8daac6d6062f447fcf308dddd30f8128-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Juneau Net,stream-35ec80aba7c30ddd7c537ac6e31e83e0-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Prince of Wales Net,stream-85013d0b3c038fd29d68f27ee2ca0104-peer-2,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Hoonah Net,stream-c558da46c044c52631f31f4f92fa6eda-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Sitka Net,stream-248b93e821524d094e503cc0f9c376f4-peer-1,,,,
+2026-09-02T17:16:36-08:00,connect,199.131.68.69,Petersburg Net,stream-414c7e22512fa97c6ce974d521800349-peer-1,,,,
+2026-09-02T17:17:33-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_36Z.wav
+2026-09-02T17:18:23-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_26Z.wav
+2026-09-02T17:18:33-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_36Z.wav
+2026-09-02T17:18:49-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_12_22Z.wav
+2026-09-02T17:21:53-08:00,connect,199.131.94.82,Juneau Net - Multicast,stream-640e590b4db6edbcefadb7281e92cb8c-peer-2,,,,
+2026-09-02T17:21:56-08:00,audio_download,199.131.94.82,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_26Z.wav
+2026-09-02T17:22:57-08:00,connect,199.131.94.82,Prince of Wales Net,stream-85013d0b3c038fd29d68f27ee2ca0104-peer-3,,,,
+2026-09-02T17:23:06-08:00,audio_download,199.131.94.82,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_26Z.wav
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-1,,,,
+2026-09-02T17:23:42-08:00,connect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-1,,,,
+2026-09-02T17:23:47-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_36Z.wav
+2026-09-02T17:24:15-08:00,connect,199.131.94.82,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-2,,,,
+2026-09-02T17:24:16-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Hoonah_Net/Hoonah_Net_2026-09-03T01_23_56Z.wav
+2026-09-02T17:24:23-08:00,transcript_request,199.131.68.69,,,clip-196,audiourl_fallback,,
+2026-09-02T17:24:25-08:00,audio_download,199.131.94.82,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_36Z.wav
+2026-09-02T17:25:50-08:00,audio_download,199.131.94.82,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_05Z.wav
+2026-09-02T17:27:01-08:00,audio_download,199.131.94.82,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_36Z.wav
+2026-09-02T17:27:03-08:00,disconnect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-1,,,201267,
+2026-09-02T17:27:15-08:00,audio_download,199.131.94.82,,,,,,/audio/Alaska/Tongass_NF/Prince_of_Wales_Net/Prince_of_Wales_Net_2026-09-03T01_10_26Z.wav
+2026-09-02T17:27:28-08:00,disconnect,199.131.94.82,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-2,,,193296,
+2026-09-02T17:27:30-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T01_26_44Z.wav
+2026-09-02T17:27:41-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T01_26_50Z.wav
+2026-09-02T17:27:53-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T01_26_31Z.wav
+2026-09-02T17:27:58-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T01_26_33Z.wav
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-1,,,261213,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-1,,,261243,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-1,,,261371,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-1,,,261435,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-1,,,261512,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-1,,,261532,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-1,,,261579,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-1,,,261618,
+2026-09-02T17:28:03-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-1,,,261516,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Forest Net,stream-7db4e61ec1b6f99d29f5a0d7a100290b-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Admin Net,stream-f958ebf1bf54d0179419453337e9c0c8-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Admin ATB,stream-04024cef3f1486428268e594ae90ae0a-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Forest East Net,stream-874c70931a04b559e317b982e3e32e90-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Fire East Net,stream-e964ae852bb1acb16717d5a3b61cfc38-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Forest Net,stream-573f8a5c08f60f9024611f8bbdf9f573-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Fire West Net,stream-b0c40bf10952795f4ba9f2718eef1b29-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Service Net,stream-f604654726d6a8b2ddaa5078ece9bfaf-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Pine Cove South Ops,stream-bb45799269bc8996c0ab8e6a78abd17f-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Keller South Ops,stream-a217a7e809d4f3aab99e8d98452d3e2a-peer-1,,,,
+2026-09-02T17:28:11-08:00,connect,199.131.68.69,Forest West Net,stream-539b299c15ee60c4d8fead7a8d8a32a3-peer-1,,,,
+2026-09-02T17:28:32-08:00,disconnect,199.131.68.69,Forest West Net,stream-539b299c15ee60c4d8fead7a8d8a32a3-peer-1,,,20592,
+2026-09-02T17:28:32-08:00,disconnect,199.131.68.69,Forest East Net,stream-874c70931a04b559e317b982e3e32e90-peer-1,,,21352,
+2026-09-02T17:28:32-08:00,disconnect,199.131.68.69,Fire West Net,stream-b0c40bf10952795f4ba9f2718eef1b29-peer-1,,,21391,
+2026-09-02T17:28:33-08:00,disconnect,199.131.68.69,Fire East Net,stream-e964ae852bb1acb16717d5a3b61cfc38-peer-1,,,21837,
+2026-09-02T17:28:33-08:00,disconnect,199.131.68.69,Admin ATB,stream-04024cef3f1486428268e594ae90ae0a-peer-1,,,22056,
+2026-09-02T17:28:33-08:00,disconnect,199.131.68.69,Keller South Ops,stream-a217a7e809d4f3aab99e8d98452d3e2a-peer-1,,,21599,
+2026-09-02T17:28:33-08:00,disconnect,199.131.68.69,Pine Cove South Ops,stream-bb45799269bc8996c0ab8e6a78abd17f-peer-1,,,22164,
+2026-09-02T17:28:34-08:00,disconnect,199.131.68.69,Service Net,stream-f604654726d6a8b2ddaa5078ece9bfaf-peer-1,,,22576,
+2026-09-02T17:28:34-08:00,disconnect,199.131.68.69,Forest Net,stream-573f8a5c08f60f9024611f8bbdf9f573-peer-1,,,22732,
+2026-09-02T17:28:34-08:00,disconnect,199.131.68.69,Forest Net,stream-7db4e61ec1b6f99d29f5a0d7a100290b-peer-1,,,23135,
+2026-09-02T17:28:34-08:00,disconnect,199.131.68.69,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-1,,,23054,
+2026-09-02T17:28:34-08:00,disconnect,199.131.68.69,Admin Net,stream-f958ebf1bf54d0179419453337e9c0c8-peer-1,,,23234,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Admin Net,stream-f958ebf1bf54d0179419453337e9c0c8-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Forest West Net,stream-539b299c15ee60c4d8fead7a8d8a32a3-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Fire West Net,stream-b0c40bf10952795f4ba9f2718eef1b29-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Forest Net,stream-7db4e61ec1b6f99d29f5a0d7a100290b-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Fire East Net,stream-e964ae852bb1acb16717d5a3b61cfc38-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Admin ATB,stream-04024cef3f1486428268e594ae90ae0a-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Keller South Ops,stream-a217a7e809d4f3aab99e8d98452d3e2a-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Forest East Net,stream-874c70931a04b559e317b982e3e32e90-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Forest Net,stream-573f8a5c08f60f9024611f8bbdf9f573-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Service Net,stream-f604654726d6a8b2ddaa5078ece9bfaf-peer-2,,,,
+2026-09-02T17:33:14-08:00,connect,199.131.68.69,Pine Cove South Ops,stream-bb45799269bc8996c0ab8e6a78abd17f-peer-2,,,,
+2026-09-02T17:33:20-08:00,disconnect,199.131.68.69,Admin Net,stream-f958ebf1bf54d0179419453337e9c0c8-peer-2,,,6128,
+2026-09-02T17:33:20-08:00,disconnect,199.131.68.69,Forest Net,stream-7db4e61ec1b6f99d29f5a0d7a100290b-peer-2,,,6134,
+2026-09-02T17:33:20-08:00,disconnect,199.131.68.69,Forest Net,stream-573f8a5c08f60f9024611f8bbdf9f573-peer-2,,,6151,
+2026-09-02T17:33:20-08:00,disconnect,199.131.68.69,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-2,,,6498,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Service Net,stream-f604654726d6a8b2ddaa5078ece9bfaf-peer-2,,,6584,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Pine Cove South Ops,stream-bb45799269bc8996c0ab8e6a78abd17f-peer-2,,,6618,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Forest West Net,stream-539b299c15ee60c4d8fead7a8d8a32a3-peer-2,,,6847,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Forest East Net,stream-874c70931a04b559e317b982e3e32e90-peer-2,,,6810,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Fire West Net,stream-b0c40bf10952795f4ba9f2718eef1b29-peer-2,,,6870,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Fire East Net,stream-e964ae852bb1acb16717d5a3b61cfc38-peer-2,,,6919,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Admin ATB,stream-04024cef3f1486428268e594ae90ae0a-peer-2,,,6955,
+2026-09-02T17:33:21-08:00,disconnect,199.131.68.69,Keller South Ops,stream-a217a7e809d4f3aab99e8d98452d3e2a-peer-2,,,6958,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Admin Net,stream-f958ebf1bf54d0179419453337e9c0c8-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Forest Net,stream-7db4e61ec1b6f99d29f5a0d7a100290b-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Forest West Net,stream-539b299c15ee60c4d8fead7a8d8a32a3-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Forest East Net,stream-874c70931a04b559e317b982e3e32e90-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Service Net,stream-f604654726d6a8b2ddaa5078ece9bfaf-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Pine Cove South Ops,stream-bb45799269bc8996c0ab8e6a78abd17f-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Admin ATB,stream-04024cef3f1486428268e594ae90ae0a-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Fire East Net,stream-e964ae852bb1acb16717d5a3b61cfc38-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Forest Net,stream-573f8a5c08f60f9024611f8bbdf9f573-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Keller South Ops,stream-a217a7e809d4f3aab99e8d98452d3e2a-peer-3,,,,
+2026-09-02T17:33:53-08:00,connect,199.131.68.69,Fire West Net,stream-b0c40bf10952795f4ba9f2718eef1b29-peer-3,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-1,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-1,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-1,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-3,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-2,,,,
+2026-09-02T17:34:02-08:00,connect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-2,,,,
+2026-09-02T18:28:49-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Sitka_Net/Sitka_Net_2026-09-03T01_55_30Z.wav
+2026-09-02T18:46:16-08:00,transcript_request,199.131.68.69,,,clip-257,registry,,
+2026-09-02T18:46:39-08:00,disconnect,199.131.68.69,Keller South Ops,stream-a217a7e809d4f3aab99e8d98452d3e2a-peer-3,,,4366765,
+2026-09-02T18:48:13-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Plumas_NF/Forest_Net/Forest_Net_2026-09-03T02_47_38Z.wav
+2026-09-02T18:48:18-08:00,audio_download,199.131.68.69,,,,,,/audio/California/Plumas_NF/Forest_Net/Forest_Net_2026-09-03T02_47_43Z.wav
+2026-09-02T19:12:17-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_11_39Z.wav
+2026-09-02T19:12:25-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_41Z.wav
+2026-09-02T19:12:27-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_40Z.wav
+2026-09-02T19:12:29-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_11_28Z.wav
+2026-09-02T19:12:38-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_02_30Z.wav
+2026-09-02T19:12:56-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_28Z.wav
+2026-09-02T19:12:59-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_31Z.wav
+2026-09-02T19:13:01-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_32Z.wav
+2026-09-02T19:13:04-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_11_28Z.wav
+2026-09-02T19:13:13-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_40Z.wav
+2026-09-02T19:13:31-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_40Z.wav
+2026-09-02T19:13:35-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_41Z.wav
+2026-09-02T19:13:37-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_11_45Z.wav
+2026-09-02T19:13:40-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_11_39Z.wav
+2026-09-02T19:13:52-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_11_55Z.wav
+2026-09-02T19:17:43-08:00,connect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-2,,,,
+2026-09-02T19:17:43-08:00,connect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-2,,,,
+2026-09-02T19:17:43-08:00,connect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-2,,,,
+2026-09-02T19:17:43-08:00,connect,199.139.48.70,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-3,,,,
+2026-09-02T19:17:43-08:00,connect,199.139.48.70,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-4,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-3,,,,
+2026-09-02T19:17:49-08:00,connect,199.139.48.70,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-3,,,,
+2026-09-02T19:18:09-08:00,disconnect,199.139.48.70,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-3,,,20639,
+2026-09-02T19:22:51-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_11_55Z.wav
+2026-09-02T19:28:51-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_27_23Z.wav
+2026-09-02T19:29:02-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T03_27_39Z.wav
+2026-09-02T19:29:20-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_27_23Z.wav
+2026-09-02T19:29:28-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net/Petersburg_Net_2026-09-03T03_27_34Z.wav
+2026-09-02T19:29:42-08:00,disconnect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-2,,,6940233,
+2026-09-02T19:29:42-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-2,,,6940180,
+2026-09-02T19:29:42-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-2,,,6940276,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-3,,,6940395,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-2,,,6940557,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-2,,,6940619,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-2,,,6940705,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-2,,,6940861,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-2,,,6941059,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-2,,,6941274,
+2026-09-02T19:29:43-08:00,disconnect,199.131.68.69,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-1,,,6941382,
+2026-09-02T19:29:44-08:00,disconnect,199.131.68.69,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-1,,,6941514,
+2026-09-02T19:29:44-08:00,disconnect,199.131.68.69,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-1,,,6941637,
+2026-09-02T19:32:53-08:00,disconnect,199.139.48.70,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-3,,,904074,
+2026-09-02T19:32:53-08:00,disconnect,199.139.48.70,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-3,,,910651,
+2026-09-02T19:32:53-08:00,disconnect,199.139.48.70,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-3,,,910641,
+2026-09-02T19:32:53-08:00,disconnect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-2,,,910663,
+2026-09-02T19:32:54-08:00,disconnect,199.139.48.70,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-3,,,905097,
+2026-09-02T19:32:54-08:00,disconnect,199.139.48.70,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-3,,,905241,
+2026-09-02T19:32:54-08:00,disconnect,199.139.48.70,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-3,,,905374,
+2026-09-02T19:32:54-08:00,disconnect,199.139.48.70,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-4,,,905522,
+2026-09-02T19:32:54-08:00,disconnect,199.139.48.70,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-3,,,905545,
+2026-09-02T19:32:55-08:00,disconnect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-2,,,912006,
+2026-09-02T19:32:55-08:00,disconnect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-2,,,912195,
+2026-09-02T19:32:55-08:00,disconnect,199.139.48.70,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-3,,,905666,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-3,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-3,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-3,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-5,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-4,,,,
+2026-09-02T19:41:32-08:00,connect,199.139.48.70,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-4,,,,
+2026-09-02T20:33:18-08:00,disconnect,199.139.48.70,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-5,,,3105998,
+2026-09-02T20:33:18-08:00,disconnect,199.139.48.70,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-4,,,3105872,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-4,,,3106615,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-4,,,3106531,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-4,,,3106600,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-4,,,3106652,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-4,,,3107020,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-4,,,3106964,
+2026-09-02T20:33:19-08:00,disconnect,199.139.48.70,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-4,,,3107170,
+2026-09-02T20:33:20-08:00,disconnect,199.139.48.70,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-4,,,3107245,
+2026-09-02T20:33:20-08:00,disconnect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-3,,,3107739,
+2026-09-02T20:33:20-08:00,disconnect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-3,,,3107400,
+2026-09-02T20:33:20-08:00,disconnect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-3,,,3107940,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-4,,,,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-4,,,,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-4,,,,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-5,,,,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-5,,,,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-5,,,,
+2026-09-02T20:49:37-08:00,connect,199.139.48.70,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-5,,,,
+2026-09-02T20:49:38-08:00,connect,199.139.48.70,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-5,,,,
+2026-09-02T20:49:38-08:00,connect,199.139.48.70,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-5,,,,
+2026-09-02T20:49:38-08:00,connect,199.139.48.70,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-5,,,,
+2026-09-02T20:49:38-08:00,connect,199.139.48.70,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-6,,,,
+2026-09-02T20:49:38-08:00,connect,199.139.48.70,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-5,,,,
+2026-09-02T20:49:38-08:00,connect,199.139.48.70,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-5,,,,
+2026-09-02T20:50:12-08:00,disconnect,199.139.48.70,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-5,,,34083,
+2026-09-02T20:50:12-08:00,disconnect,199.139.48.70,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-5,,,34470,
+2026-09-02T20:50:12-08:00,disconnect,199.139.48.70,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-5,,,34785,
+2026-09-02T20:50:17-08:00,disconnect,199.139.48.70,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-6,,,38966,
+2026-09-02T20:50:18-08:00,disconnect,199.139.48.70,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-5,,,40420,
+2026-09-02T20:50:18-08:00,disconnect,199.139.48.70,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-5,,,40713,
+2026-09-02T20:50:18-08:00,disconnect,199.139.48.70,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-5,,,40997,
+2026-09-02T20:50:19-08:00,disconnect,199.139.48.70,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-5,,,40997,
+2026-09-02T20:50:19-08:00,disconnect,199.139.48.70,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-5,,,41493,
+2026-09-02T20:50:20-08:00,disconnect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-4,,,42575,
+2026-09-02T20:50:20-08:00,disconnect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-4,,,42577,
+2026-09-02T20:50:20-08:00,disconnect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-4,,,42306,
+2026-09-02T20:50:20-08:00,disconnect,199.139.48.70,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-5,,,42329,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Service Net,stream-f604654726d6a8b2ddaa5078ece9bfaf-peer-3,,,21320160,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Forest West Net,stream-539b299c15ee60c4d8fead7a8d8a32a3-peer-3,,,21320219,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Forest Net,stream-7db4e61ec1b6f99d29f5a0d7a100290b-peer-3,,,21320227,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Pine Cove South Ops,stream-bb45799269bc8996c0ab8e6a78abd17f-peer-3,,,21320226,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Fire East Net,stream-e964ae852bb1acb16717d5a3b61cfc38-peer-3,,,21320240,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-3,,,21320322,
+2026-09-02T23:29:13-08:00,disconnect,199.131.68.69,Admin Net,stream-f958ebf1bf54d0179419453337e9c0c8-peer-3,,,21320553,
+2026-09-02T23:29:14-08:00,disconnect,199.131.68.69,Fire West Net,stream-b0c40bf10952795f4ba9f2718eef1b29-peer-3,,,21321321,
+2026-09-02T23:29:14-08:00,disconnect,199.131.68.69,Forest Net,stream-573f8a5c08f60f9024611f8bbdf9f573-peer-3,,,21321625,
+2026-09-02T23:29:14-08:00,disconnect,199.131.68.69,Admin ATB,stream-04024cef3f1486428268e594ae90ae0a-peer-3,,,21321707,
+2026-09-02T23:29:15-08:00,disconnect,199.131.68.69,Forest East Net,stream-874c70931a04b559e317b982e3e32e90-peer-3,,,21322115,
+2026-09-03T05:56:55-08:00,connect,166.6.143.33,DEF North,stream-8bfcbabb3c48fc5a721731e35d7ffc3b-peer-1,,,,
+2026-09-03T05:56:58-08:00,connect,166.6.143.33,NFF,stream-48d69747a2a23472465e60763a7d3cca-peer-1,,,,
+2026-09-03T05:56:59-08:00,connect,166.6.143.33,DEF Central,stream-831d240cc737b77f6a752c26fc66e9b8-peer-1,,,,
+2026-09-03T05:57:01-08:00,connect,166.6.143.33,DEF South,stream-99011a7c9fcd6c826704030b9b832cc1-peer-1,,,,
+2026-09-03T05:58:42-08:00,transcript_request,166.6.143.33,,,clip-538,registry,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,DEF North,stream-8bfcbabb3c48fc5a721731e35d7ffc3b-peer-2,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,OCH Central,stream-8fc306be1437551944b87e1643f7f647-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,OCH West,stream-95a73de2a83dd437f418b48bfee838a2-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,NFF,stream-48d69747a2a23472465e60763a7d3cca-peer-2,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Local FF,stream-4dddcd878f218e49c00afe072b3aad80-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,OCH East,stream-ebf5d9758265507a2df54999c3df5433-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,DEF Central,stream-831d240cc737b77f6a752c26fc66e9b8-peer-2,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Placeholder 1,stream-301842cc3a1e00b0f61bf7db69186d71-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Placeholder 2,stream-1fea43ba0576081f568b16c523527e73-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,DEF South,stream-99011a7c9fcd6c826704030b9b832cc1-peer-2,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,SUF North,stream-f82f7126413afd3d4716d84ed0258499-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,SUF Central,stream-e017b1244b10e07ea47ceb1699342ad9-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,SUF South,stream-bad6a18bcd738c7c6f545d6319410a41-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Pomeroy Net,stream-89c7f8a63ffbad6bd3232448c99b66e8-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Walla Walla Net,stream-974d2ca83780fc66fe79480bd566fed0-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,North Fork John Day Net,stream-e92357cbb21f0445f9311a14b40dc4b0-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Heppner Net,stream-66ebd22aa4d6fce5b19640e8edc81c12-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Santiam River Net,stream-65f01f19c2842fb63578fbed1a99c67a-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,McKenzie Net,stream-90821264296fcaa54c026c8687d57270-peer-1,,,,
+2026-09-03T06:20:12-08:00,connect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-1,,,,
+2026-09-03T06:20:52-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Ochoco_NF/OCH_West/OCH_West_2026-09-03T14_16_00Z.wav
+2026-09-03T06:20:52-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Ochoco_NF/OCH_West/OCH_West_2026-09-03T14_16_00Z.wav
+2026-09-03T06:22:52-08:00,disconnect,166.6.143.33,DEF Central,stream-831d240cc737b77f6a752c26fc66e9b8-peer-1,,,1552550,
+2026-09-03T06:22:52-08:00,disconnect,166.6.143.33,DEF South,stream-99011a7c9fcd6c826704030b9b832cc1-peer-1,,,1551519,
+2026-09-03T06:22:52-08:00,disconnect,166.6.143.33,NFF,stream-48d69747a2a23472465e60763a7d3cca-peer-1,,,1554528,
+2026-09-03T06:22:52-08:00,disconnect,166.6.143.33,DEF North,stream-8bfcbabb3c48fc5a721731e35d7ffc3b-peer-1,,,1557125,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Placeholder 2,stream-1fea43ba0576081f568b16c523527e73-peer-1,,,694211,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,OCH East,stream-ebf5d9758265507a2df54999c3df5433-peer-1,,,694406,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,DEF South,stream-99011a7c9fcd6c826704030b9b832cc1-peer-2,,,694510,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,SUF North,stream-f82f7126413afd3d4716d84ed0258499-peer-1,,,694444,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,OCH West,stream-95a73de2a83dd437f418b48bfee838a2-peer-1,,,694695,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,OCH Central,stream-8fc306be1437551944b87e1643f7f647-peer-1,,,694712,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Local FF,stream-4dddcd878f218e49c00afe072b3aad80-peer-1,,,694671,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,DEF Central,stream-831d240cc737b77f6a752c26fc66e9b8-peer-2,,,694661,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,DEF North,stream-8bfcbabb3c48fc5a721731e35d7ffc3b-peer-2,,,694735,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,NFF,stream-48d69747a2a23472465e60763a7d3cca-peer-2,,,694685,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,North Fork John Day Net,stream-e92357cbb21f0445f9311a14b40dc4b0-peer-1,,,694382,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Pomeroy Net,stream-89c7f8a63ffbad6bd3232448c99b66e8-peer-1,,,694418,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,SUF Central,stream-e017b1244b10e07ea47ceb1699342ad9-peer-1,,,694512,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,McKenzie Net,stream-90821264296fcaa54c026c8687d57270-peer-1,,,694397,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,SUF South,stream-bad6a18bcd738c7c6f545d6319410a41-peer-1,,,694555,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Heppner Net,stream-66ebd22aa4d6fce5b19640e8edc81c12-peer-1,,,694469,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Santiam River Net,stream-65f01f19c2842fb63578fbed1a99c67a-peer-1,,,694422,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Walla Walla Net,stream-974d2ca83780fc66fe79480bd566fed0-peer-1,,,694512,
+2026-09-03T06:31:46-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-1,,,694369,
+2026-09-03T06:32:14-08:00,disconnect,199.139.48.71,Placeholder 1,stream-301842cc3a1e00b0f61bf7db69186d71-peer-1,,,722565,
+2026-09-03T06:42:58-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_41Z.wav
+2026-09-03T06:42:58-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_41Z.wav
+2026-09-03T06:42:59-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_41Z.wav
+2026-09-03T06:42:59-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_41Z.wav
+2026-09-03T06:43:14-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_44Z.wav
+2026-09-03T06:43:14-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_44Z.wav
+2026-09-03T06:43:14-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_44Z.wav
+2026-09-03T06:43:15-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T14_30_44Z.wav
+2026-09-03T06:43:52-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Ochoco_NF/OCH_Central/OCH_Central_2026-09-03T13_02_26Z.wav
+2026-09-03T06:43:52-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Ochoco_NF/OCH_Central/OCH_Central_2026-09-03T13_02_26Z.wav
+2026-09-03T06:43:52-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Ochoco_NF/OCH_Central/OCH_Central_2026-09-03T13_02_26Z.wav
+2026-09-03T06:43:53-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Ochoco_NF/OCH_Central/OCH_Central_2026-09-03T13_02_26Z.wav
+2026-09-03T08:01:30-08:00,connect,160.232.91.61,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-1,,,,
+2026-09-03T08:01:59-08:00,connect,160.232.91.61,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-1,,,,
+2026-09-03T08:02:23-08:00,disconnect,160.232.91.61,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-1,,,53041,
+2026-09-03T08:02:23-08:00,connect,160.232.91.61,Ocala Net,stream-df02c3d4677899b1fade9e1aaaa3dbac-peer-1,,,,
+2026-09-03T08:02:51-08:00,disconnect,160.232.91.61,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-1,,,51810,
+2026-09-03T08:03:02-08:00,disconnect,160.232.91.61,Ocala Net,stream-df02c3d4677899b1fade9e1aaaa3dbac-peer-1,,,39151,
+2026-09-03T08:22:07-08:00,connect,166.4.168.162,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-4,,,,
+2026-09-03T08:22:33-08:00,audio_download,166.4.168.162,,,,,,/audio/California/Plumas_NF/Admin_Net/Admin_Net_2026-09-02T23_41_10Z.wav
+2026-09-03T08:23:19-08:00,connect,166.4.168.162,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-2,,,,
+2026-09-03T08:23:22-08:00,disconnect,166.4.168.162,Admin Net,stream-f48c967c754841aa0ce3db1a33af8667-peer-4,,,74414,
+2026-09-03T08:23:57-08:00,disconnect,166.4.168.162,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-2,,,38893,
+2026-09-03T08:24:05-08:00,connect,166.4.168.162,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-2,,,,
+2026-09-03T08:24:46-08:00,disconnect,166.4.168.162,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-2,,,40844,
+2026-09-03T08:25:00-08:00,audio_download,166.4.168.162,,,,,,/audio/California/Modoc_NF/Admin_Net/Admin_Net_2026-09-03T15_00_08Z.wav
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-7,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-6,,,,
+2026-09-03T08:35:03-08:00,connect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-6,,,,
+2026-09-03T08:35:08-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-6,,,4626,
+2026-09-03T09:47:43-08:00,connect,166.4.108.178,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-3,,,,
+2026-09-03T09:47:56-08:00,connect,166.4.108.178,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-3,,,,
+2026-09-03T09:48:13-08:00,connect,166.4.108.178,Ocala Net,stream-df02c3d4677899b1fade9e1aaaa3dbac-peer-2,,,,
+2026-09-03T09:48:24-08:00,disconnect,166.4.108.178,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-3,,,41551,
+2026-09-03T09:48:39-08:00,disconnect,166.4.108.178,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-3,,,42834,
+2026-09-03T09:48:52-08:00,disconnect,166.4.108.178,Ocala Net,stream-df02c3d4677899b1fade9e1aaaa3dbac-peer-2,,,38856,
+2026-09-03T09:52:49-08:00,connect,166.4.108.178,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-4,,,,
+2026-09-03T09:52:51-08:00,connect,166.4.108.178,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-4,,,,
+2026-09-03T09:52:53-08:00,connect,166.4.108.178,Ocala Net,stream-df02c3d4677899b1fade9e1aaaa3dbac-peer-3,,,,
+2026-09-03T10:01:03-08:00,connect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-5,,,,
+2026-09-03T10:01:03-08:00,connect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-5,,,,
+2026-09-03T10:01:03-08:00,connect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-5,,,,
+2026-09-03T10:32:46-08:00,disconnect,199.139.48.70,Cordova Net,stream-6a1edbd67e98ba8a97fb1e8bca597775-peer-5,,,1902930,
+2026-09-03T10:32:47-08:00,disconnect,199.139.48.70,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-5,,,1903131,
+2026-09-03T10:32:47-08:00,disconnect,199.139.48.70,Glacier Net,stream-702a7ffcf70c6c87914d1755412b6e07-peer-5,,,1903398,
+2026-09-03T12:09:01-08:00,disconnect,166.4.108.178,Apalachicola Net,stream-b67351fbdd35e62bc7d97fa1309f57fb-peer-4,,,8172475,
+2026-09-03T12:09:01-08:00,disconnect,166.4.108.178,Osceola Net,stream-c591a610d4c6dfc2f7824e2f6112821c-peer-4,,,8170004,
+2026-09-03T12:09:01-08:00,disconnect,166.4.108.178,Ocala Net,stream-df02c3d4677899b1fade9e1aaaa3dbac-peer-3,,,8168073,
+2026-09-03T12:30:02-08:00,disconnect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-6,,,14099129,
+2026-09-03T12:30:02-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-7,,,14099234,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-6,,,14099303,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-6,,,14099355,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-6,,,14099438,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-6,,,14099467,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-6,,,14099563,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-6,,,14099659,
+2026-09-03T12:30:03-08:00,disconnect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-6,,,14099697,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-7,,,,
+2026-09-03T13:26:21-08:00,connect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-8,,,,
+2026-09-03T13:33:03-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-34f0acb4306af5ef7f6c9cd7cfeda6c7-peer-7,,,402613,
+2026-09-03T13:33:06-08:00,disconnect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-7,,,405710,
+2026-09-03T14:12:57-08:00,connect,199.139.48.55,McKenzie Net,stream-90821264296fcaa54c026c8687d57270-peer-2,,,,
+2026-09-03T14:26:25-08:00,disconnect,199.139.48.55,McKenzie Net,stream-90821264296fcaa54c026c8687d57270-peer-2,,,808189,
+2026-09-03T14:28:19-08:00,transcript_request,166.6.193.169,,,clip-3939,registry,,
+2026-09-03T14:28:23-08:00,audio_download,166.6.193.169,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_08Z.wav
+2026-09-03T14:28:30-08:00,audio_download,166.6.193.169,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_13_54Z.wav
+2026-09-03T14:28:35-08:00,audio_download,166.6.193.169,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_16Z.wav
+2026-09-03T14:37:28-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-2,,,,
+2026-09-03T14:37:46-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Petersburg_Net_-_Multicast/Petersburg_Net_-_Multicast_2026-09-03T22_37_26Z.wav
+2026-09-03T14:37:58-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-2,,,30154,
+2026-09-03T14:38:04-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-3,,,,
+2026-09-03T14:38:06-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_01_57Z.wav
+2026-09-03T14:38:06-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_01_57Z.wav
+2026-09-03T14:38:11-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_05Z.wav
+2026-09-03T14:38:11-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_05Z.wav
+2026-09-03T14:38:12-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_05Z.wav
+2026-09-03T14:38:12-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_05Z.wav
+2026-09-03T14:38:16-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_22Z.wav
+2026-09-03T14:38:17-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_22Z.wav
+2026-09-03T14:38:17-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_24_22Z.wav
+2026-09-03T14:38:21-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-4,,,,
+2026-09-03T14:38:34-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-3,,,30350,
+2026-09-03T14:38:52-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-4,,,30568,
+2026-09-03T14:38:56-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-5,,,,
+2026-09-03T14:39:27-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-5,,,30671,
+2026-09-03T14:39:34-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-6,,,,
+2026-09-03T14:39:51-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-7,,,,
+2026-09-03T14:40:04-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-6,,,30279,
+2026-09-03T14:40:11-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-8,,,,
+2026-09-03T14:40:21-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-7,,,30060,
+2026-09-03T14:40:35-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-9,,,,
+2026-09-03T14:40:41-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-8,,,30232,
+2026-09-03T14:41:04-08:00,connect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-8,,,,
+2026-09-03T14:41:05-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-9,,,30133,
+2026-09-03T14:41:06-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-411a5ad7e4585c9013f6909bdf5711f7-peer-7,,,4484889,
+2026-09-03T14:41:07-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-10,,,,
+2026-09-03T14:41:37-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-10,,,30154,
+2026-09-03T14:41:53-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-11,,,,
+2026-09-03T14:42:23-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-11,,,30617,
+2026-09-03T14:42:39-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-12,,,,
+2026-09-03T14:43:09-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-12,,,30120,
+2026-09-03T14:43:24-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-13,,,,
+2026-09-03T14:43:55-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-13,,,30369,
+2026-09-03T14:44:10-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-14,,,,
+2026-09-03T14:44:41-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-14,,,30126,
+2026-09-03T14:44:56-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-15,,,,
+2026-09-03T14:45:26-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-15,,,30115,
+2026-09-03T14:45:42-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-16,,,,
+2026-09-03T14:46:12-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-16,,,30122,
+2026-09-03T14:46:28-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-17,,,,
+2026-09-03T14:46:58-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-17,,,30124,
+2026-09-03T14:47:14-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-18,,,,
+2026-09-03T14:47:44-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-18,,,30139,
+2026-09-03T14:47:59-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-19,,,,
+2026-09-03T14:48:30-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-19,,,30279,
+2026-09-03T14:48:45-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-20,,,,
+2026-09-03T14:49:15-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-20,,,30282,
+2026-09-03T14:49:31-08:00,connect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-21,,,,
+2026-09-03T14:50:01-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-21,,,30067,
+2026-09-03T14:53:50-08:00,connect,199.139.48.55,McKenzie Net,stream-90821264296fcaa54c026c8687d57270-peer-3,,,,
+2026-09-03T14:53:51-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_16Z.wav
+2026-09-03T14:53:52-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_16Z.wav
+2026-09-03T14:53:52-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_16Z.wav
+2026-09-03T14:53:53-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_16Z.wav
+2026-09-03T14:53:59-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_24Z.wav
+2026-09-03T14:53:59-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_24Z.wav
+2026-09-03T14:54:00-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_24Z.wav
+2026-09-03T14:54:00-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_24Z.wav
+2026-09-03T14:54:04-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_29Z.wav
+2026-09-03T14:54:04-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_29Z.wav
+2026-09-03T14:54:04-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_29Z.wav
+2026-09-03T14:54:05-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T22_14_29Z.wav
+2026-09-03T14:54:14-08:00,disconnect,199.139.48.55,McKenzie Net,stream-90821264296fcaa54c026c8687d57270-peer-3,,,24491,
+2026-09-03T14:54:43-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-22,,,,
+2026-09-03T14:54:53-08:00,transcript_request,199.139.48.55,,,clip-4082,registry,,
+2026-09-03T14:54:58-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_07Z.wav
+2026-09-03T14:54:58-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_07Z.wav
+2026-09-03T14:54:58-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_07Z.wav
+2026-09-03T14:54:59-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_07Z.wav
+2026-09-03T14:55:04-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_12Z.wav
+2026-09-03T14:55:04-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_12Z.wav
+2026-09-03T14:55:05-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_12Z.wav
+2026-09-03T14:55:10-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_16Z.wav
+2026-09-03T14:55:10-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_16Z.wav
+2026-09-03T14:55:11-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_16Z.wav
+2026-09-03T14:55:11-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_16Z.wav
+2026-09-03T14:55:19-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_04Z.wav
+2026-09-03T14:55:19-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_04Z.wav
+2026-09-03T14:55:22-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_02Z.wav
+2026-09-03T14:55:22-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_02Z.wav
+2026-09-03T14:55:23-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_02Z.wav
+2026-09-03T14:55:23-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T22_49_02Z.wav
+2026-09-03T14:55:31-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-22,,,47390,
+2026-09-03T15:04:02-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-23,,,,
+2026-09-03T15:04:49-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_27Z.wav
+2026-09-03T15:04:49-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_27Z.wav
+2026-09-03T15:04:50-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_27Z.wav
+2026-09-03T15:04:51-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_27Z.wav
+2026-09-03T15:05:13-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_20Z.wav
+2026-09-03T15:05:13-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_20Z.wav
+2026-09-03T15:05:14-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_20Z.wav
+2026-09-03T15:05:15-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_00_20Z.wav
+2026-09-03T15:05:25-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_18Z.wav
+2026-09-03T15:05:26-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_18Z.wav
+2026-09-03T15:05:26-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_18Z.wav
+2026-09-03T15:05:27-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_18Z.wav
+2026-09-03T15:05:40-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_23Z.wav
+2026-09-03T15:05:40-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_23Z.wav
+2026-09-03T15:05:41-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_23Z.wav
+2026-09-03T15:05:43-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-03T23_01_23Z.wav
+2026-09-03T15:05:44-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-24,,,,
+2026-09-03T15:06:15-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-24,,,30151,
+2026-09-03T15:06:31-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-25,,,,
+2026-09-03T15:06:36-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-23,,,154246,
+2026-09-03T15:06:57-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-26,,,,
+2026-09-03T15:07:01-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-25,,,30099,
+2026-09-03T15:07:14-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-27,,,,
+2026-09-03T15:07:27-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-26,,,30160,
+2026-09-03T15:07:44-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-27,,,30185,
+2026-09-03T15:24:50-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-28,,,,
+2026-09-03T15:25:21-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-28,,,30918,
+2026-09-03T15:29:08-08:00,connect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-29,,,,
+2026-09-03T15:29:38-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-29,,,30373,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Yakutat Net,stream-8cc0fac7c6a9e130850d2a1ea1739851-peer-7,,,7555193,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Hoonah Net,stream-c71e96423b59297bda01b171d063cec3-peer-7,,,7555205,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Sitka Net,stream-1954edd93d3c26e7e4a32b203cb208e0-peer-7,,,7555206,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Petersburg Net,stream-31584c213f59e572673612716aff1c10-peer-8,,,3071964,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Juneau Net,stream-ccc098ac2e0cfe8213200ea2b15281d0-peer-7,,,7555254,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-dfc1c2211d2109c3d168ac903361e73f-peer-7,,,7555228,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-c2d06de8ed9556fc9696b32b5a51b5df-peer-8,,,7555270,
+2026-09-03T15:32:16-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-c828dcbeec51f800c4cd37d8363a3bf2-peer-7,,,7555399,
+2026-09-03T15:41:01-08:00,connect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-30,,,,
+2026-09-03T15:41:19-08:00,connect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-31,,,,
+2026-09-03T15:41:32-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-30,,,31356,
+2026-09-03T15:41:33-08:00,connect,199.131.68.69,Seward Net,stream-a007ad01eb6ad41701d9b5bde74a6f1a-peer-6,,,,
+2026-09-03T15:41:37-08:00,connect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-32,,,,
+2026-09-03T15:41:49-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-31,,,30649,
+2026-09-03T15:41:56-08:00,connect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-33,,,,
+2026-09-03T15:42:07-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-32,,,30422,
+2026-09-03T15:42:21-08:00,connect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-34,,,,
+2026-09-03T15:42:27-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-32ad63c9c355cf55e4f867dd171477fe-peer-33,,,30244,
+2026-09-03T15:45:20-08:00,connect,199.139.48.71,Santiam River Net,stream-bc6be77e30abb4650183c51ee113e6f8-peer-1,,,,
+2026-09-03T15:45:48-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_45_02Z.wav
+2026-09-03T15:45:49-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_45_02Z.wav
+2026-09-03T15:45:50-08:00,disconnect,199.139.48.71,Santiam River Net,stream-bc6be77e30abb4650183c51ee113e6f8-peer-1,,,30416,
+2026-09-03T15:45:56-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_45_23Z.wav
+2026-09-03T15:45:56-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_45_23Z.wav
+2026-09-03T15:45:56-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_45_23Z.wav
+2026-09-03T15:45:57-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_45_23Z.wav
+2026-09-03T15:46:03-08:00,connect,199.139.48.71,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Yakutat Net,stream-930fdb8ff0ad6b53dc11e252c1a8b4b6-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-7cbe79d2a25b1e1c7112926e195e6129-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Juneau Net,stream-e110743bcd20abb77fd22f235501cafd-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-ad98f9823b86be3db83da33d83853f8e-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Hoonah Net,stream-3c140fb987fcad3c35756167f563684d-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Revillagigedo Net,stream-f85e4b0fe8adfd5a52585311f6477f71-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Petersburg Net,stream-e1794ee2d6296a2ed4e8857e7e146c9e-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-07ab4b90b7def8adf22f43dfc3b89387-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Prince of Wales Net,stream-6154fd944b537dbc07b0a7351fd501f2-peer-1,,,,
+2026-09-03T15:46:20-08:00,connect,199.131.68.69,Sitka Net,stream-f0ba10e1bf467f79be7ae3563944d643-peer-1,,,,
+2026-09-03T15:46:24-08:00,connect,199.139.48.71,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-2,,,,
+2026-09-03T15:46:34-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-1,,,30650,
+2026-09-03T15:46:54-08:00,disconnect,199.139.48.71,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-2,,,30503,
+2026-09-03T15:47:11-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-1,,,,
+2026-09-03T15:47:28-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-2,,,,
+2026-09-03T15:47:42-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-1,,,30744,
+2026-09-03T15:47:46-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-3,,,,
+2026-09-03T15:47:59-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-2,,,30498,
+2026-09-03T15:48:06-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-4,,,,
+2026-09-03T15:48:17-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-3,,,30784,
+2026-09-03T15:48:31-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-5,,,,
+2026-09-03T15:48:37-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-4,,,30704,
+2026-09-03T15:49:01-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-5,,,30280,
+2026-09-03T15:49:03-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-6,,,,
+2026-09-03T15:49:33-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-6,,,30750,
+2026-09-03T15:57:09-08:00,connect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-7,,,,
+2026-09-03T15:57:40-08:00,disconnect,199.139.48.71,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-7,,,31184,
+2026-09-03T15:57:47-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-1,,,,
+2026-09-03T15:58:04-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-2,,,,
+2026-09-03T15:58:15-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T16_35_02Z.wav
+2026-09-03T15:58:16-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T16_35_02Z.wav
+2026-09-03T15:58:19-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-1,,,32350,
+2026-09-03T15:58:22-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-3,,,,
+2026-09-03T15:58:30-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T15_44_36Z.wav
+2026-09-03T15:58:32-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T15_44_36Z.wav
+2026-09-03T15:58:33-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T15_44_36Z.wav
+2026-09-03T15:58:33-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T15_44_36Z.wav
+2026-09-03T15:58:34-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-2,,,30535,
+2026-09-03T15:58:42-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-4,,,,
+2026-09-03T15:58:47-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_29Z.wav
+2026-09-03T15:58:47-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_29Z.wav
+2026-09-03T15:58:48-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_29Z.wav
+2026-09-03T15:58:49-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_29Z.wav
+2026-09-03T15:58:52-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-3,,,30473,
+2026-09-03T15:59:06-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-5,,,,
+2026-09-03T15:59:13-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-4,,,30592,
+2026-09-03T15:59:13-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_22Z.wav
+2026-09-03T15:59:13-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_22Z.wav
+2026-09-03T15:59:13-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_22Z.wav
+2026-09-03T15:59:14-08:00,audio_download,199.139.48.71,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-03T23_01_22Z.wav
+2026-09-03T15:59:36-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-5,,,30230,
+2026-09-03T15:59:38-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-6,,,,
+2026-09-03T16:00:08-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-6,,,30334,
+2026-09-03T16:00:24-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-7,,,,
+2026-09-03T16:00:59-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-7,,,35293,
+2026-09-03T16:03:49-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-8,,,,
+2026-09-03T16:04:08-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-ad98f9823b86be3db83da33d83853f8e-peer-1,,,1067893,
+2026-09-03T16:04:08-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-f85e4b0fe8adfd5a52585311f6477f71-peer-1,,,1067928,
+2026-09-03T16:04:10-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-7cbe79d2a25b1e1c7112926e195e6129-peer-1,,,1070008,
+2026-09-03T16:04:10-08:00,disconnect,199.131.68.69,Sitka Net,stream-f0ba10e1bf467f79be7ae3563944d643-peer-1,,,1069981,
+2026-09-03T16:04:11-08:00,disconnect,199.131.68.69,Yakutat Net,stream-930fdb8ff0ad6b53dc11e252c1a8b4b6-peer-1,,,1070736,
+2026-09-03T16:04:11-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-6154fd944b537dbc07b0a7351fd501f2-peer-1,,,1070780,
+2026-09-03T16:04:11-08:00,disconnect,199.131.68.69,Petersburg Net,stream-e1794ee2d6296a2ed4e8857e7e146c9e-peer-1,,,1070971,
+2026-09-03T16:04:11-08:00,disconnect,199.131.68.69,Hoonah Net,stream-3c140fb987fcad3c35756167f563684d-peer-1,,,1071138,
+2026-09-03T16:04:11-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-07ab4b90b7def8adf22f43dfc3b89387-peer-1,,,1071136,
+2026-09-03T16:04:18-08:00,disconnect,199.131.68.69,Juneau Net,stream-e110743bcd20abb77fd22f235501cafd-peer-1,,,1078024,
+2026-09-03T16:04:20-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-8,,,31393,
+2026-09-03T16:04:36-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-9,,,,
+2026-09-03T16:05:06-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-9,,,30304,
+2026-09-03T16:05:22-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-10,,,,
+2026-09-03T16:06:10-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-11,,,,
+2026-09-03T16:06:13-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-10,,,51143,
+2026-09-03T16:06:43-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-11,,,32944,
+2026-09-03T16:06:59-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-12,,,,
+2026-09-03T16:07:30-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-12,,,31275,
+2026-09-03T16:07:46-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-13,,,,
+2026-09-03T16:08:16-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-13,,,30864,
+2026-09-03T16:26:52-08:00,connect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-14,,,,
+2026-09-03T16:27:09-08:00,connect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-15,,,,
+2026-09-03T16:27:22-08:00,disconnect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-14,,,30263,
+2026-09-03T16:27:27-08:00,connect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-16,,,,
+2026-09-03T16:27:39-08:00,disconnect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-15,,,30579,
+2026-09-03T16:27:49-08:00,connect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-17,,,,
+2026-09-03T16:27:58-08:00,disconnect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-16,,,30598,
+2026-09-03T16:28:13-08:00,connect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-18,,,,
+2026-09-03T16:28:19-08:00,disconnect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-17,,,30497,
+2026-09-03T16:28:32-08:00,connect,199.139.48.55,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-3,,,,
+2026-09-03T16:28:43-08:00,disconnect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-18,,,30182,
+2026-09-03T16:29:02-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-3,,,30237,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Yakutat Net,stream-930fdb8ff0ad6b53dc11e252c1a8b4b6-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Prince of Wales Net,stream-6154fd944b537dbc07b0a7351fd501f2-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Revilla Net - DFSI Multicast,stream-ad98f9823b86be3db83da33d83853f8e-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Juneau Net - Multicast,stream-7cbe79d2a25b1e1c7112926e195e6129-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Revillagigedo Net,stream-f85e4b0fe8adfd5a52585311f6477f71-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Hoonah Net,stream-3c140fb987fcad3c35756167f563684d-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Sitka Net,stream-f0ba10e1bf467f79be7ae3563944d643-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Juneau Net,stream-e110743bcd20abb77fd22f235501cafd-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-07ab4b90b7def8adf22f43dfc3b89387-peer-2,,,,
+2026-09-03T17:31:17-08:00,connect,199.131.68.69,Petersburg Net,stream-e1794ee2d6296a2ed4e8857e7e146c9e-peer-2,,,,
+2026-09-03T17:32:16-08:00,disconnect,199.131.68.69,Juneau Net,stream-e110743bcd20abb77fd22f235501cafd-peer-2,,,58512,
+2026-09-03T17:32:20-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-07ab4b90b7def8adf22f43dfc3b89387-peer-2,,,62575,
+2026-09-03T17:32:28-08:00,disconnect,199.131.68.69,Revilla Net - DFSI Multicast,stream-ad98f9823b86be3db83da33d83853f8e-peer-2,,,71322,
+2026-09-03T18:03:56-08:00,disconnect,199.131.68.69,Sitka Net,stream-f0ba10e1bf467f79be7ae3563944d643-peer-2,,,1959218,
+2026-09-03T18:03:57-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-f85e4b0fe8adfd5a52585311f6477f71-peer-2,,,1959423,
+2026-09-03T18:03:57-08:00,disconnect,199.131.68.69,Yakutat Net,stream-930fdb8ff0ad6b53dc11e252c1a8b4b6-peer-2,,,1960051,
+2026-09-03T18:03:57-08:00,disconnect,199.131.68.69,Hoonah Net,stream-3c140fb987fcad3c35756167f563684d-peer-2,,,1960096,
+2026-09-03T18:03:57-08:00,disconnect,199.131.68.69,Juneau Net - Multicast,stream-7cbe79d2a25b1e1c7112926e195e6129-peer-2,,,1960326,
+2026-09-03T18:03:59-08:00,disconnect,199.131.68.69,Petersburg Net,stream-e1794ee2d6296a2ed4e8857e7e146c9e-peer-2,,,1961170,
+2026-09-03T18:03:59-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-6154fd944b537dbc07b0a7351fd501f2-peer-2,,,1961547,
+2026-09-04T05:31:10-08:00,connect,166.7.97.171,Osceola Net,stream-6be49675dc51f531c57bfdecb8866500-peer-1,,,,
+2026-09-04T05:31:59-08:00,disconnect,166.7.97.171,Osceola Net,stream-6be49675dc51f531c57bfdecb8866500-peer-1,,,49719,
+2026-09-04T05:50:42-08:00,connect,166.7.97.171,Osceola Net,stream-6be49675dc51f531c57bfdecb8866500-peer-2,,,,
+2026-09-04T05:51:39-08:00,disconnect,166.7.97.171,Osceola Net,stream-6be49675dc51f531c57bfdecb8866500-peer-2,,,56959,
+2026-09-04T05:57:15-08:00,connect,166.7.97.166,Osceola Net,stream-6be49675dc51f531c57bfdecb8866500-peer-3,,,,
+2026-09-04T05:57:34-08:00,disconnect,166.7.97.166,Osceola Net,stream-6be49675dc51f531c57bfdecb8866500-peer-3,,,19456,
+2026-09-04T06:41:09-08:00,connect,160.232.230.157,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-8,,,,
+2026-09-04T06:41:21-08:00,transcript_request,160.232.230.157,,,clip-1000,registry,,
+2026-09-04T06:41:22-08:00,audio_download,160.232.230.157,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-04T02_55_24Z.wav
+2026-09-04T06:42:59-08:00,disconnect,160.232.230.157,DEF North,stream-87e3e3dd372c3608f205ec2cd229d9d5-peer-8,,,109118,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Yakutat Net,stream-930fdb8ff0ad6b53dc11e252c1a8b4b6-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Juneau Net - Multicast,stream-7cbe79d2a25b1e1c7112926e195e6129-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Juneau Net,stream-e110743bcd20abb77fd22f235501cafd-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Petersburg Net - Multicast,stream-07ab4b90b7def8adf22f43dfc3b89387-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Hoonah Net,stream-3c140fb987fcad3c35756167f563684d-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Prince of Wales Net,stream-6154fd944b537dbc07b0a7351fd501f2-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Sitka Net,stream-f0ba10e1bf467f79be7ae3563944d643-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Revillagigedo Net,stream-f85e4b0fe8adfd5a52585311f6477f71-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Petersburg Net,stream-e1794ee2d6296a2ed4e8857e7e146c9e-peer-3,,,,
+2026-09-04T07:36:02-08:00,connect,199.139.48.55,Revilla Net - DFSI Multicast,stream-ad98f9823b86be3db83da33d83853f8e-peer-3,,,,
+2026-09-04T07:36:09-08:00,disconnect,199.139.48.55,Petersburg Net - Multicast,stream-07ab4b90b7def8adf22f43dfc3b89387-peer-3,,,7591,
+2026-09-04T07:36:12-08:00,disconnect,199.139.48.55,Revilla Net - DFSI Multicast,stream-ad98f9823b86be3db83da33d83853f8e-peer-3,,,10009,
+2026-09-04T07:37:03-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-19,,,,
+2026-09-04T07:37:20-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-20,,,,
+2026-09-04T07:37:33-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-19,,,30194,
+2026-09-04T07:37:37-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-21,,,,
+2026-09-04T07:37:50-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-20,,,30151,
+2026-09-04T07:37:57-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-22,,,,
+2026-09-04T07:38:08-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-21,,,30259,
+2026-09-04T07:38:21-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-23,,,,
+2026-09-04T07:38:28-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-22,,,30410,
+2026-09-04T07:38:53-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-23,,,32070,
+2026-09-04T07:38:55-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-24,,,,
+2026-09-04T07:39:25-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-24,,,30092,
+2026-09-04T07:39:41-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-25,,,,
+2026-09-04T07:40:11-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-25,,,30321,
+2026-09-04T07:40:27-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-26,,,,
+2026-09-04T07:40:57-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-26,,,30241,
+2026-09-04T07:41:13-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-27,,,,
+2026-09-04T07:41:43-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-27,,,30322,
+2026-09-04T07:41:59-08:00,connect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-28,,,,
+2026-09-04T07:42:29-08:00,disconnect,199.139.48.71,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-28,,,30700,
+2026-09-04T07:49:35-08:00,connect,166.5.98.180,Forest Net,stream-c9459aa199756c913a5424edf7c36c63-peer-1,,,,
+2026-09-04T08:26:09-08:00,disconnect,199.139.48.55,Hoonah Net,stream-3c140fb987fcad3c35756167f563684d-peer-3,,,3007811,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Revillagigedo Net,stream-f85e4b0fe8adfd5a52585311f6477f71-peer-3,,,3007813,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Sitka Net,stream-f0ba10e1bf467f79be7ae3563944d643-peer-3,,,3007946,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Petersburg Net,stream-e1794ee2d6296a2ed4e8857e7e146c9e-peer-3,,,3007940,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Juneau Net,stream-e110743bcd20abb77fd22f235501cafd-peer-3,,,3008081,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Prince of Wales Net,stream-6154fd944b537dbc07b0a7351fd501f2-peer-3,,,3008044,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Juneau Net - Multicast,stream-7cbe79d2a25b1e1c7112926e195e6129-peer-3,,,3008127,
+2026-09-04T08:26:10-08:00,disconnect,199.139.48.55,Yakutat Net,stream-930fdb8ff0ad6b53dc11e252c1a8b4b6-peer-3,,,3008133,
+2026-09-04T09:39:56-08:00,connect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-29,,,,
+2026-09-04T09:40:26-08:00,disconnect,199.139.48.55,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-29,,,30243,
+2026-09-04T10:52:46-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-4,,,,
+2026-09-04T10:53:17-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-4,,,31057,
+2026-09-04T10:53:30-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-5,,,,
+2026-09-04T10:53:47-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-6,,,,
+2026-09-04T10:54:00-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-5,,,30247,
+2026-09-04T10:54:07-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-7,,,,
+2026-09-04T10:54:17-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-6,,,30152,
+2026-09-04T10:54:31-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-8,,,,
+2026-09-04T10:54:37-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-7,,,30174,
+2026-09-04T10:55:01-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-8,,,30039,
+2026-09-04T10:55:03-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-9,,,,
+2026-09-04T10:55:24-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_08_23Z.wav
+2026-09-04T10:55:24-08:00,audio_download,199.139.48.70,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_08_23Z.wav
+2026-09-04T10:55:33-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-9,,,30063,
+2026-09-04T11:27:26-08:00,transcript_request,166.6.193.78,,,clip-4472,registry,,
+2026-09-04T11:27:59-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_03_17Z.wav
+2026-09-04T11:28:26-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_03_29Z.wav
+2026-09-04T11:28:29-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_03_35Z.wav
+2026-09-04T11:28:31-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_03_40Z.wav
+2026-09-04T11:28:38-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_04_14Z.wav
+2026-09-04T11:28:42-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_04_37Z.wav
+2026-09-04T11:28:49-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_06_50Z.wav
+2026-09-04T11:28:52-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-04T18_06_56Z.wav
+2026-09-04T11:59:30-08:00,connect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-10,,,,
+2026-09-04T12:00:01-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-10,,,30254,
+2026-09-04T15:21:20-08:00,audio_download,199.131.68.4,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net/Juneau_Net_2026-09-04T23_20_41Z.wav
+2026-09-04T15:22:37-08:00,audio_download,199.131.68.4,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net/Juneau_Net_2026-09-04T23_20_41Z.wav
+2026-09-04T15:25:49-08:00,connect,166.6.184.77,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-11,,,,
+2026-09-04T15:26:33-08:00,audio_download,199.131.68.4,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net/Juneau_Net_2026-09-04T23_20_41Z.wav
+2026-09-04T15:26:48-08:00,audio_download,199.131.68.4,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net/Juneau_Net_2026-09-04T23_20_50Z.wav
+2026-09-04T15:28:31-08:00,disconnect,166.6.184.77,Middle Fork Net,stream-9ce3fbccb5ed88d4a0ebb3d6937a828d-peer-11,,,162194,
+2026-09-04T15:32:19-08:00,audio_download,199.131.68.4,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net/Juneau_Net_2026-09-04T23_20_41Z.wav
+2026-09-04T15:33:16-08:00,audio_download,199.131.68.4,,,,,,/audio/Alaska/Tongass_NF/Juneau_Net/Juneau_Net_2026-09-04T23_20_50Z.wav
+2026-09-05T07:21:23-08:00,connect,166.6.193.78,McKenzie Net,stream-400d83ce5972dcebc123fd6277be99a0-peer-30,,,,
+2026-09-05T07:21:58-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T23_59_57Z.wav
+2026-09-05T07:22:10-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_00_03Z.wav
+2026-09-05T07:22:16-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_00_10Z.wav
+2026-09-05T07:22:35-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T23_48_37Z.wav
+2026-09-05T07:22:44-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_06_49Z.wav
+2026-09-05T07:22:54-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_06_52Z.wav
+2026-09-05T07:23:00-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_06_58Z.wav
+2026-09-05T07:23:05-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_07_03Z.wav
+2026-09-05T07:23:14-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_07_06Z.wav
+2026-09-05T07:23:19-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-05T00_07_12Z.wav
+2026-09-05T07:23:38-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_13_27Z.wav
+2026-09-05T07:23:46-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_58_13Z.wav
+2026-09-05T07:23:56-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_57_58Z.wav
+2026-09-05T07:24:01-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_57_48Z.wav
+2026-09-05T07:24:04-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_57_16Z.wav
+2026-09-05T07:24:14-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_57_04Z.wav
+2026-09-05T07:24:20-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_56_19Z.wav
+2026-09-05T07:24:25-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_25_44Z.wav
+2026-09-05T07:24:44-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T18_25_21Z.wav
+2026-09-05T07:24:58-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_04_34Z.wav
+2026-09-05T07:25:17-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_13_31Z.wav
+2026-09-05T07:25:23-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_49_10Z.wav
+2026-09-05T07:25:29-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_49_15Z.wav
+2026-09-05T07:25:34-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_49_20Z.wav
+2026-09-05T07:25:43-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_49_31Z.wav
+2026-09-05T07:25:49-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T19_56_30Z.wav
+2026-09-05T07:25:56-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T20_27_36Z.wav
+2026-09-05T07:26:00-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T20_34_51Z.wav
+2026-09-05T07:38:38-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T20_42_47Z.wav
+2026-09-05T07:38:40-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T20_42_53Z.wav
+2026-09-05T07:39:26-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T20_43_05Z.wav
+2026-09-05T07:39:34-08:00,audio_download,166.6.193.78,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-04T20_43_18Z.wav
+2026-09-05T07:39:45-08:00,transcript_request,166.6.193.78,,,clip-4986,registry,,
+2026-09-05T09:30:30-08:00,connect,199.131.68.69,Test Base,stream-050498bea676810a0479daa57fcfd625-peer-1,,,,
+2026-09-05T09:30:36-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_29_17Z.wav
+2026-09-05T09:30:43-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T01_06_36Z.wav
+2026-09-05T09:33:12-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_33_03Z.wav
+2026-09-05T09:33:15-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_30_57Z.wav
+2026-09-05T09:43:21-08:00,connect,199.131.68.69,Test Base,stream-eed6edb11328a5acdb31460b968dab7d-peer-1,,,,
+2026-09-05T09:44:18-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_44_10Z.wav
+2026-09-05T09:47:45-08:00,connect,199.131.68.69,Test Base,stream-3e447158de2cf4739f0979962ac18464-peer-1,,,,
+2026-09-05T09:48:00-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_47_50Z.wav
+2026-09-05T09:49:31-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_47_50Z.wav
+2026-09-05T09:49:42-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_30_49Z.wav
+2026-09-05T09:49:46-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_30_57Z.wav
+2026-09-05T09:49:50-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_33_03Z.wav
+2026-09-05T09:49:54-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_29_17Z.wav
+2026-09-05T09:50:09-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/KD_Reflector/KD_Reflector_2026-09-05T17_49_33Z.wav
+2026-09-05T09:50:13-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/KD_Reflector/KD_Reflector_2026-09-05T17_49_22Z.wav
+2026-09-05T09:50:16-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/KD_Reflector/KD_Reflector_2026-09-05T17_49_08Z.wav
+2026-09-05T09:50:18-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/KD_Reflector/KD_Reflector_2026-09-05T17_48_29Z.wav
+2026-09-05T09:50:21-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_47_50Z.wav
+2026-09-05T09:50:28-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_44_10Z.wav
+2026-09-05T09:58:40-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T17_57_17Z.wav
+2026-09-05T10:16:44-08:00,connect,199.131.68.69,Test Base,stream-7257b56f15293e4cbbbceadde59def11-peer-1,,,,
+2026-09-05T10:19:22-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T18_17_48Z.wav
+2026-09-05T10:21:30-08:00,connect,199.131.68.69,Test Base,stream-de84f537bef6292c9d757d863d8c0608-peer-1,,,,
+2026-09-05T11:46:58-08:00,connect,199.131.68.69,Test Base,stream-d7df866d3f8db903b12cfee634b47faa-peer-1,,,,
+2026-09-05T11:50:13-08:00,connect,199.131.68.69,Test Base,stream-2ff82f2fc26e0a7a96cd771305d02eac-peer-1,,,,
+2026-09-05T11:54:00-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T19_50_33Z.wav
+2026-09-05T12:15:18-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T20_13_28Z.wav
+2026-09-05T12:26:11-08:00,connect,199.131.68.69,Test Base,stream-b3ba5549e17785fbfba7dc8a46a1346d-peer-1,,,,
+2026-09-05T12:29:26-08:00,connect,199.131.68.69,Test Base,stream-750c1bae2a0394eac338d98545bbf457-peer-1,,,,
+2026-09-05T12:32:53-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T20_29_52Z.wav
+2026-09-05T12:33:01-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T20_29_31Z.wav
+2026-09-05T12:43:39-08:00,disconnect,199.131.68.69,Test Base,stream-750c1bae2a0394eac338d98545bbf457-peer-1,,,853009,
+2026-09-05T12:48:03-08:00,connect,199.131.68.69,Test Base,stream-7499f88ef320acbe6768e519523180e9-peer-1,,,,
+2026-09-05T12:48:33-08:00,connect,199.131.68.69,DOI Base,stream-29f6eded5a41fd7f32183e14c521a942-peer-1,,,,
+2026-09-05T12:52:03-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T20_48_43Z.wav
+2026-09-05T12:52:08-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/Test_Base/Test_Base_2026-09-05T20_48_36Z.wav
+2026-09-05T12:59:43-08:00,disconnect,199.131.68.69,Test Base,stream-7499f88ef320acbe6768e519523180e9-peer-1,,,700667,
+2026-09-05T13:23:08-08:00,connect,199.131.68.69,Telex 32k,stream-9d3f0858464efda63368582a76dc589f-peer-1,,,,
+2026-09-05T13:26:15-08:00,audio_download,199.131.68.69,,,,,,/audio/ZZ_Radio_Test/Radio_Test/G_762/G_762_2026-09-05T21_24_39Z.wav
+2026-09-05T15:03:59-08:00,connect,199.131.68.69,Telex 32k,stream-8d2d5ebcf200dc2718d4b150d362a46b-peer-1,,,,
+2026-09-05T15:03:59-08:00,connect,199.131.68.69,G.762,stream-6b37d25be1d43721dc7e34661f21f503-peer-1,,,,
+2026-09-05T15:03:59-08:00,connect,199.131.68.69,JM Reflector,stream-82694e13c7d8506d91806e2ba92f15cd-peer-1,,,,
+2026-09-05T15:03:59-08:00,connect,199.131.68.69,Test Base via Unicast,stream-0834ef23b970b1d06db77df980a7306c-peer-1,,,,
+2026-09-05T15:03:59-08:00,connect,199.131.68.69,KD Reflector,stream-fa9329e4ea7e8e33f879d30364762202-peer-1,,,,
+2026-09-05T15:06:01-08:00,connect,199.131.68.69,Silence,stream-567905e42324914c790955ce9f56f2c7-peer-1,,,,
+2026-09-05T15:06:01-08:00,connect,199.131.68.69,Speech,stream-676cc8cdc2abd0ac82b8c2bc2c833ee6-peer-1,,,,
+2026-09-05T15:06:01-08:00,connect,199.131.68.69,JM Reflector,stream-908880f9392dfb54fde36c22dc785d0b-peer-1,,,,
+2026-09-05T15:06:01-08:00,connect,199.131.68.69,Test Base via Unicast,stream-dbc407d72844c5d8d25056b5af490bdd-peer-1,,,,
+2026-09-05T15:06:01-08:00,connect,199.131.68.69,KD Reflector,stream-dcd928b4b46ec68838a0aa546b703f7e-peer-1,,,,
+2026-09-05T15:07:22-08:00,disconnect,199.131.68.69,Silence,stream-567905e42324914c790955ce9f56f2c7-peer-1,,,80680,
+2026-09-05T15:07:22-08:00,disconnect,199.131.68.69,Speech,stream-676cc8cdc2abd0ac82b8c2bc2c833ee6-peer-1,,,80694,
+2026-09-05T15:07:22-08:00,disconnect,199.131.68.69,KD Reflector,stream-dcd928b4b46ec68838a0aa546b703f7e-peer-1,,,80616,
+2026-09-05T15:07:22-08:00,disconnect,199.131.68.69,JM Reflector,stream-908880f9392dfb54fde36c22dc785d0b-peer-1,,,80638,
+2026-09-05T15:07:22-08:00,disconnect,199.131.68.69,Test Base via Unicast,stream-dbc407d72844c5d8d25056b5af490bdd-peer-1,,,80627,
+2026-09-05T16:19:23-08:00,connect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-1,,,,
+2026-09-05T16:19:40-08:00,connect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-2,,,,
+2026-09-05T16:19:53-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-1,,,30196,
+2026-09-05T16:19:58-08:00,connect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-3,,,,
+2026-09-05T16:20:10-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-2,,,30204,
+2026-09-05T16:20:19-08:00,connect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-4,,,,
+2026-09-05T16:20:27-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-05T23_02_35Z.wav
+2026-09-05T16:20:28-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-05T23_02_35Z.wav
+2026-09-05T16:20:28-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-05T23_02_35Z.wav
+2026-09-05T16:20:29-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-3,,,30404,
+2026-09-05T16:20:29-08:00,audio_download,199.139.48.55,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-05T23_02_35Z.wav
+2026-09-05T16:20:43-08:00,connect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-5,,,,
+2026-09-05T16:20:49-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-4,,,30628,
+2026-09-05T16:21:13-08:00,disconnect,199.139.48.55,Middle Fork Net,stream-e222c7332a9146bc47ba3cc8e8ab4212-peer-5,,,30331,
+2026-09-05T16:21:17-08:00,connect,199.139.48.55,Placeholder 1,stream-f79ef2bc5f9ea72fec1bd642141f8b93-peer-1,,,,
+2026-09-05T16:21:34-08:00,connect,199.139.48.55,Placeholder 1,stream-f79ef2bc5f9ea72fec1bd642141f8b93-peer-2,,,,
+2026-09-05T16:21:47-08:00,disconnect,199.139.48.55,Placeholder 1,stream-f79ef2bc5f9ea72fec1bd642141f8b93-peer-1,,,30149,
+2026-09-05T16:21:52-08:00,connect,199.139.48.55,Placeholder 1,stream-f79ef2bc5f9ea72fec1bd642141f8b93-peer-3,,,,
+2026-09-05T16:22:04-08:00,disconnect,199.139.48.55,Placeholder 1,stream-f79ef2bc5f9ea72fec1bd642141f8b93-peer-2,,,30103,
+2026-09-05T16:22:22-08:00,disconnect,199.139.48.55,Placeholder 1,stream-f79ef2bc5f9ea72fec1bd642141f8b93-peer-3,,,30147,
+2026-09-05T17:32:22-08:00,connect,199.131.68.69,DOI Test Base,stream-f36034a673d5f5d98e5b701b96bb80eb-peer-1,,,,
+2026-09-05T17:32:40-08:00,disconnect,199.131.68.69,DOI Test Base,stream-f36034a673d5f5d98e5b701b96bb80eb-peer-1,,,18204,
+2026-09-05T17:32:52-08:00,connect,199.131.68.69,Untimed Tones,stream-d0d3da44619aeb317d4f582597c1b762-peer-1,,,,
+2026-09-05T17:33:12-08:00,disconnect,199.131.68.69,Untimed Tones,stream-d0d3da44619aeb317d4f582597c1b762-peer-1,,,20054,
+2026-09-05T17:33:16-08:00,connect,199.131.68.69,Untimed Tones,stream-d0d3da44619aeb317d4f582597c1b762-peer-2,,,,
+2026-09-05T17:33:32-08:00,disconnect,199.131.68.69,Untimed Tones,stream-d0d3da44619aeb317d4f582597c1b762-peer-2,,,15938,
+2026-09-05T17:33:39-08:00,connect,199.131.68.69,Untimed Tones,stream-d0d3da44619aeb317d4f582597c1b762-peer-3,,,,
+2026-09-05T17:33:50-08:00,disconnect,199.131.68.69,Untimed Tones,stream-d0d3da44619aeb317d4f582597c1b762-peer-3,,,11096,
+2026-09-05T17:35:01-08:00,connect,199.131.68.69,Petersburg Net,stream-91afc432507506dddc5ac3282ba5813d-peer-1,,,,
+2026-09-05T17:35:11-08:00,disconnect,199.131.68.69,Petersburg Net,stream-91afc432507506dddc5ac3282ba5813d-peer-1,,,9419,
+2026-09-07T06:49:35-08:00,connect,166.6.36.161,DEF North,stream-b6443caceed3caca2cea18b2f4211133-peer-1,,,,
+2026-09-07T06:49:55-08:00,transcript_request,166.6.36.161,,,clip-7301,registry,,
+2026-09-07T06:49:58-08:00,audio_download,166.6.36.161,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-07T02_52_04Z.wav
+2026-09-07T06:50:21-08:00,audio_download,166.6.36.161,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-07T02_39_53Z.wav
+2026-09-07T06:50:30-08:00,audio_download,166.6.36.161,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-07T02_20_38Z.wav
+2026-09-07T06:50:42-08:00,audio_download,166.6.36.161,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-06T23_44_45Z.wav
+2026-09-07T06:52:29-08:00,disconnect,166.6.36.161,DEF North,stream-b6443caceed3caca2cea18b2f4211133-peer-1,,,173641,
+2026-09-07T07:40:10-08:00,connect,199.139.48.71,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-1,,,,
+2026-09-07T07:42:16-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_33_16Z.wav
+2026-09-07T07:42:16-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_33_16Z.wav
+2026-09-07T07:42:18-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_33_12Z.wav
+2026-09-07T07:42:19-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_33_12Z.wav
+2026-09-07T07:42:21-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_32_58Z.wav
+2026-09-07T07:42:21-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_32_58Z.wav
+2026-09-07T07:42:22-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_32_58Z.wav
+2026-09-07T07:42:22-08:00,audio_download,199.139.48.71,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-07T15_32_58Z.wav
+2026-09-07T08:01:39-08:00,disconnect,199.139.48.71,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-1,,,1288288,
+2026-09-07T08:03:58-08:00,connect,199.139.48.71,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-2,,,,
+2026-09-07T08:28:43-08:00,disconnect,199.139.48.71,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-2,,,1485091,
+2026-09-07T10:22:48-08:00,connect,199.139.48.71,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-3,,,,
+2026-09-07T10:36:05-08:00,disconnect,199.139.48.71,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-3,,,797030,
+2026-09-07T10:44:36-08:00,connect,166.3.137.144,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-4,,,,
+2026-09-07T10:44:36-08:00,connect,160.232.192.82,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-5,,,,
+2026-09-07T10:54:36-08:00,disconnect,160.232.192.82,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-5,,,599758,
+2026-09-07T11:03:12-08:00,connect,199.139.48.55,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-6,,,,
+2026-09-07T11:13:08-08:00,disconnect,166.3.137.144,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-4,,,1712327,
+2026-09-07T11:28:12-08:00,disconnect,199.139.48.55,Sacramento RD,stream-131ff7ee87429774a66422344ae4498b-peer-6,,,1499890,
+2026-09-07T11:28:37-08:00,connect,199.139.48.70,Yakutat Net,stream-4235cf684064dfd637b26534a34e527c-peer-1,,,,
+2026-09-07T11:32:16-08:00,connect,199.139.48.70,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-1,,,,
+2026-09-07T11:32:46-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-1,,,30155,
+2026-09-07T11:33:00-08:00,connect,199.139.48.70,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-2,,,,
+2026-09-07T11:33:57-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-2,,,57803,
+2026-09-07T11:35:15-08:00,connect,160.232.172.88,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-3,,,,
+2026-09-07T11:36:06-08:00,audio_download,160.232.172.88,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-07T19_21_17Z.wav
+2026-09-07T11:36:18-08:00,audio_download,160.232.172.88,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-07T19_09_24Z.wav
+2026-09-07T11:36:28-08:00,audio_download,160.232.172.88,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-07T19_00_52Z.wav
+2026-09-07T11:37:01-08:00,connect,199.139.48.70,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-4,,,,
+2026-09-07T11:37:31-08:00,disconnect,199.139.48.70,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-4,,,30436,
+2026-09-07T12:28:45-08:00,connect,199.139.48.70,Yakutat Net,stream-4235cf684064dfd637b26534a34e527c-peer-2,,,,
+2026-09-07T12:28:58-08:00,disconnect,199.139.48.70,Yakutat Net,stream-4235cf684064dfd637b26534a34e527c-peer-1,,,3620665,
+2026-09-07T12:29:27-08:00,connect,160.232.172.88,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-5,,,,
+2026-09-07T12:29:34-08:00,disconnect,199.139.48.70,Yakutat Net,stream-4235cf684064dfd637b26534a34e527c-peer-2,,,49467,
+2026-09-07T12:29:56-08:00,disconnect,160.232.172.88,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-3,,,3280993,
+2026-09-07T14:05:05-08:00,disconnect,160.232.172.88,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-5,,,5737625,
+2026-09-07T14:48:33-08:00,audio_download,166.6.36.161,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-07T21_36_30Z.wav
+2026-09-07T14:48:43-08:00,audio_download,166.6.36.161,,,,,,/audio/Oregon/Deschutes_NF/DEF_North/DEF_North_2026-09-07T21_37_13Z.wav
+2026-09-07T15:41:18-08:00,connect,160.232.172.88,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-6,,,,
+2026-09-07T15:52:43-08:00,disconnect,160.232.172.88,Middle Fork Net,stream-00f330d6df248718ab2ec871a1759a2b-peer-6,,,685114,
+2026-09-07T15:58:33-08:00,connect,160.232.172.88,Santiam River Net,stream-b710ebe1da8ed32d667d4146f448760e-peer-1,,,,
+2026-09-07T16:11:34-08:00,connect,160.232.172.88,Santiam River Net,stream-b710ebe1da8ed32d667d4146f448760e-peer-2,,,,
+2026-09-07T16:12:02-08:00,disconnect,160.232.172.88,Santiam River Net,stream-b710ebe1da8ed32d667d4146f448760e-peer-1,,,809212,
+2026-09-07T16:28:08-08:00,disconnect,160.232.172.88,Santiam River Net,stream-b710ebe1da8ed32d667d4146f448760e-peer-2,,,994450,
+2026-09-09T07:33:40-08:00,connect,166.6.24.86,McKenzie Net,stream-80347c676886be0954d7786bc89c4632-peer-1,,,,
+2026-09-09T07:36:43-08:00,connect,199.139.48.71,OCH Central,stream-e96273263c8fceb5cf80c62d644670e1-peer-1,,,,
+2026-09-09T07:39:42-08:00,disconnect,166.6.24.86,McKenzie Net,stream-80347c676886be0954d7786bc89c4632-peer-1,,,362481,
+2026-09-09T07:56:05-08:00,connect,166.5.110.169,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-1,,,,
+2026-09-09T07:56:21-08:00,transcript_request,166.5.110.169,,,clip-2954,registry,,
+2026-09-09T07:56:27-08:00,audio_download,166.5.110.169,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T15_42_36Z.wav
+2026-09-09T07:56:39-08:00,audio_download,166.5.110.169,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T15_42_13Z.wav
+2026-09-09T08:02:12-08:00,disconnect,199.139.48.71,OCH Central,stream-e96273263c8fceb5cf80c62d644670e1-peer-1,,,1529230,
+2026-09-09T08:10:16-08:00,disconnect,166.5.110.169,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-1,,,851689,
+2026-09-09T08:25:33-08:00,connect,166.5.110.165,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-1,,,,
+2026-09-09T08:26:13-08:00,connect,166.5.109.68,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-2,,,,
+2026-09-09T08:26:30-08:00,disconnect,166.5.110.165,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-1,,,56963,
+2026-09-09T08:26:50-08:00,connect,166.5.109.68,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-1,,,,
+2026-09-09T08:27:15-08:00,disconnect,166.5.109.68,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-2,,,62047,
+2026-09-09T08:28:38-08:00,audio_download,166.5.110.169,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T15_35_23Z.wav
+2026-09-09T08:28:57-08:00,connect,199.139.48.55,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-3,,,,
+2026-09-09T08:29:51-08:00,audio_download,166.5.109.68,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T15_35_32Z.wav
+2026-09-09T08:29:52-08:00,connect,166.5.110.182,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-2,,,,
+2026-09-09T08:30:13-08:00,audio_download,166.5.110.182,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T15_35_23Z.wav
+2026-09-09T08:30:17-08:00,transcript_request,166.5.109.68,,,clip-2899,registry,,
+2026-09-09T08:30:53-08:00,audio_download,166.5.109.68,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-07T01_03_19Z.wav
+2026-09-09T08:31:12-08:00,audio_download,166.5.109.68,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-07T00_55_40Z.wav
+2026-09-09T08:31:12-08:00,disconnect,166.5.110.182,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-2,,,79948,
+2026-09-09T08:31:35-08:00,connect,166.5.107.188,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-4,,,,
+2026-09-09T08:31:50-08:00,disconnect,166.5.109.68,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-1,,,299406,
+2026-09-09T08:32:47-08:00,connect,166.5.110.161,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-3,,,,
+2026-09-09T08:33:09-08:00,transcript_request,166.5.110.161,,,clip-2897,registry,,
+2026-09-09T08:35:07-08:00,connect,166.5.110.179,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-4,,,,
+2026-09-09T08:35:17-08:00,disconnect,166.5.110.179,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-4,,,9242,
+2026-09-09T08:38:17-08:00,audio_download,166.5.110.169,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T16_35_10Z.wav
+2026-09-09T08:42:19-08:00,disconnect,166.5.110.161,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-3,,,572143,
+2026-09-09T08:47:22-08:00,connect,199.139.48.55,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-5,,,,
+2026-09-09T08:47:53-08:00,disconnect,199.139.48.55,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-3,,,1135929,
+2026-09-09T08:48:11-08:00,disconnect,199.139.48.55,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-5,,,48177,
+2026-09-09T08:51:43-08:00,connect,199.139.48.55,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-6,,,,
+2026-09-09T08:52:16-08:00,disconnect,199.139.48.55,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-6,,,33525,
+2026-09-09T08:57:00-08:00,connect,166.5.107.74,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-1,,,,
+2026-09-09T08:58:58-08:00,connect,166.5.109.75,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-2,,,,
+2026-09-09T08:59:28-08:00,disconnect,166.5.109.75,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-2,,,30074,
+2026-09-09T08:59:51-08:00,connect,166.5.109.75,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-3,,,,
+2026-09-09T09:02:42-08:00,disconnect,166.5.107.74,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-1,,,342609,
+2026-09-09T09:06:04-08:00,audio_download,166.5.109.75,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T16_47_36Z.wav
+2026-09-09T09:06:21-08:00,audio_download,166.5.109.75,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T16_47_45Z.wav
+2026-09-09T09:06:49-08:00,audio_download,166.5.109.75,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T16_47_58Z.wav
+2026-09-09T09:07:09-08:00,audio_download,166.5.109.75,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T16_48_02Z.wav
+2026-09-09T09:08:01-08:00,disconnect,166.5.109.75,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-3,,,489483,
+2026-09-09T09:09:33-08:00,disconnect,166.5.107.188,Forest East Net,stream-ab3e0a230313fe1bb46106cb1212ffbf-peer-4,,,2278201,
+2026-09-09T09:16:53-08:00,connect,166.5.110.171,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-5,,,,
+2026-09-09T09:17:51-08:00,disconnect,166.5.110.171,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-5,,,57979,
+2026-09-09T09:23:47-08:00,connect,160.232.159.109,Glacier Net,stream-070d68fe25418c99ac22b712dc80762a-peer-1,,,,
+2026-09-09T09:23:54-08:00,disconnect,160.232.159.109,Glacier Net,stream-070d68fe25418c99ac22b712dc80762a-peer-1,,,6842,
+2026-09-09T09:24:14-08:00,audio_download,160.232.159.109,,,,,,/audio/Alaska/Chugach_NF/Glacier_Net/Glacier_Net_2026-09-02T21_35_22Z.wav
+2026-09-09T09:24:24-08:00,audio_download,160.232.159.109,,,,,,/audio/Alaska/Chugach_NF/Glacier_Net/Glacier_Net_2026-09-02T21_35_31Z.wav
+2026-09-09T09:24:33-08:00,audio_download,160.232.159.109,,,,,,/audio/Alaska/Chugach_NF/Glacier_Net/Glacier_Net_2026-09-02T21_35_40Z.wav
+2026-09-09T09:24:42-08:00,audio_download,160.232.159.109,,,,,,/audio/Alaska/Chugach_NF/Glacier_Net/Glacier_Net_2026-09-02T21_34_19Z.wav
+2026-09-09T09:25:50-08:00,audio_download,160.232.159.109,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T17_24_28Z.wav
+2026-09-09T09:26:01-08:00,audio_download,160.232.159.109,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T15_35_32Z.wav
+2026-09-09T09:26:12-08:00,audio_download,160.232.159.109,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T00_22_33Z.wav
+2026-09-09T09:26:36-08:00,audio_download,160.232.159.109,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-08T17_03_04Z.wav
+2026-09-09T09:41:57-08:00,connect,166.5.110.195,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-6,,,,
+2026-09-09T09:42:44-08:00,disconnect,166.5.110.195,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-6,,,46592,
+2026-09-09T09:47:43-08:00,connect,166.6.118.75,Placeholder 1,stream-bf72eeb455cc53346979f82c5c28f1bf-peer-1,,,,
+2026-09-09T09:48:05-08:00,disconnect,166.6.118.75,Placeholder 1,stream-bf72eeb455cc53346979f82c5c28f1bf-peer-1,,,21739,
+2026-09-09T09:48:44-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-09T17_43_26Z.wav
+2026-09-09T09:48:48-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-09T17_43_23Z.wav
+2026-09-09T09:48:50-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-09T17_43_16Z.wav
+2026-09-09T09:48:55-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-09T17_43_10Z.wav
+2026-09-09T09:48:57-08:00,transcript_request,166.6.118.75,,,clip-4238,registry,,
+2026-09-09T09:49:17-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Deschutes_NF/DEF_Central/DEF_Central_2026-09-09T17_36_44Z.wav
+2026-09-09T09:49:26-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-09T17_33_39Z.wav
+2026-09-09T09:49:40-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-09T17_32_45Z.wav
+2026-09-09T09:50:08-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T17_12_38Z.wav
+2026-09-09T09:50:29-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T17_12_32Z.wav
+2026-09-09T09:50:33-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T17_12_25Z.wav
+2026-09-09T09:50:38-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T17_12_55Z.wav
+2026-09-09T09:50:56-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_57_02Z.wav
+2026-09-09T09:51:03-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_57_15Z.wav
+2026-09-09T09:51:06-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_57_21Z.wav
+2026-09-09T09:51:13-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_57_28Z.wav
+2026-09-09T09:51:22-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_38_13Z.wav
+2026-09-09T09:51:28-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_38_23Z.wav
+2026-09-09T09:51:31-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_38_27Z.wav
+2026-09-09T09:51:39-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_38_29Z.wav
+2026-09-09T09:51:49-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Santiam_River_Net/Santiam_River_Net_2026-09-09T16_38_50Z.wav
+2026-09-09T09:51:52-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/McKenzie_Net/McKenzie_Net_2026-09-09T16_42_09Z.wav
+2026-09-09T09:52:10-08:00,audio_download,166.6.118.75,,,,,,/audio/Oregon/Willamette_NF/Middle_Fork_Net/Middle_Fork_Net_2026-09-09T15_14_37Z.wav
+2026-09-09T09:58:21-08:00,connect,166.5.110.213,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-7,,,,
+2026-09-09T09:58:59-08:00,disconnect,166.5.110.213,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-7,,,37604,
+2026-09-09T11:30:03-08:00,connect,166.5.110.107,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-8,,,,
+2026-09-09T11:30:24-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T19_08_50Z.wav
+2026-09-09T11:30:33-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T19_08_45Z.wav
+2026-09-09T11:30:36-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T19_08_41Z.wav
+2026-09-09T11:31:52-08:00,connect,199.139.48.55,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-9,,,,
+2026-09-09T11:31:58-08:00,audio_download,199.139.48.55,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T19_08_50Z.wav
+2026-09-09T11:31:58-08:00,audio_download,199.139.48.55,,,,,,/audio/California/Tahoe_NF/Forest_West_Net/Forest_West_Net_2026-09-09T19_08_50Z.wav
+2026-09-09T11:32:19-08:00,connect,199.139.48.55,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-2,,,,
+2026-09-09T11:32:49-08:00,disconnect,199.139.48.55,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-2,,,30301,
+2026-09-09T11:32:55-08:00,connect,199.139.48.55,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-3,,,,
+2026-09-09T11:33:24-08:00,disconnect,199.139.48.55,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-9,,,92014,
+2026-09-09T11:33:26-08:00,disconnect,199.139.48.55,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-3,,,30773,
+2026-09-09T11:33:30-08:00,connect,199.139.48.55,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-4,,,,
+2026-09-09T11:34:00-08:00,disconnect,199.139.48.55,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-4,,,30179,
+2026-09-09T11:34:34-08:00,disconnect,166.5.110.107,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-8,,,270188,
+2026-09-09T11:35:08-08:00,connect,166.5.110.107,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-4,,,,
+2026-09-09T11:36:44-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T18_58_19Z.wav
+2026-09-09T11:36:47-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_East_Net/Fire_East_Net_2026-09-09T18_58_11Z.wav
+2026-09-09T11:37:18-08:00,disconnect,166.5.110.107,Fire East Net,stream-e41629d7216841bed2407fc52e40280c-peer-4,,,129661,
+2026-09-09T11:38:12-08:00,connect,166.5.110.107,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-5,,,,
+2026-09-09T11:38:43-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T19_22_14Z.wav
+2026-09-09T11:38:45-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T19_22_07Z.wav
+2026-09-09T11:38:49-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T19_22_02Z.wav
+2026-09-09T11:38:51-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T19_21_36Z.wav
+2026-09-09T11:38:53-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T19_21_28Z.wav
+2026-09-09T11:38:59-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T19_13_46Z.wav
+2026-09-09T11:39:03-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T17_40_19Z.wav
+2026-09-09T11:39:09-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T17_40_11Z.wav
+2026-09-09T11:39:15-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T17_40_23Z.wav
+2026-09-09T11:39:20-08:00,audio_download,166.5.110.107,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-09T17_40_29Z.wav
+2026-09-09T11:39:55-08:00,disconnect,166.5.110.107,Fire West Net,stream-ac85157e5a52483bd469d1e0ecf71c0c-peer-5,,,103403,
+2026-09-09T16:25:19-08:00,connect,166.5.110.71,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-10,,,,
+2026-09-09T16:27:45-08:00,audio_download,166.5.110.71,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-10T00_12_43Z.wav
+2026-09-09T16:27:52-08:00,audio_download,166.5.110.71,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-10T00_22_32Z.wav
+2026-09-09T16:47:49-08:00,disconnect,166.5.110.71,Forest West Net,stream-ac33bfa4adf3361b8b4341ef9b0015b4-peer-10,,,1349972,
+2026-09-10T08:46:13-08:00,connect,199.131.68.69,Test Base,stream-9e0216d1ac671c564555ba1adaa6935d-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Yakutat Net,stream-d1052275a57ac2b787fe898a1102f729-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Hoonah Net,stream-cd1784101bc335efefca23f483bc06df-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Sitka Net,stream-0cd2f65f326b9efc42a09a91af911ce9-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Juneau Net,stream-76de40c66103e5c2f16852dbb4ed3935-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Prince of Wales Net,stream-171b84c419190bf193a61dfb792dd020-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Revillagigedo Net,stream-7756dd91e891c3852df7b9ca6476f29c-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Petersburg Net,stream-84157e8692568be978eadb5a7cfad9d3-peer-1,,,,
+2026-09-10T08:46:27-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-29646220edded62d5a290e61e2f57cdc-peer-1,,,,
+2026-09-10T08:46:36-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-29646220edded62d5a290e61e2f57cdc-peer-1,,,8970,
+2026-09-10T08:46:40-08:00,disconnect,199.131.68.69,Petersburg Net,stream-84157e8692568be978eadb5a7cfad9d3-peer-1,,,13463,
+2026-09-10T08:46:41-08:00,connect,199.131.68.69,Petersburg Net - Multicast,stream-29646220edded62d5a290e61e2f57cdc-peer-2,,,,
+2026-09-10T08:49:31-08:00,audio_download,199.131.68.69,,,,,,/audio/Alaska/Tongass_NF/Yakutat_Net/Yakutat_Net_2026-09-10T16_49_20Z.wav
+2026-09-10T09:04:42-08:00,connect,160.232.228.89,Fire West Net,stream-a61f0ab85fc7c33de153d8f9f40e49c4-peer-1,,,,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Juneau Net,stream-76de40c66103e5c2f16852dbb4ed3935-peer-1,,,1119173,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Yakutat Net,stream-d1052275a57ac2b787fe898a1102f729-peer-1,,,1119234,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Hoonah Net,stream-cd1784101bc335efefca23f483bc06df-peer-1,,,1119333,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Sitka Net,stream-0cd2f65f326b9efc42a09a91af911ce9-peer-1,,,1119341,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Prince of Wales Net,stream-171b84c419190bf193a61dfb792dd020-peer-1,,,1119291,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Revillagigedo Net,stream-7756dd91e891c3852df7b9ca6476f29c-peer-1,,,1119287,
+2026-09-10T09:05:06-08:00,disconnect,199.131.68.69,Petersburg Net - Multicast,stream-29646220edded62d5a290e61e2f57cdc-peer-2,,,1105141,
+2026-09-10T09:10:51-08:00,transcript_request,160.232.228.89,,,clip-8361,audiourl_fallback,,
+2026-09-10T09:11:06-08:00,audio_download,160.232.228.89,,,,,,/audio/California/Tahoe_NF/Fire_West_Net/Fire_West_Net_2026-09-10T01_22_36Z.wav
+2026-09-10T09:55:32-08:00,connect,166.5.207.160,Keller South Ops,stream-6c5eafa0270104b2b3838ca349ed06df-peer-1,,,,
+2026-09-10T09:59:37-08:00,audio_download,166.5.207.160,,,,,,/audio/California/San_Bernardino_NF/Keller_South_Ops/Keller_South_Ops_2026-09-10T01_20_41Z.wav
+2026-09-10T09:59:42-08:00,audio_download,166.5.207.160,,,,,,/audio/California/San_Bernardino_NF/Keller_South_Ops/Keller_South_Ops_2026-09-10T17_07_13Z.wav
+2026-09-10T10:00:30-08:00,audio_download,166.5.207.160,,,,,,/audio/California/San_Bernardino_NF/Keller_South_Ops/Keller_South_Ops_2026-09-10T16_59_17Z.wav
+2026-09-10T10:00:51-08:00,disconnect,166.5.207.160,Keller South Ops,stream-6c5eafa0270104b2b3838ca349ed06df-peer-1,,,318665,
+2026-09-10T11:11:17-08:00,connect,199.139.48.70,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-1,,,,
+2026-09-10T11:11:38-08:00,audio_download,199.139.48.70,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-10T19_04_46Z.wav
+2026-09-10T11:11:38-08:00,audio_download,199.139.48.70,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-10T19_04_46Z.wav
+2026-09-10T11:11:38-08:00,audio_download,199.139.48.70,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-10T19_04_46Z.wav
+2026-09-10T11:11:39-08:00,audio_download,199.139.48.70,,,,,,/audio/New_Mexico/Lincoln_NF/Sacramento_RD/Sacramento_RD_2026-09-10T19_04_46Z.wav
+2026-09-10T11:11:49-08:00,transcript_request,199.139.48.70,,,clip-591,registry,,
+2026-09-10T11:16:55-08:00,disconnect,199.139.48.70,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-1,,,337739,
+2026-09-10T11:17:43-08:00,connect,199.139.48.70,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-2,,,,
+2026-09-10T11:20:27-08:00,connect,166.5.207.160,Keller South Ops,stream-6c5eafa0270104b2b3838ca349ed06df-peer-2,,,,
+2026-09-10T11:24:36-08:00,connect,166.5.207.160,Pine Cove South Ops,stream-37e18aef67d3a01ff2121bde6f31cd6a-peer-1,,,,
+2026-09-10T11:24:39-08:00,connect,166.5.207.160,Admin ATB,stream-315d322c4b04a23b845fa7c70997fc04-peer-1,,,,
+2026-09-10T11:28:51-08:00,disconnect,166.5.207.160,Pine Cove South Ops,stream-37e18aef67d3a01ff2121bde6f31cd6a-peer-1,,,254535,
+2026-09-10T11:34:31-08:00,disconnect,199.139.48.70,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-2,,,1008226,
+2026-09-10T11:38:42-08:00,connect,199.139.48.70,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-3,,,,
+2026-09-10T11:55:56-08:00,transcript_request,199.131.68.69,,,clip-691,registry,,
+2026-09-10T11:56:07-08:00,audio_download,199.131.68.69,,,,,,/audio/California/San_Bernardino_NF/Pine_Cove_South_Ops/Pine_Cove_South_Ops_2026-09-10T19_38_16Z.wav
+2026-09-10T11:56:59-08:00,disconnect,199.131.68.69,Test Base,stream-9e0216d1ac671c564555ba1adaa6935d-peer-1,,,11445945,
+2026-09-10T11:58:41-08:00,connect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-4,,,,
+2026-09-10T11:58:44-08:00,disconnect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-4,,,2465,
+2026-09-10T11:58:46-08:00,connect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-5,,,,
+2026-09-10T11:58:49-08:00,disconnect,199.139.48.70,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-3,,,1206783,
+2026-09-10T12:00:05-08:00,disconnect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-5,,,79477,
+2026-09-10T12:00:58-08:00,connect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-6,,,,
+2026-09-10T12:15:44-08:00,disconnect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-6,,,886269,
+2026-09-10T12:20:46-08:00,connect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-7,,,,
+2026-09-10T12:22:57-08:00,disconnect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-7,,,130860,
+2026-09-10T15:30:04-08:00,connect,166.3.59.167,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-8,,,,
+2026-09-10T15:31:18-08:00,connect,166.3.59.167,National Flight Follow,stream-2e48a7227a1b92f9c98a1687dd6aa363-peer-1,,,,
+2026-09-10T15:52:40-08:00,disconnect,166.5.207.160,Keller South Ops,stream-6c5eafa0270104b2b3838ca349ed06df-peer-2,,,16333448,
+2026-09-10T15:52:40-08:00,disconnect,166.5.207.160,Admin ATB,stream-315d322c4b04a23b845fa7c70997fc04-peer-1,,,16081324,
+2026-09-10T16:51:59-08:00,disconnect,160.232.228.89,Fire West Net,stream-a61f0ab85fc7c33de153d8f9f40e49c4-peer-1,,,28037043,
+2026-09-10T17:01:41-08:00,disconnect,166.3.59.167,National Flight Follow,stream-2e48a7227a1b92f9c98a1687dd6aa363-peer-1,,,5423196,
+2026-09-10T17:01:42-08:00,disconnect,166.3.59.167,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-8,,,5498142,
+2026-09-10T19:25:12-08:00,audio_download,199.139.48.55,,,,,,/audio/California/Plumas_NF/Admin_Net/Admin_Net_2026-09-11T01_06_54Z.wav
+2026-09-10T19:25:12-08:00,audio_download,199.139.48.55,,,,,,/audio/California/Plumas_NF/Admin_Net/Admin_Net_2026-09-11T01_06_54Z.wav
+2026-09-10T19:25:13-08:00,audio_download,199.139.48.55,,,,,,/audio/California/Plumas_NF/Admin_Net/Admin_Net_2026-09-11T01_06_54Z.wav
+2026-09-10T19:25:14-08:00,audio_download,199.139.48.55,,,,,,/audio/California/Plumas_NF/Admin_Net/Admin_Net_2026-09-11T01_06_54Z.wav
+2026-09-11T07:23:38-08:00,connect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-9,,,,
+2026-09-11T07:28:35-08:00,disconnect,199.139.48.55,Sacramento RD,stream-879823dcd770e42cb3016e87a9148700-peer-9,,,296449,
+2026-09-11T08:11:53-08:00,connect,166.5.110.205,Forest West Net,stream-79b6a980d62d3f04bd4091701e04ff18-peer-1,,,,
+2026-09-11T08:36:19-08:00,connect,199.139.48.70,BLM Roswell FO,stream-57a9bd5e8321ad92673e7c7c5a60630c-peer-1,,,,
+2026-09-11T08:36:52-08:00,connect,166.3.57.163,BLM Roswell FO,stream-57a9bd5e8321ad92673e7c7c5a60630c-peer-2,,,,
+2026-09-11T08:49:36-08:00,disconnect,199.139.48.70,BLM Roswell FO,stream-57a9bd5e8321ad92673e7c7c5a60630c-peer-1,,,797172,
+2026-09-11T09:03:22-08:00,connect,166.3.57.163,Smokey Bear RD,stream-539f85affa27e525e794d835bc952969-peer-1,,,,
+2026-09-11T12:01:49-08:00,disconnect,166.3.57.163,BLM Roswell FO,stream-57a9bd5e8321ad92673e7c7c5a60630c-peer-2,,,12296913,
+2026-09-11T12:01:52-08:00,disconnect,166.3.57.163,Smokey Bear RD,stream-539f85affa27e525e794d835bc952969-peer-1,,,10709302,

@@ -8,18 +8,12 @@
   "pfxFile": "C:\\Certs\\radiostreams_27.pfx",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
-    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-medium.bin",
+    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-small.bin",
     "workers": 3,
     "timeoutMs": 3600000,
     "autoTranscribeMinClipMs": 20000,
     "gapMs": 4000,
     "maxClipMs": 600000
-  },
-  "keepalive": {
-    "enabled": true,
-    "port": 2600,
-    "intervalMs": 115000,
-    "burstMs": 5000
   },
   "regions": {
     "Alaska": {
