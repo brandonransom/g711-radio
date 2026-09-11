@@ -19,9 +19,9 @@ import (
 // transcriptJob is submitted when a recorded clip is ready.
 type transcriptJob struct {
 	info     streamInfo
-	clipID   string    // unique ID correlating the clip event with its later transcript
-	wavPath  string    // path to the already-saved 8kHz WAV file on disk
-	audioURL string    // relative URL served to browsers (e.g. /audio/...)
+	clipID   string // unique ID correlating the clip event with its later transcript
+	wavPath  string // path to the already-saved 8kHz WAV file on disk
+	audioURL string // relative URL served to browsers (e.g. /audio/...)
 	start    time.Time
 	manual   bool
 }
@@ -322,13 +322,13 @@ func encodePCM16WAV(samples []int16, sampleRate int) ([]byte, error) {
 
 	// fmt chunk
 	buf.WriteString("fmt ")
-	write(uint32(16))         // chunk size
-	write(uint16(1))          // PCM
-	write(uint16(1))          // mono
-	write(uint32(sampleRate)) // sample rate
+	write(uint32(16))             // chunk size
+	write(uint16(1))              // PCM
+	write(uint16(1))              // mono
+	write(uint32(sampleRate))     // sample rate
 	write(uint32(sampleRate * 2)) // byte rate
-	write(uint16(2))          // block align
-	write(uint16(16))         // bits per sample
+	write(uint16(2))              // block align
+	write(uint16(16))             // bits per sample
 
 	// data chunk
 	buf.WriteString("data")

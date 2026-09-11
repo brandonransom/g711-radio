@@ -53,6 +53,7 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 - `httpPort`: HTTPS port to listen on (default 443)
 - `audioLogDir`: Directory to store recorded audio clips (optional)
 - `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
+- `transcriptArchiveFile`: Path to a permanent, append-only, plain-text log of every transcript whisper produces across all streams — one line per transcript, each with a timestamp and stream name. Unlike the per-stream JSON logs under the `transcripts/` directory (which are pruned after 8 days), this file is never rotated, pruned, or cleaned up. Optional; defaults to `transcripts_archive.log` in the working directory.
 - `whisper` block: Optional transcription configuration
   - `remoteHost`: Optional. If set (e.g. `"192.168.1.50:8090"` or `"whisper-host.local:8090"`), transcription requests are sent over HTTP to that host's `/transcribe` endpoint instead of running `whisper-cli` locally. May include an `http://`/`https://` scheme prefix; defaults to `http://` when omitted. When `remoteHost` is set, `binaryPath`/`modelPath` are unnecessary here — they belong in the remote server's own config instead. See [Remote Transcription Server](#remote-transcription-server).
 
@@ -179,10 +180,11 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 ### How transcription works
 
 - Recording is presence-based: a WAV clip starts the moment a stream's incoming audio packets begin, with no voice/energy detection — the upstream source devices already gate transmission with their own VOX/squelch
-- Gaps between packets of up to `gapMs` are bridged into the same clip (with silence inserted to keep the file's timeline matching real elapsed time); a longer gap, or hitting `maxClipMs`, finalizes the clip
+- Gaps between packets of up to `gapMs` are bridged into the same clip (packets are simply concatenated in the order received, with no padding inserted for the gap — UDP delivery timing isn't reconstructed); a longer gap, or hitting `maxClipMs`, finalizes the clip
 - The clip is submitted to a worker pool that calls `whisper-cli` as a subprocess
 - Transcripts are broadcast to connected browsers via **Server-Sent Events** at `/transcripts`
 - The individual stream page displays a live scrollable transcript panel
+- Every transcript is also appended to a single permanent log file (`transcriptArchiveFile`, see [Config](#config)) with a timestamp and stream name — this file is never pruned, unlike the per-stream JSON logs used for the in-browser history
 
 ### Model selection
 
