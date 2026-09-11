@@ -85,12 +85,16 @@ func EncodePCMU(sample int16) byte {
 // removed — the upstream devices already gate transmission with their own
 // VOX/squelch, so every packet g711-radio receives is assumed to already be
 // a real transmission). A WAV recording starts the moment any packet
-// arrives, and every subsequent packet is appended to the same in-progress
-// recording. A gap of up to gapLimit between packets is bridged into the
-// same file (with silence inserted for the elapsed gap, so the file's
-// timeline still matches real elapsed time) rather than starting a new
-// recording; only a gap longer than gapLimit — or hitting maxClip — finishes
-// the current recording, and the next packet starts a new one.
+// arrives, and every subsequent packet's samples are appended to the same
+// in-progress recording back-to-back, in the order received, with no
+// silence or other padding inserted between them regardless of real-world
+// arrival timing — this is a UDP stream with no delivery-time guarantees,
+// so the recording is simply the concatenation of payload audio, not an
+// attempt to reconstruct a real-time timeline. A gap of up to gapLimit
+// between packets is bridged into the same file (i.e. still just appended,
+// with nothing inserted for the elapsed time) rather than starting a new
+// recording; only a gap longer than gapLimit — or hitting maxClip —
+// finishes the current recording, and the next packet starts a new one.
 type recorderState struct {
 	mu       sync.Mutex
 	gapLimit time.Duration // bridge gaps up to this long into the same recording
@@ -113,13 +117,14 @@ func newRecorderState(gapLimit, maxClip time.Duration, onClip func([]int16, time
 }
 
 // Push appends one decoded PCM frame to the current recording, starting a
-// new one if none is in progress, bridging any gap since the last frame
-// with inserted silence, and arming a timer so the recording is finalized
-// on its own if no further packets arrive within gapLimit. There's no other
-// event to drive this: unlike the old VAD (which was fed continuous frames
-// and could rely on always being Push'd, even during silence), presence-
-// based recording only gets called when a real packet arrives, so the
-// *absence* of a call has to be detected with a timer instead.
+// new one if none is in progress, and arming a timer so the recording is
+// finalized on its own if no further packets arrive within gapLimit. There's
+// no other event to drive this: unlike the old VAD (which was fed continuous
+// frames and could rely on always being Push'd, even during silence),
+// presence-based recording only gets called when a real packet arrives, so
+// the *absence* of a call has to be detected with a timer instead. Frames
+// are appended exactly as received, back-to-back, with no gap-filling —
+// see the recorderState doc comment for why.
 func (r *recorderState) Push(samples []int16, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -132,11 +137,6 @@ func (r *recorderState) Push(samples []int16, now time.Time) {
 		r.recording = true
 		r.clipStart = now
 		r.clipBuf = r.clipBuf[:0]
-	} else if gap := now.Sub(r.lastPacketAt); gap > 0 {
-		gapSamples := int(gap.Seconds() * recSampleRate)
-		if gapSamples > 0 {
-			r.clipBuf = append(r.clipBuf, make([]int16, gapSamples)...)
-		}
 	}
 	r.lastPacketAt = now
 	r.clipBuf = append(r.clipBuf, samples...)
