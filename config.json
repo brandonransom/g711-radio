@@ -2,14 +2,14 @@
   "httpPort": 443,
   "httpRedirectPort": 80,
   "audioLogDir": "audio",
+  "audioBackupDir": "",
   "usageLogFile": "usage.csv",
   "certFile": "",
   "keyFile": "",
   "pfxFile": "C:\\Certs\\radiostreams_27.pfx",
-  "transcriptArchiveFile": "C:\\Users\\DispatchAdmin\\g711-radio\\Transcripts.log",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
-    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-medium.bin",
+    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-small.bin",
     "workers": 3,
     "timeoutMs": 3600000,
     "autoTranscribeMinClipMs": 20000,
@@ -116,6 +116,17 @@
         { "streamName": "Kiowa", "udpPort": 10340 },
         { "streamName": "Cedro Pk", "udpPort": 10350 },
         { "streamName": "NFF", "udpPort": 10360 }
+      ],
+      "Santa Fe NF": [
+        { "streamName": "NFF", "udpPort": 101010 },
+        { "streamName": "Santa Fe NF East", "udpPort": 101020 },
+        { "streamName": "Santa Fe NF West", "udpPort": 101030 },
+        { "streamName": "Cerro Pelado", "udpPort": 101040 }
+      ],
+      "Carson NF": [
+        { "streamName": "NFF", "udpPort": 10210 },
+        { "streamName": "Carson NFSO", "udpPort": 10220 },
+        { "streamName": "Carson NF San Antonio", "udpPort": 10230 }
       ]
     },
     "Oregon": {

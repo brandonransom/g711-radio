@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -40,10 +41,11 @@ type transcriptHub struct {
 	logDir string
 	logger *log.Logger
 
-	// archiveMu/archiveFile guard the permanent transcript archive (see
+	// archiveMu/archivePath guard the permanent transcript archive (see
 	// appendArchive). Separate from mu/logDir since the archive is a
-	// single flat file, never pruned, and orthogonal to the per-stream JSON
-	// logs and SSE fan-out above.
+	// single flat CSV file — living inside the primary audio archive
+	// directory, not the per-stream "transcripts" logDir above — and is
+	// orthogonal to the per-stream JSON logs and SSE fan-out.
 	archiveMu   sync.Mutex
 	archivePath string
 }
@@ -51,6 +53,9 @@ type transcriptHub struct {
 func newTranscriptHub(logDir string, archivePath string, logger *log.Logger) *transcriptHub {
 	if logDir != "" {
 		_ = os.MkdirAll(logDir, 0755)
+	}
+	if archivePath != "" {
+		_ = os.MkdirAll(filepath.Dir(archivePath), 0755)
 	}
 	return &transcriptHub{
 		subs:        make(map[string]chan transcriptEvent),
@@ -134,21 +139,25 @@ func (h *transcriptHub) appendLog(event transcriptEvent) {
 	}
 }
 
-// appendArchive appends one plain-text line — timestamp, stream name,
-// transcript text — to the permanent transcript archive file. Unlike
-// appendLog's per-stream JSON files (which pruneTranscriptLogs rewrites to
-// drop entries older than the retention period), this file is opened
-// append-only and is never truncated or rewritten anywhere else in this
-// codebase, so it accumulates every transcript ever produced for the life
-// of the deployment. Guarded by its own mutex (distinct from mu, which
-// guards the SSE subscriber map) since this is a simple serialized
-// file-append independent of fan-out.
+// appendArchive appends one row — timestamp, stream name, transcript text —
+// to the permanent transcript archive CSV file (writing a header row first
+// if the file is new/empty). Unlike appendLog's per-stream JSON files, this
+// file is opened append-only and is never truncated, rewritten, or pruned
+// anywhere in this codebase, so it accumulates every transcript ever
+// produced for the life of the deployment. Guarded by its own mutex
+// (distinct from mu, which guards the SSE subscriber map) since this is a
+// simple serialized file-append independent of fan-out.
 func (h *transcriptHub) appendArchive(event transcriptEvent) {
 	if h.archivePath == "" {
 		return
 	}
 	h.archiveMu.Lock()
 	defer h.archiveMu.Unlock()
+
+	writeHeader := false
+	if fi, err := os.Stat(h.archivePath); err != nil || fi.Size() == 0 {
+		writeHeader = true
+	}
 
 	f, err := os.OpenFile(h.archivePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -157,14 +166,24 @@ func (h *transcriptHub) appendArchive(event transcriptEvent) {
 	}
 	defer f.Close()
 
+	w := csv.NewWriter(f)
+	if writeHeader {
+		if err := w.Write([]string{"timestamp", "streamName", "transcript"}); err != nil {
+			h.logger.Printf("transcript archive: write header %s: %v", h.archivePath, err)
+		}
+	}
+
 	ts := event.Timestamp
 	if ts.IsZero() {
 		ts = time.Now()
 	}
 	text := strings.Join(strings.Fields(event.Text), " ")
-	line := fmt.Sprintf("%s\t%s\t%s\n", ts.Local().Format("2006-01-02 15:04:05 MST"), event.StreamName, text)
-	if _, err := f.WriteString(line); err != nil {
+	if err := w.Write([]string{ts.Local().Format("2006-01-02 15:04:05 MST"), event.StreamName, text}); err != nil {
 		h.logger.Printf("transcript archive: write %s: %v", h.archivePath, err)
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		h.logger.Printf("transcript archive: flush %s: %v", h.archivePath, err)
 	}
 }
 
