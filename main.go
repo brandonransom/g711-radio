@@ -116,14 +116,35 @@ type appConfig struct {
 	DebugMulticast   bool                                 `json:"debugMulticast"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
 	Whisper          *whisperConfig                       `json:"whisper"`
-	AudioLogDir      string                               `json:"audioLogDir"`
-	UsageLogFile     string                               `json:"usageLogFile"`
-	CertFile         string                               `json:"certFile"`
-	KeyFile          string                               `json:"keyFile"`
-	PFXFile          string                               `json:"pfxFile"`
-	PFXPassword      string                               `json:"pfxPassword"`
-	PFXKeyPassword   string                               `json:"pfxKeyPassword"`
-	ICEServers       []iceServerConfig                    `json:"iceServers"`
+
+	// AudioLogDir is the primary, user-facing audio archive: every
+	// recorded clip is written here (see saveAudioClip), served over HTTP
+	// at /audio/ for in-browser playback, and referenced by the
+	// clip/transcript history. Point this at wherever the "live" copy
+	// should live — a local path today, but nothing here assumes that; any
+	// directory that behaves like a normal filesystem (including a mapped
+	// network drive) works. Audio and transcripts are kept indefinitely —
+	// nothing in this codebase ever deletes them (see the removed
+	// pruneOldFiles/pruneTranscriptLogs in git history for the retention
+	// logic this replaced).
+	AudioLogDir string `json:"audioLogDir"`
+
+	// AudioBackupDir, when non-empty, makes every recorded clip also get
+	// written, byte-for-byte, to this second directory (same relative
+	// region/group/stream path, same filename) — a redundant copy for
+	// disaster recovery, not served over HTTP or referenced anywhere in
+	// the UI. A write failure here (e.g. a temporarily unreachable network
+	// mount) is logged but never blocks the primary write, clip
+	// finalization, or transcription. Leave empty to disable.
+	AudioBackupDir string `json:"audioBackupDir"`
+
+	UsageLogFile   string            `json:"usageLogFile"`
+	CertFile       string            `json:"certFile"`
+	KeyFile        string            `json:"keyFile"`
+	PFXFile        string            `json:"pfxFile"`
+	PFXPassword    string            `json:"pfxPassword"`
+	PFXKeyPassword string            `json:"pfxKeyPassword"`
+	ICEServers     []iceServerConfig `json:"iceServers"`
 
 	// AudioDumpDir, when non-empty, makes every station write raw
 	// pipeline-stage dumps for offline diagnosis: <dir>/<streamName>_wire.bin
@@ -135,16 +156,6 @@ type appConfig struct {
 	// cmd/mulaw-to-wav to turn either .bin file into a WAV for listening.
 	// Leave empty in normal operation — this is a diagnostic-only feature.
 	AudioDumpDir string `json:"audioDumpDir"`
-
-	// TranscriptArchiveFile, when non-empty, makes every transcribed clip
-	// (across all streams) get appended as a plain-text line — timestamp,
-	// stream name, transcript text — to this single file, in addition to
-	// the normal per-stream JSON logs under the "transcripts" directory.
-	// Unlike those per-stream logs (and every other log/recording in this
-	// program), this file is never pruned/rotated/cleaned up: it exists
-	// specifically as a permanent, append-only record. Defaults to
-	// "transcripts_archive.log" in the working directory if left empty.
-	TranscriptArchiveFile string `json:"transcriptArchiveFile"`
 
 	streamGroups []configuredRegion
 	totalStreams int
@@ -578,16 +589,23 @@ func main() {
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
 
-	transcriptArchiveFile := config.TranscriptArchiveFile
-	if transcriptArchiveFile == "" {
-		transcriptArchiveFile = "transcripts_archive.log"
+	// The permanent, whisper-only transcript CSV lives inside the primary
+	// audio archive directory itself (see AudioLogDir's doc comment) —
+	// there's no separate config knob for its location, since "make it
+	// part of the audio archive folder" is the whole point: wherever the
+	// audio clips end up (including a future network mount), the CSV
+	// travels with them. If AudioLogDir isn't configured, there's no audio
+	// archive folder to put it in, so it's simply not written.
+	var transcriptArchivePath string
+	if config.AudioLogDir != "" {
+		transcriptArchivePath = filepath.Join(config.AudioLogDir, "transcripts.csv")
+		if abs, err := filepath.Abs(transcriptArchivePath); err == nil {
+			transcriptArchivePath = abs
+		}
+		logger.Printf("transcript archive file: %s (CSV, permanent, never pruned)", transcriptArchivePath)
 	}
-	if abs, err := filepath.Abs(transcriptArchiveFile); err == nil {
-		transcriptArchiveFile = abs
-	}
-	logger.Printf("transcript archive file: %s (permanent, never pruned)", transcriptArchiveFile)
 
-	hub := newTranscriptHub("transcripts", transcriptArchiveFile, logger)
+	hub := newTranscriptHub("transcripts", transcriptArchivePath, logger)
 
 	var pool *whisperPool
 	if config.Whisper != nil && (config.Whisper.ModelPath != "" || config.Whisper.RemoteHost != "") {
@@ -680,6 +698,7 @@ func main() {
 					}
 					captureInfo := info
 					captureAudioLogDir := config.AudioLogDir
+					captureAudioBackupDir := config.AudioBackupDir
 					st.recorder = newRecorderState(
 						time.Duration(wCfg.GapMs)*time.Millisecond,
 						time.Duration(wCfg.MaxClipMs)*time.Millisecond,
@@ -702,7 +721,7 @@ func main() {
 								if captureAudioLogDir != "" {
 									var err error
 
-									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureInfo, samples, start, logger)
+									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureAudioBackupDir, captureInfo, samples, start, logger)
 									if err != nil {
 										logger.Printf("audio log: %v", err)
 									}
@@ -909,9 +928,10 @@ func main() {
 		}
 	}()
 
-	// Background cleanup: delete audio WAV files, prune transcript logs older than 8 days,
-	// and prune the server log file (entries older than 90 days).
-	const retentionPeriod = 8 * 24 * time.Hour
+	// Background cleanup: prune only the server's own diagnostic log file
+	// (entries older than 90 days). Audio clips and transcripts (both the
+	// per-stream JSON logs and the permanent whisper CSV archive) are kept
+	// indefinitely — nothing in this codebase ever deletes them.
 	const logRetentionPeriod = 90 * 24 * time.Hour
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
@@ -921,10 +941,6 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if config.AudioLogDir != "" {
-					pruneOldFiles(config.AudioLogDir, retentionPeriod, logger)
-				}
-				pruneTranscriptLogs(hub.logDir, retentionPeriod, logger)
 				if logFileErr == nil {
 					pruneLogFile(logFilePath, logRetentionPeriod, logger)
 				}
@@ -1396,30 +1412,51 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 }
 
 // saveAudioClip writes a recorded clip as an 8kHz mono WAV file under
-// audioLogDir. Returns the absolute file path and the relative URL path for
-// browser playback.
+// audioLogDir (the primary, user-facing archive — served over HTTP and
+// referenced by clip playback). Returns the absolute file path and the
+// relative URL path for browser playback.
 // Path: <audioLogDir>/<region>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
-func saveAudioClip(audioLogDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) (string, string, error) {
+//
+// When backupDir is non-empty, the identical WAV bytes are also written to
+// the same relative path under backupDir — a redundant copy for disaster
+// recovery. It's never served over HTTP or referenced by the returned path
+// or URL, and a failure writing it (e.g. an unreachable network mount) is
+// logged but does not fail this call or affect the primary copy.
+func saveAudioClip(audioLogDir, backupDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) (string, string, error) {
 	safe := func(s string) string {
 		return unsafeChars.ReplaceAllString(s, "_")
 	}
 	relDir := filepath.Join(safe(info.RegionName), safe(info.GroupName), safe(info.StreamName))
+	// ISO 8601 UTC — colons replaced with underscores for Windows filename safety.
+	ts := start.UTC().Format("2006-01-02T15_04_05Z")
+	filename := fmt.Sprintf("%s_%s.wav", safe(info.StreamName), ts)
+
+	wav, err := encodePCM16WAV(samples, recSampleRate)
+	if err != nil {
+		return "", "", fmt.Errorf("encode %s/%s: %w", relDir, filename, err)
+	}
+
 	absDir := filepath.Join(audioLogDir, relDir)
 	if err := os.MkdirAll(absDir, 0755); err != nil {
 		return "", "", fmt.Errorf("mkdir %s: %w", absDir, err)
 	}
-	// ISO 8601 UTC — colons replaced with underscores for Windows filename safety.
-	ts := start.UTC().Format("2006-01-02T15_04_05Z")
-	filename := fmt.Sprintf("%s_%s.wav", safe(info.StreamName), ts)
 	absPath := filepath.Join(absDir, filename)
-
-	wav, err := encodePCM16WAV(samples, recSampleRate)
-	if err != nil {
-		return "", "", fmt.Errorf("encode %s: %w", absPath, err)
-	}
 	if err := os.WriteFile(absPath, wav, 0644); err != nil {
 		return "", "", fmt.Errorf("write %s: %w", absPath, err)
 	}
+
+	if backupDir != "" {
+		backupAbsDir := filepath.Join(backupDir, relDir)
+		if err := os.MkdirAll(backupAbsDir, 0755); err != nil {
+			logger.Printf("audio backup: mkdir %s: %v", backupAbsDir, err)
+		} else {
+			backupAbsPath := filepath.Join(backupAbsDir, filename)
+			if err := os.WriteFile(backupAbsPath, wav, 0644); err != nil {
+				logger.Printf("audio backup: write %s: %v", backupAbsPath, err)
+			}
+		}
+	}
+
 	// Build a URL-style relative path using forward slashes.
 	relURL := "/audio/" + safe(info.RegionName) + "/" + safe(info.GroupName) + "/" + safe(info.StreamName) + "/" + filename
 	return absPath, relURL, nil
@@ -1437,75 +1474,6 @@ func audioLoggingMiddleware(handler http.Handler, usageLogger *usageLogger) http
 		})
 		handler.ServeHTTP(w, r)
 	})
-}
-
-// pruneOldFiles walks dir and removes regular files older than maxAge.
-// Empty directories left behind are also removed.
-func pruneOldFiles(dir string, maxAge time.Duration, logger *log.Logger) {
-	cutoff := time.Now().Add(-maxAge)
-	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		if info.ModTime().Before(cutoff) {
-			_ = os.Remove(path)
-		}
-		return nil
-	})
-	// Remove empty leaf directories.
-	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, _ error) error {
-		if path == dir || !d.IsDir() {
-			return nil
-		}
-		entries, _ := os.ReadDir(path)
-		if len(entries) == 0 {
-			os.Remove(path)
-		}
-		return nil
-	})
-}
-
-// pruneTranscriptLogs rewrites each .log file in dir, keeping only entries
-// newer than maxAge.
-func pruneTranscriptLogs(dir string, maxAge time.Duration, logger *log.Logger) {
-	if dir == "" {
-		return
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	cutoff := time.Now().Add(-maxAge)
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".log" {
-			continue
-		}
-		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var kept []byte
-		for _, line := range bytes.Split(data, []byte("\n")) {
-			if len(line) == 0 {
-				continue
-			}
-			var ev struct {
-				Timestamp time.Time `json:"timestamp"`
-			}
-			if err := json.Unmarshal(line, &ev); err != nil || ev.Timestamp.After(cutoff) {
-				kept = append(kept, line...)
-				kept = append(kept, '\n')
-			}
-		}
-		if err := os.WriteFile(path, kept, 0644); err != nil {
-			logger.Printf("pruning transcript log %s: %v", path, err)
-		}
-	}
 }
 
 // getClientIP extracts the client IP address from an HTTP request.

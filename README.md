@@ -51,9 +51,9 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 ```
 
 - `httpPort`: HTTPS port to listen on (default 443)
-- `audioLogDir`: Directory to store recorded audio clips (optional)
+- `audioLogDir`: Directory for the primary, user-facing audio archive — recorded clips are written here, served over HTTP at `/audio/` for in-browser playback, and referenced by the clip/transcript history. Optional; recording is disabled without it (unless whisper is otherwise configured, in which case clips are still transcribed from a temp file but not persisted). Audio and transcripts are kept **indefinitely** — nothing in this codebase deletes them.
+- `audioBackupDir`: Optional. When set, every recorded clip is also written, byte-for-byte, to this second directory (mirroring the same region/group/stream folder structure) — a redundant copy for disaster recovery. It's never served over HTTP or shown in the UI, and a write failure here (e.g. a temporarily unreachable network mount) is logged but never blocks the primary recording. Any path that behaves like a normal filesystem works, including a mapped network drive.
 - `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
-- `transcriptArchiveFile`: Path to a permanent, append-only, plain-text log of every transcript whisper produces across all streams — one line per transcript, each with a timestamp and stream name. Unlike the per-stream JSON logs under the `transcripts/` directory (which are pruned after 8 days), this file is never rotated, pruned, or cleaned up. Optional; defaults to `transcripts_archive.log` in the working directory.
 - `whisper` block: Optional transcription configuration
   - `remoteHost`: Optional. If set (e.g. `"192.168.1.50:8090"` or `"whisper-host.local:8090"`), transcription requests are sent over HTTP to that host's `/transcribe` endpoint instead of running `whisper-cli` locally. May include an `http://`/`https://` scheme prefix; defaults to `http://` when omitted. When `remoteHost` is set, `binaryPath`/`modelPath` are unnecessary here — they belong in the remote server's own config instead. See [Remote Transcription Server](#remote-transcription-server).
 
@@ -184,7 +184,7 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 - The clip is submitted to a worker pool that calls `whisper-cli` as a subprocess
 - Transcripts are broadcast to connected browsers via **Server-Sent Events** at `/transcripts`
 - The individual stream page displays a live scrollable transcript panel
-- Every transcript is also appended to a single permanent log file (`transcriptArchiveFile`, see [Config](#config)) with a timestamp and stream name — this file is never pruned, unlike the per-stream JSON logs used for the in-browser history
+- Every transcript is also appended as a row to `transcripts.csv` inside `audioLogDir` (the primary audio archive directory, see [Config](#config)) — one row per transcript, with a timestamp and stream name. This file lives alongside the audio clips it accompanies, is never pruned, and is separate from the per-stream JSON logs under `transcripts/` used for the in-browser history
 
 ### Model selection
 
