@@ -176,11 +176,46 @@ func (p *whisperPool) worker(id int) {
 			}
 			text, err := p.transcribe(job.wavPath)
 			if err != nil {
-				p.logger.Printf("whisper worker %d: transcribe %s: %v", id, job.info.StreamName, err)
+				p.logger.Printf("whisper worker %d: transcribe %s (clip %s): %v", id, job.info.StreamName, job.clipID, err)
+				// Publish a visible failure marker instead of silently
+				// dropping the job: without this, a clip whose
+				// transcription errors out (timeout, crash, oversized
+				// input, etc.) stays stuck showing "Recording received."
+				// forever in the UI, which is indistinguishable from a
+				// transcription that's merely still queued/in-progress —
+				// exactly the "doesn't show them on the webpage" symptom.
+				// The full error itself is server-log-only (see above);
+				// this is a generic, user-safe message.
+				p.hub.Publish(transcriptEvent{
+					Type:       "transcript",
+					ClipID:     job.clipID,
+					StreamID:   job.info.ID,
+					StreamName: job.info.StreamName,
+					RegionName: job.info.RegionName,
+					GroupName:  job.info.GroupName,
+					Text:       "[transcription failed]",
+					AudioURL:   job.audioURL,
+					Timestamp:  job.start,
+				})
 				continue
 			}
 			text = strings.TrimSpace(text)
 			if text == "" {
+				// No speech detected — publish a distinct marker so the UI
+				// doesn't leave this clip stuck as "pending" either; this
+				// is a normal/expected outcome (e.g. a keyed-up but silent
+				// transmission), not a failure.
+				p.hub.Publish(transcriptEvent{
+					Type:       "transcript",
+					ClipID:     job.clipID,
+					StreamID:   job.info.ID,
+					StreamName: job.info.StreamName,
+					RegionName: job.info.RegionName,
+					GroupName:  job.info.GroupName,
+					Text:       "[no speech detected]",
+					AudioURL:   job.audioURL,
+					Timestamp:  job.start,
+				})
 				continue
 			}
 			p.hub.Publish(transcriptEvent{
@@ -209,8 +244,13 @@ func (p *whisperPool) worker(id int) {
 	}
 }
 
-// transcribeLocal passes the saved WAV file directly to whisper-cli with --convert,
-// letting whisper handle any resampling. This avoids a fragile re-encode step.
+// transcribeLocal passes the saved WAV file directly to whisper-cli, which
+// decodes WAV (and several other formats) natively and resamples internally
+// as needed — no external ffmpeg/"--convert" step is required. An earlier
+// version of this code passed "--convert", which this whisper-cli build
+// (and possibly others) rejects outright with "error: unknown argument:
+// --convert", causing every single transcription attempt to fail
+// immediately with a nonzero exit before ever loading the model.
 func (p *whisperPool) transcribeLocal(wavPath string) (string, error) {
 	binary := p.cfg.BinaryPath
 	if binary == "" {
@@ -223,7 +263,6 @@ func (p *whisperPool) transcribeLocal(wavPath string) (string, error) {
 		binary,
 		"-m", p.cfg.ModelPath,
 		"-f", wavPath,
-		"--convert",
 		"-nt",
 		"-np",
 		"--language", "en",

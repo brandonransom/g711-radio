@@ -228,7 +228,6 @@ func (s *transcriptionServer) runWhisperCLI(reqCtx context.Context, wavPath stri
 		s.cfg.BinaryPath,
 		"-m", s.cfg.ModelPath,
 		"-f", wavPath,
-		"--convert",
 		"-nt",
 		"-np",
 		"--language", "en",
