@@ -157,6 +157,14 @@
         { "streamName": "Placeholder 2", "udpPort": 2276 }
       ]
     },
+    "Washington": {
+      "Colville National Forest": [
+        { "streamName": "Tonasket", "udpPort": 62100 },
+        { "streamName": "Republic", "udpPort": 62150 },
+        { "streamName": "Colville", "udpPort": 62110 },
+        { "streamName": "NEWICC", "udpPort": 62140 }
+      ]
+    },
     "ZZ Radio Test": {
       "Radio Test": [
         { "streamName": "Test Base", "udpPort": 9999 },
