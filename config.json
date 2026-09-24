@@ -9,7 +9,7 @@
   "pfxFile": "C:\\Certs\\radiostreams_27.pfx",
   "whisper": {
     "binaryPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
-    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-small.bin",
+    "modelPath": "C:\\Users\\DispatchAdmin\\whisper.cpp\\models\\ggml-tiny.bin",
     "workers": 3,
     "timeoutMs": 3600000,
     "autoTranscribeMinClipMs": 20000,
