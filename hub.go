@@ -21,16 +21,17 @@ var unsafeChars = regexp.MustCompile(`[^a-zA-Z0-9_\-]`)
 // When Type == "clip", the audio is ready but text may be empty (pending transcription).
 // When Type == "transcript", the text has been filled in for a prior clip (matched by ClipID).
 type transcriptEvent struct {
-	Type       string    `json:"type"` // "clip" or "transcript"
-	ClipID     string    `json:"clipId"`
-	StreamID   string    `json:"streamId"`
-	StreamName string    `json:"streamName"`
-	RegionName string    `json:"regionName"`
-	GroupName  string    `json:"groupName"`
-	Text       string    `json:"text,omitempty"`
-	AudioURL   string    `json:"audioUrl,omitempty"`
-	DurationMs int       `json:"durationMs,omitempty"`
-	Timestamp  time.Time `json:"timestamp"`
+	Type        string    `json:"type"` // "clip" or "transcript"
+	ClipID      string    `json:"clipId"`
+	StreamID    string    `json:"streamId"`
+	StreamName  string    `json:"streamName"`
+	RegionName  string    `json:"regionName"`
+	GroupName   string    `json:"groupName"`
+	Text        string    `json:"text,omitempty"`
+	AudioURL    string    `json:"audioUrl,omitempty"`
+	DurationMs  int       `json:"durationMs,omitempty"`
+	Timestamp   time.Time `json:"timestamp"`
+	WAVFilename string    `json:"-"`
 }
 
 // transcriptHub fans out transcript events to SSE subscribers.
@@ -140,7 +141,7 @@ func (h *transcriptHub) appendLog(event transcriptEvent) {
 	}
 }
 
-// appendArchive appends one row — timestamp, stream name, transcript text —
+// appendArchive appends one row — WAV filename, stream name, transcript text —
 // to the permanent transcript archive CSV file (writing a header row first
 // if the file is new/empty). Unlike appendLog's per-stream JSON files, this
 // file is opened append-only and is never truncated, rewritten, or pruned
@@ -169,17 +170,13 @@ func (h *transcriptHub) appendArchive(event transcriptEvent) {
 
 	w := csv.NewWriter(f)
 	if writeHeader {
-		if err := w.Write([]string{"timestamp", "streamName", "transcript"}); err != nil {
+		if err := w.Write([]string{"filename", "streamName", "transcript"}); err != nil {
 			h.logger.Printf("transcript archive: write header %s: %v", h.archivePath, err)
 		}
 	}
 
-	ts := event.Timestamp
-	if ts.IsZero() {
-		ts = time.Now()
-	}
 	text := strings.Join(strings.Fields(event.Text), " ")
-	if err := w.Write([]string{ts.Local().Format("2006-01-02 15:04:05 MST"), event.StreamName, text}); err != nil {
+	if err := w.Write([]string{event.WAVFilename, event.StreamName, text}); err != nil {
 		h.logger.Printf("transcript archive: write %s: %v", h.archivePath, err)
 	}
 	w.Flush()

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -187,15 +188,16 @@ func (p *whisperPool) worker(id int) {
 				// The full error itself is server-log-only (see above);
 				// this is a generic, user-safe message.
 				p.hub.Publish(transcriptEvent{
-					Type:       "transcript",
-					ClipID:     job.clipID,
-					StreamID:   job.info.ID,
-					StreamName: job.info.StreamName,
-					RegionName: job.info.RegionName,
-					GroupName:  job.info.GroupName,
-					Text:       "[transcription failed]",
-					AudioURL:   job.audioURL,
-					Timestamp:  job.start,
+					Type:        "transcript",
+					ClipID:      job.clipID,
+					StreamID:    job.info.ID,
+					StreamName:  job.info.StreamName,
+					RegionName:  job.info.RegionName,
+					GroupName:   job.info.GroupName,
+					Text:        "[transcription failed]",
+					AudioURL:    job.audioURL,
+					Timestamp:   job.start,
+					WAVFilename: filepath.Base(job.wavPath),
 				})
 				continue
 			}
@@ -206,28 +208,30 @@ func (p *whisperPool) worker(id int) {
 				// is a normal/expected outcome (e.g. a keyed-up but silent
 				// transmission), not a failure.
 				p.hub.Publish(transcriptEvent{
-					Type:       "transcript",
-					ClipID:     job.clipID,
-					StreamID:   job.info.ID,
-					StreamName: job.info.StreamName,
-					RegionName: job.info.RegionName,
-					GroupName:  job.info.GroupName,
-					Text:       "[no speech detected]",
-					AudioURL:   job.audioURL,
-					Timestamp:  job.start,
+					Type:        "transcript",
+					ClipID:      job.clipID,
+					StreamID:    job.info.ID,
+					StreamName:  job.info.StreamName,
+					RegionName:  job.info.RegionName,
+					GroupName:   job.info.GroupName,
+					Text:        "[no speech detected]",
+					AudioURL:    job.audioURL,
+					Timestamp:   job.start,
+					WAVFilename: filepath.Base(job.wavPath),
 				})
 				continue
 			}
 			p.hub.Publish(transcriptEvent{
-				Type:       "transcript",
-				ClipID:     job.clipID,
-				StreamID:   job.info.ID,
-				StreamName: job.info.StreamName,
-				RegionName: job.info.RegionName,
-				GroupName:  job.info.GroupName,
-				Text:       text,
-				AudioURL:   job.audioURL,
-				Timestamp:  job.start,
+				Type:        "transcript",
+				ClipID:      job.clipID,
+				StreamID:    job.info.ID,
+				StreamName:  job.info.StreamName,
+				RegionName:  job.info.RegionName,
+				GroupName:   job.info.GroupName,
+				Text:        text,
+				AudioURL:    job.audioURL,
+				Timestamp:   job.start,
+				WAVFilename: filepath.Base(job.wavPath),
 			})
 			p.logger.Printf("whisper worker %d: [%s] %s", id, job.info.StreamName, text)
 		}
