@@ -174,7 +174,7 @@ func (p *whisperPool) worker(id int) {
 			if !ok {
 				break
 			}
-			text, err := p.transcribe(job.wavPath)
+			text, err := p.transcribe(job.wavPath, job.info.StreamName)
 			if err != nil {
 				p.logger.Printf("whisper worker %d: transcribe %s (clip %s): %v", id, job.info.StreamName, job.clipID, err)
 				// Publish a visible failure marker instead of silently
@@ -284,7 +284,7 @@ func (p *whisperPool) transcribeLocal(wavPath string) (string, error) {
 // instance (see cmd/whisper-server) over HTTP instead of running whisper-cli
 // locally. The remote host has no authentication and is expected to run on a
 // trusted private network.
-func (p *whisperPool) transcribeRemote(wavPath string) (string, error) {
+func (p *whisperPool) transcribeRemote(wavPath, streamName string) (string, error) {
 	data, err := os.ReadFile(wavPath)
 	if err != nil {
 		return "", fmt.Errorf("remote whisper: read %s: %w", wavPath, err)
@@ -300,6 +300,7 @@ func (p *whisperPool) transcribeRemote(wavPath string) (string, error) {
 		return "", fmt.Errorf("remote whisper %s: build request: %w", url, err)
 	}
 	req.Header.Set("Content-Type", "audio/wav")
+	req.Header.Set("X-Stream-Name", streamName)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -334,9 +335,13 @@ func (p *whisperPool) transcribeRemote(wavPath string) (string, error) {
 
 // transcribe dispatches to a remote whisper-server instance when RemoteHost
 // is configured, otherwise it runs whisper-cli locally as a subprocess.
-func (p *whisperPool) transcribe(wavPath string) (string, error) {
+// streamName is only used by the remote path (see transcribeRemote) — the
+// remote server's /transcribe logs identify requests by an X-Stream-Name
+// header, since it has no other way to know which of possibly many g711-radio
+// instances/streams a given upload came from.
+func (p *whisperPool) transcribe(wavPath, streamName string) (string, error) {
 	if p.cfg.RemoteHost != "" {
-		return p.transcribeRemote(wavPath)
+		return p.transcribeRemote(wavPath, streamName)
 	}
 	return p.transcribeLocal(wavPath)
 }
