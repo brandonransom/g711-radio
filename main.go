@@ -901,7 +901,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		events, err := hub.History(st.info.StreamName, since, until)
+		events, err := hub.RecordingHistory(config.AudioLogDir, st.info, since, until)
 		if err != nil {
 			http.Error(w, "failed to read history", http.StatusInternalServerError)
 			logger.Printf("transcript history: %v", err)

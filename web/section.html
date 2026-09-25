@@ -134,6 +134,21 @@
         margin-top: 12px;
       }
 
+      .region-group {
+        margin-top: 28px;
+      }
+
+      .region-group > h2 {
+        font-size: 1.35rem;
+        margin: 0 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--line);
+      }
+
+      .region-group .forest-group {
+        margin-left: 12px;
+      }
+
       .forest-group h2 {
         font-size: 1.2rem;
         font-weight: 700;
@@ -867,12 +882,12 @@
       // the cards on this page. Called once after cards are built (see
       // init) — the stream list for a given region/forest page is fixed
       // for the lifetime of the page, so it never needs to be rebuilt.
-      function populateStreamFilterOptions(cardList) {
+      function populateStreamFilterOptions(cardList, useFullNames = false) {
         historyStreamSelect.innerHTML = "";
         for (const card of cardList) {
           const option = document.createElement("option");
           option.value = card.stream.id;
-          option.textContent = card.stream.streamName;
+          option.textContent = useFullNames ? formatStreamDisplayName(card.stream) : card.stream.streamName;
           historyStreamSelect.append(option);
         }
       }
@@ -1291,6 +1306,7 @@
         const params = new URL(window.location.href).searchParams;
         const regionParam = params.get("region") || "";
         const forestParam = params.get("forest") || "";
+        const allStreams = params.get("all") === "1";
 
         let regionGroups;
         try {
@@ -1302,35 +1318,59 @@
           return;
         }
 
-        const region = (regionGroups || []).find((r) => r.regionName === regionParam);
-        if (!region) {
-          showError(`Region "${regionParam}" was not found.`);
-          return;
-        }
+        if (allStreams) {
+          pageTitle.textContent = "All Configured Streams";
+          pageSubtitle.textContent = "Every configured stream, grouped by region and forest.";
+          document.title = "All Configured Streams - USDA FS Radio Streams";
 
-        if (forestParam) {
-          const forest = region.subGroups.find((g) => g.groupName === forestParam);
-          if (!forest) {
-            showError(`Forest "${forestParam}" was not found in region "${regionParam}".`);
+          for (const region of regionGroups || []) {
+            const regionSection = document.createElement("section");
+            regionSection.className = "region-group";
+            const regionHeading = document.createElement("h2");
+            regionHeading.textContent = region.regionName;
+            regionSection.append(regionHeading);
+
+            for (const group of region.subGroups) {
+              const forestSection = document.createElement("section");
+              forestSection.className = "forest-group";
+              const forestHeading = document.createElement("h2");
+              forestHeading.textContent = group.groupName;
+              forestSection.append(forestHeading, renderStreamsGrid(group.streams));
+              regionSection.append(forestSection);
+            }
+            content.append(regionSection);
+          }
+        } else {
+          const region = (regionGroups || []).find((r) => r.regionName === regionParam);
+          if (!region) {
+            showError(`Region "${regionParam}" was not found.`);
             return;
           }
 
-          pageTitle.textContent = forest.groupName;
-          pageSubtitle.textContent = region.regionName;
-          document.title = `${forest.groupName} / ${region.regionName} - USDA FS Radio Streams`;
-          content.append(renderStreamsGrid(forest.streams));
-        } else {
-          pageTitle.textContent = region.regionName;
-          pageSubtitle.textContent = "All forests in this region, grouped below.";
-          document.title = `${region.regionName} - USDA FS Radio Streams`;
+          if (forestParam) {
+            const forest = region.subGroups.find((g) => g.groupName === forestParam);
+            if (!forest) {
+              showError(`Forest "${forestParam}" was not found in region "${regionParam}".`);
+              return;
+            }
 
-          for (const group of region.subGroups) {
-            const section = document.createElement("section");
-            section.className = "forest-group";
-            const heading = document.createElement("h2");
-            heading.textContent = group.groupName;
-            section.append(heading, renderStreamsGrid(group.streams));
-            content.append(section);
+            pageTitle.textContent = forest.groupName;
+            pageSubtitle.textContent = region.regionName;
+            document.title = `${forest.groupName} / ${region.regionName} - USDA FS Radio Streams`;
+            content.append(renderStreamsGrid(forest.streams));
+          } else {
+            pageTitle.textContent = region.regionName;
+            pageSubtitle.textContent = "All forests in this region, grouped below.";
+            document.title = `${region.regionName} - USDA FS Radio Streams`;
+
+            for (const group of region.subGroups) {
+              const section = document.createElement("section");
+              section.className = "forest-group";
+              const heading = document.createElement("h2");
+              heading.textContent = group.groupName;
+              section.append(heading, renderStreamsGrid(group.streams));
+              content.append(section);
+            }
           }
         }
 
@@ -1343,7 +1383,7 @@
           knownStreamIds.add(streamId);
         }
 
-        populateStreamFilterOptions(Array.from(cards.values()));
+        populateStreamFilterOptions(Array.from(cards.values()), allStreams);
         updateAllButtons();
         transcriptPanel.hidden = false;
         void loadTranscriptHistory();
