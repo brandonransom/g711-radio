@@ -30,14 +30,22 @@ type transcriptJob struct {
 // whisperConfig holds runtime configuration for the Whisper worker pool and
 // the presence-based recorder (see recorder.go).
 type whisperConfig struct {
-	BinaryPath              string `json:"binaryPath"`
-	ModelPath               string `json:"modelPath"`
-	RemoteHost              string `json:"remoteHost"`
-	Workers                 int    `json:"workers"`
-	GapMs                   int    `json:"gapMs"`
-	MaxClipMs               int    `json:"maxClipMs"`
-	TimeoutMs               int    `json:"timeoutMs"`
-	AutoTranscribeMinClipMs int    `json:"autoTranscribeMinClipMs"`
+	BinaryPath string `json:"binaryPath"`
+	ModelPath  string `json:"modelPath"`
+	RemoteHost string `json:"remoteHost"`
+	Workers    int    `json:"workers"`
+	GapMs      int    `json:"gapMs"`
+	MaxClipMs  int    `json:"maxClipMs"`
+	TimeoutMs  int    `json:"timeoutMs"`
+	// AutoTranscribeMinClipMs and AutoTranscribeMaxClipMs bound which clips
+	// are queued for transcription automatically. A clip shorter than the
+	// minimum is usually a key-up blip with no speech; one longer than the
+	// maximum is usually a stuck transmitter or open carrier, and is
+	// expensive to transcribe. Zero disables that bound, and either way a
+	// clip outside the window can still be transcribed on demand from the
+	// web UI (see requestClipTranscription).
+	AutoTranscribeMinClipMs int `json:"autoTranscribeMinClipMs"`
+	AutoTranscribeMaxClipMs int `json:"autoTranscribeMaxClipMs"`
 }
 
 func (c *whisperConfig) setDefaults() {
@@ -55,6 +63,9 @@ func (c *whisperConfig) setDefaults() {
 	}
 	if c.AutoTranscribeMinClipMs < 0 {
 		c.AutoTranscribeMinClipMs = 0
+	}
+	if c.AutoTranscribeMaxClipMs < 0 {
+		c.AutoTranscribeMaxClipMs = 0
 	}
 }
 

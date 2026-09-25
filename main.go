@@ -63,8 +63,23 @@ func nextStreamID() string {
 	return "stream-" + hex.EncodeToString(buf[:])
 }
 
+// shouldAutoTranscribe reports whether a finished clip should be queued for
+// transcription automatically. A clip qualifies when its duration falls in
+// [AutoTranscribeMinClipMs, AutoTranscribeMaxClipMs]. The minimum must be set
+// for any automatic transcription to happen at all; the maximum is optional
+// and zero means "no upper bound". Clips outside the window are still
+// recorded and can be transcribed on demand from the web UI.
 func shouldAutoTranscribe(cfg *whisperConfig, durationMs int) bool {
-	return cfg != nil && cfg.AutoTranscribeMinClipMs > 0 && durationMs >= cfg.AutoTranscribeMinClipMs
+	if cfg == nil || cfg.AutoTranscribeMinClipMs <= 0 {
+		return false
+	}
+	if durationMs < cfg.AutoTranscribeMinClipMs {
+		return false
+	}
+	if cfg.AutoTranscribeMaxClipMs > 0 && durationMs > cfg.AutoTranscribeMaxClipMs {
+		return false
+	}
+	return true
 }
 
 const (
@@ -621,6 +636,17 @@ func main() {
 			logger.Printf("whisper transcription enabled: remote host=%s workers=%d", config.Whisper.RemoteHost, config.Whisper.Workers)
 		} else {
 			logger.Printf("whisper transcription enabled: model=%s workers=%d", config.Whisper.ModelPath, config.Whisper.Workers)
+		}
+		switch {
+		case config.Whisper.AutoTranscribeMinClipMs <= 0:
+			logger.Printf("automatic transcription disabled (autoTranscribeMinClipMs is unset); clips can still be transcribed on demand")
+		case config.Whisper.AutoTranscribeMaxClipMs > 0 && config.Whisper.AutoTranscribeMaxClipMs < config.Whisper.AutoTranscribeMinClipMs:
+			logger.Printf("WARNING: autoTranscribeMaxClipMs (%d ms) is below autoTranscribeMinClipMs (%d ms) — no clip can satisfy both, so nothing will be transcribed automatically",
+				config.Whisper.AutoTranscribeMaxClipMs, config.Whisper.AutoTranscribeMinClipMs)
+		case config.Whisper.AutoTranscribeMaxClipMs > 0:
+			logger.Printf("automatic transcription clip length window: %d-%d ms", config.Whisper.AutoTranscribeMinClipMs, config.Whisper.AutoTranscribeMaxClipMs)
+		default:
+			logger.Printf("automatic transcription clip length window: %d ms and longer (no maximum)", config.Whisper.AutoTranscribeMinClipMs)
 		}
 	}
 

@@ -13,6 +13,7 @@
     "workers": 3,
     "timeoutMs": 3600000,
     "autoTranscribeMinClipMs": 20000,
+    "autoTranscribeMaxClipMs": 0,
     "gapMs": 4000,
     "maxClipMs": 600000
   },

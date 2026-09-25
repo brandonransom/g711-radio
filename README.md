@@ -29,7 +29,9 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
     "modelPath": "C:\\path\\to\\ggml-medium.bin",
     "workers": 3,
     "gapMs": 4000,
-    "maxClipMs": 600000
+    "maxClipMs": 600000,
+    "autoTranscribeMinClipMs": 20000,
+    "autoTranscribeMaxClipMs": 120000
   },
   "regions": {
     "California": {
@@ -181,6 +183,10 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 
 - Recording is presence-based: a WAV clip starts the moment a stream's incoming audio packets begin, with no voice/energy detection — the upstream source devices already gate transmission with their own VOX/squelch
 - Gaps between packets of up to `gapMs` are bridged into the same clip (packets are simply concatenated in the order received, with no padding inserted for the gap — UDP delivery timing isn't reconstructed); a longer gap, or hitting `maxClipMs`, finalizes the clip
+- Which finished clips get transcribed automatically is bounded by clip length, so short key-up blips and stuck-carrier marathons don't consume the worker pool:
+  - **`autoTranscribeMinClipMs`** — clips shorter than this are not transcribed automatically. Leaving it unset (or `0`) disables automatic transcription entirely
+  - **`autoTranscribeMaxClipMs`** — clips longer than this are not transcribed automatically. `0` (the default) means no upper limit
+  - Both bounds are inclusive, so a clip qualifies when `autoTranscribeMinClipMs <= duration <= autoTranscribeMaxClipMs`. Every clip is still recorded and listed in the Recordings & Transcripts panel regardless; ones outside the window can be transcribed on demand with the panel's transcribe button. If the maximum is set below the minimum, no clip can satisfy both and the server logs a warning at startup
 - The clip is submitted to a worker pool that calls `whisper-cli` as a subprocess
 - Transcripts are broadcast to connected browsers via **Server-Sent Events** at `/transcripts`
 - The individual stream page displays a live scrollable transcript panel
