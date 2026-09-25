@@ -374,55 +374,88 @@
       }
 
       .transcript-filters {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: end;
-        gap: 12px;
-        margin-bottom: 14px;
-        padding-bottom: 14px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
         border-bottom: 1px solid var(--line);
+      }
+
+      /* Every control sits in one auto-fitting grid so the fields line up in
+         tidy columns instead of forming a ragged flex row. */
+      .transcript-filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+        gap: 6px 8px;
+        align-items: end;
       }
 
       .transcript-filters label {
         display: flex;
         flex-direction: column;
-        gap: 3px;
-        font-size: 0.76rem;
+        gap: 2px;
+        font-size: 0.66rem;
         color: var(--muted);
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
       }
 
       .transcript-filters select,
       .transcript-filters input {
         font: inherit;
-        font-size: 0.88rem;
+        font-size: 0.8rem;
+        width: 100%;
+        min-height: 27px;
         color: var(--ink);
         background: rgba(255, 255, 255, 0.85);
         border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 5px 8px;
+        border-radius: 6px;
+        padding: 3px 6px;
       }
 
-      .transcript-filters-duration {
-        display: flex;
-        gap: 8px;
-      }
-
+      /* display: contents keeps this wrapper meaningful in the markup while
+         letting its labels align as direct cells of the grid above.
+         [hidden] still collapses the custom range entirely. */
       .transcript-filters-custom {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        display: contents;
       }
 
+      /* The multi-select is taller than the single-line inputs, so it takes a
+         full row of its own. Spanning to the last line (rather than a fixed
+         two tracks) avoids forcing an implicit column when auto-fit collapses
+         the grid to one column on narrow screens. */
       .transcript-filters-streams {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
+        grid-column: 1 / -1;
+        align-self: start;
       }
 
       #historyStreamSelect {
-        min-width: 12rem;
+        min-height: 4rem;
+        padding: 2px;
+      }
+
+      #historyStreamSelect option {
+        padding: 2px 4px;
+        font-size: 0.8rem;
+        border-radius: 4px;
+      }
+
+      /* The two buttons need more room than a single auto-fit track, so the
+         actions cell claims its own full-width line; nowrap keeps the buttons
+         beside each other rather than stacking. */
+      .transcript-filters-actions {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: end;
+        justify-content: flex-start;
+        gap: 6px;
+      }
+
+      .transcript-filters-actions button {
+        padding: 5px 12px;
+        font-size: 0.78rem;
+        min-height: 27px;
+        white-space: nowrap;
+        box-shadow: none;
       }
 
       .note {
@@ -447,31 +480,32 @@
       <div id="transcriptPanel" class="transcript-panel" hidden>
         <strong class="transcript-label">Recordings &amp; Transcripts</strong>
         <div class="transcript-filters">
-          <label>Date range
-            <select id="historyRangeSelect">
-              <option value="24h">Last 24 hours</option>
-              <option value="7d">Last 7 days</option>
-              <option value="8d" selected>Last 8 days</option>
-              <option value="30d">Last 30 days</option>
-              <option value="all">All time</option>
-              <option value="custom">Custom range</option>
-            </select>
-          </label>
-          <span id="historyCustomRange" class="transcript-filters-custom" hidden>
-            <label>From <input type="datetime-local" id="historyFromInput"></label>
-            <label>To <input type="datetime-local" id="historyToInput"></label>
-          </span>
-          <span class="transcript-filters-duration">
-            <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
-            <label>Max length (s) <input type="number" id="historyMaxDurationInput" min="0" step="1" placeholder="Any"></label>
-          </span>
-          <span class="transcript-filters-streams">
-            <label>Streams (none = all)
-              <select id="historyStreamSelect" multiple size="4"></select>
+          <div class="transcript-filters-grid">
+            <label>Date range
+              <select id="historyRangeSelect">
+                <option value="24h">Last 24 hours</option>
+                <option value="7d">Last 7 days</option>
+                <option value="8d" selected>Last 8 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom range</option>
+              </select>
             </label>
-            <button id="historyStreamClearBtn" class="secondary" type="button">Clear stream filter</button>
-          </span>
-          <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
+            <span id="historyCustomRange" class="transcript-filters-custom" hidden>
+              <label>From <input type="datetime-local" id="historyFromInput"></label>
+              <label>To <input type="datetime-local" id="historyToInput"></label>
+            </span>
+            <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
+            <div class="transcript-filters-actions">
+              <button id="historyStreamClearBtn" class="secondary" type="button">Clear stream filter</button>
+              <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
+            </div>
+            <span class="transcript-filters-streams">
+              <label>Streams (none = all)
+                <select id="historyStreamSelect" multiple size="4"></select>
+              </label>
+            </span>
+          </div>
         </div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
@@ -494,7 +528,6 @@
       const historyFromInput = document.getElementById("historyFromInput");
       const historyToInput = document.getElementById("historyToInput");
       const historyMinDurationInput = document.getElementById("historyMinDurationInput");
-      const historyMaxDurationInput = document.getElementById("historyMaxDurationInput");
       const historyStreamSelect = document.getElementById("historyStreamSelect");
       const historyStreamClearBtn = document.getElementById("historyStreamClearBtn");
       const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
@@ -859,18 +892,16 @@
         return { since: preset(), until: null };
       }
 
-      // historyDurationFilter reads the length filter controls (seconds).
-      // A null bound means "no limit" in that direction.
+      // historyDurationFilter reads the minimum length control (seconds).
+      // A null bound means "no minimum".
       function historyDurationFilter() {
         const min = historyMinDurationInput.value !== "" ? Number(historyMinDurationInput.value) : null;
-        const max = historyMaxDurationInput.value !== "" ? Number(historyMaxDurationInput.value) : null;
-        return { min, max };
+        return { min };
       }
 
-      function passesDurationFilter(durationMs, { min, max }) {
+      function passesDurationFilter(durationMs, { min }) {
         const sec = (durationMs || 0) / 1000;
         if (min != null && sec < min) return false;
-        if (max != null && sec > max) return false;
         return true;
       }
 
@@ -1338,7 +1369,6 @@
       historyFromInput.addEventListener("change", () => void loadTranscriptHistory());
       historyToInput.addEventListener("change", () => void loadTranscriptHistory());
       historyMinDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
-      historyMaxDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
       historyStreamSelect.addEventListener("change", applyHistoryFiltersAndRender);
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
       historyStreamClearBtn.addEventListener("click", () => {
