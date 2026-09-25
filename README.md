@@ -184,6 +184,7 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 - The clip is submitted to a worker pool that calls `whisper-cli` as a subprocess
 - Transcripts are broadcast to connected browsers via **Server-Sent Events** at `/transcripts`
 - The individual stream page displays a live scrollable transcript panel
+- Recording playback buttons queue clips; clicking the active recording's stop button ends that clip and advances to the next queued recording, if any
 - Every transcript is also appended as a row to `transcripts.csv` inside `audioLogDir` (the primary audio archive directory, see [Config](#config)) — one row per transcript, with the transcribed WAV filename and stream name. This file lives alongside the audio clips it accompanies, is never pruned, and is separate from the per-stream JSON logs under `transcripts/` used for the in-browser history
 
 ### Model selection

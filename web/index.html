@@ -786,10 +786,13 @@
           if (!clipId) return;
           if (activeId === clipId) {
             button.textContent = "◼";
+            button.title = "Stop recording";
           } else if (clipPlaybackQueue.some((item) => item.clipId === clipId)) {
             button.textContent = "⏳";
+            button.title = "Recording queued";
           } else {
             button.textContent = "▶";
+            button.title = "Play recording";
           }
         });
       }
@@ -880,49 +883,37 @@
 
         const next = clipPlaybackQueue.shift();
         const audio = clipAudio;
-        clipPlaybackActive = { clipId: next.clipId, audio };
+        const playback = { clipId: next.clipId, audio, stop: finish };
+        clipPlaybackActive = playback;
         updateClipPlayButtons();
         attachClipScrubBar(next.clipId);
         audio.src = next.audioUrl;
         audio.currentTime = 0;
 
-        audio.addEventListener("ended", () => {
-          if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId) {
+        function finish() {
+          if (clipPlaybackActive === playback) {
             clipPlaybackActive = null;
+            audio.removeEventListener("ended", finish);
+            audio.pause();
             audio.removeAttribute("src");
             audio.load();
             detachClipScrubBar();
             updateClipPlayButtons();
             playNextQueuedClip();
           }
-        });
+        }
 
-        audio.addEventListener("pause", () => {
-          if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId && audio.ended) {
-            clipPlaybackActive = null;
-            audio.removeAttribute("src");
-            audio.load();
-            detachClipScrubBar();
-            updateClipPlayButtons();
-            playNextQueuedClip();
-          }
-        });
-
-        audio.play().catch(() => {
-          if (clipPlaybackActive && clipPlaybackActive.clipId === next.clipId) {
-            clipPlaybackActive = null;
-            audio.removeAttribute("src");
-            audio.load();
-            detachClipScrubBar();
-            updateClipPlayButtons();
-            playNextQueuedClip();
-          }
-        });
+        audio.addEventListener("ended", finish);
+        audio.play().catch(finish);
       }
 
       function enqueueClipPlayback(clipId, audioUrl) {
+        if (clipPlaybackActive && clipPlaybackActive.clipId === clipId) {
+          clipPlaybackActive.stop();
+          return;
+        }
         if (!audioUrl) return;
-        if (clipPlaybackQueue.some((item) => item.clipId === clipId) || (clipPlaybackActive && clipPlaybackActive.clipId === clipId)) {
+        if (clipPlaybackQueue.some((item) => item.clipId === clipId)) {
           return;
         }
         clipPlaybackQueue.push({ clipId, audioUrl, order: ++clipPlaybackSerial });

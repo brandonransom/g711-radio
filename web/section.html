@@ -719,10 +719,13 @@
           if (!key) return;
           if (activeKey === key) {
             button.textContent = "◼";
+            button.title = "Stop recording";
           } else if (clipPlaybackQueue.some((item) => item.key === key)) {
             button.textContent = "⏳";
+            button.title = "Recording queued";
           } else {
             button.textContent = "▶";
+            button.title = "Play recording";
           }
         });
       }
@@ -813,30 +816,37 @@
 
         const next = clipPlaybackQueue.shift();
         const audio = clipAudio;
-        clipPlaybackActive = { key: next.key, audio };
+        const playback = { key: next.key, audio, stop: finish };
+        clipPlaybackActive = playback;
         updateClipPlayButtons();
         attachClipScrubBar(next.key);
         audio.src = next.audioUrl;
         audio.currentTime = 0;
 
-        const finish = () => {
-          if (clipPlaybackActive && clipPlaybackActive.key === next.key) {
+        function finish() {
+          if (clipPlaybackActive === playback) {
             clipPlaybackActive = null;
+            audio.removeEventListener("ended", finish);
+            audio.pause();
             audio.removeAttribute("src");
             audio.load();
             detachClipScrubBar();
             updateClipPlayButtons();
             playNextQueuedClip();
           }
-        };
+        }
 
-        audio.addEventListener("ended", finish, { once: true });
+        audio.addEventListener("ended", finish);
         audio.play().catch(finish);
       }
 
       function enqueueClipPlayback(key, audioUrl) {
+        if (clipPlaybackActive && clipPlaybackActive.key === key) {
+          clipPlaybackActive.stop();
+          return;
+        }
         if (!audioUrl) return;
-        if (clipPlaybackQueue.some((item) => item.key === key) || (clipPlaybackActive && clipPlaybackActive.key === key)) {
+        if (clipPlaybackQueue.some((item) => item.key === key)) {
           return;
         }
         clipPlaybackQueue.push({ key, audioUrl, order: ++clipPlaybackSerial });
