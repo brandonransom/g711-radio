@@ -18,7 +18,15 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 
 ## Config
 
-`config.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `regions` map:
+`config.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `regions` map.
+
+It is **not tracked in git** — each deployment keeps its own ports, certificate paths, and stream list. Copy the template to create one:
+
+```sh
+cp config.example.json config.json
+```
+
+Runtime output (`config.json`, `config.secrets.json`, `usage.csv`, `g711-radio.log`, `audio/`, `transcripts/`, and certificate files) is ignored for the same reason: the running server rewrites those files continuously, and tracking them makes every `git pull` on a live server fail with "local changes would be overwritten".
 
 ```json
 {

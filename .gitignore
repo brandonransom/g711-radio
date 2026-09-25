@@ -1,4 +1,15 @@
+# Machine-specific runtime config (ports, cert paths, stream lists).
+# Each deployment keeps its own; copy config.example.json to create one.
+config.json
 config.secrets.json
 g711-radio
 *.pcapng
 g711-radio.exe
+
+# Runtime output and local credentials
+audio/
+transcripts/
+usage.csv
+g711-radio.log
+*.pem
+*.pfx

@@ -1,0 +1,33 @@
+{
+  "httpPort": 443,
+  "httpRedirectPort": 80,
+  "audioLogDir": "audio",
+  "audioBackupDir": "",
+  "usageLogFile": "usage.csv",
+  "certFile": "",
+  "keyFile": "",
+  "pfxFile": "C:\\Certs\\your-cert.pfx",
+  "whisper": {
+    "binaryPath": "C:\\path\\to\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
+    "modelPath": "C:\\path\\to\\whisper.cpp\\models\\ggml-medium.bin",
+    "remoteHost": "",
+    "workers": 3,
+    "timeoutMs": 3600000,
+    "gapMs": 4000,
+    "maxClipMs": 600000,
+    "autoTranscribeMinClipMs": 20000,
+    "autoTranscribeMaxClipMs": 0
+  },
+  "regions": {
+    "California": {
+      "Plumas NF": [
+        { "streamName": "Admin Net", "udpPort": 51110 },
+        { "streamName": "Forest Net", "udpPort": 51160 }
+      ],
+      "Tahoe NF": [
+        { "streamName": "Redundant Ports", "udpPorts": [51740, 51741] },
+        { "streamName": "Multicast Net", "udpPorts": [27238, 27288], "multicastAddrs": ["239.7.10.1", ""] }
+      ]
+    }
+  }
+}
