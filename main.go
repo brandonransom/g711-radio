@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"context"
@@ -885,6 +886,7 @@ func main() {
 	mux.HandleFunc("/offer", server.handleOffer)
 	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
 	mux.Handle("/transcripts", hub)
+	mux.HandleFunc("/recordings/download", recordingDownloadHandler(config.AudioLogDir, logger))
 	mux.HandleFunc("/transcripts/history", func(w http.ResponseWriter, r *http.Request) {
 		streamID := r.URL.Query().Get("streamId")
 		if streamID == "" {
@@ -1466,6 +1468,134 @@ func saveAudioClip(audioLogDir, backupDir string, info streamInfo, samples []int
 	// Build a URL-style relative path using forward slashes.
 	relURL := "/audio/" + safe(info.RegionName) + "/" + safe(info.GroupName) + "/" + safe(info.StreamName) + "/" + filename
 	return absPath, relURL, nil
+}
+
+type recordingDownloadRequest struct {
+	AudioURLs []string `json:"audioUrls"`
+}
+
+type recordingDownloadFile struct {
+	path string
+	name string
+	info os.FileInfo
+}
+
+func recordingDownloadHandler(audioLogDir string, logger *log.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if audioLogDir == "" {
+			http.Error(w, "recording archive is disabled", http.StatusServiceUnavailable)
+			return
+		}
+
+		var req recordingDownloadRequest
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<20))
+		if err := decoder.Decode(&req); err != nil {
+			http.Error(w, "invalid download request", http.StatusBadRequest)
+			return
+		}
+
+		files, err := resolveRecordingDownloadFiles(audioLogDir, req.AudioURLs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if len(files) == 0 {
+			http.Error(w, "no recordings matched the active filters", http.StatusBadRequest)
+			return
+		}
+
+		filename := "filtered-recordings-" + time.Now().UTC().Format("20060102T150405Z") + ".zip"
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+		zw := zip.NewWriter(w)
+		for _, file := range files {
+			header, err := zip.FileInfoHeader(file.info)
+			if err != nil {
+				logger.Printf("recording download: header %s: %v", file.path, err)
+				continue
+			}
+			header.Name = file.name
+			header.Method = zip.Deflate
+			entry, err := zw.CreateHeader(header)
+			if err != nil {
+				logger.Printf("recording download: create %s: %v", file.name, err)
+				continue
+			}
+			src, err := os.Open(file.path)
+			if err != nil {
+				logger.Printf("recording download: open %s: %v", file.path, err)
+				continue
+			}
+			_, copyErr := io.Copy(entry, src)
+			closeErr := src.Close()
+			if copyErr != nil {
+				logger.Printf("recording download: copy %s: %v", file.path, copyErr)
+			}
+			if closeErr != nil {
+				logger.Printf("recording download: close %s: %v", file.path, closeErr)
+			}
+		}
+		if err := zw.Close(); err != nil {
+			logger.Printf("recording download: close zip: %v", err)
+		}
+	}
+}
+
+func resolveRecordingDownloadFiles(audioLogDir string, audioURLs []string) ([]recordingDownloadFile, error) {
+	root, err := filepath.Abs(audioLogDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve audio archive: %w", err)
+	}
+
+	seen := make(map[string]struct{}, len(audioURLs))
+	files := make([]recordingDownloadFile, 0, len(audioURLs))
+	for _, audioURL := range audioURLs {
+		parsed, err := url.ParseRequestURI(audioURL)
+		if err != nil || parsed.RawQuery != "" || parsed.Fragment != "" || !strings.HasPrefix(parsed.Path, "/audio/") {
+			return nil, fmt.Errorf("invalid recording URL %q", audioURL)
+		}
+		escapedRelative := strings.TrimPrefix(parsed.EscapedPath(), "/audio/")
+		relativeURL, err := url.PathUnescape(escapedRelative)
+		if err != nil {
+			return nil, fmt.Errorf("invalid recording URL %q", audioURL)
+		}
+		relative := filepath.Clean(filepath.FromSlash(relativeURL))
+		if relative == "." || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("invalid recording path %q", audioURL)
+		}
+		if !strings.EqualFold(filepath.Ext(relative), ".wav") {
+			return nil, fmt.Errorf("recording is not a WAV file: %q", audioURL)
+		}
+
+		fullPath := filepath.Join(root, relative)
+		contained, err := filepath.Rel(root, fullPath)
+		if err != nil || contained == ".." || strings.HasPrefix(contained, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("recording path escapes the audio archive: %q", audioURL)
+		}
+		if _, duplicate := seen[fullPath]; duplicate {
+			continue
+		}
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("recording unavailable: %q", audioURL)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("recording is not a regular file: %q", audioURL)
+		}
+		seen[fullPath] = struct{}{}
+		files = append(files, recordingDownloadFile{
+			path: fullPath,
+			name: filepath.ToSlash(relative),
+			info: info,
+		})
+	}
+	return files, nil
 }
 
 // audioLoggingMiddleware wraps an http.Handler to log audio file downloads

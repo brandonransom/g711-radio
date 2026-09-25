@@ -695,6 +695,7 @@
             <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
             <label>Max length (s) <input type="number" id="historyMaxDurationInput" min="0" step="1" placeholder="Any"></label>
           </span>
+          <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
         </div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
@@ -728,6 +729,7 @@
       const historyToInput = document.getElementById("historyToInput");
       const historyMinDurationInput = document.getElementById("historyMinDurationInput");
       const historyMaxDurationInput = document.getElementById("historyMaxDurationInput");
+      const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
       const basePageTitle = "USDA Forest Service Land Mobile Radio Streams";
       const clipAudio = new Audio();
 
@@ -1224,9 +1226,18 @@
       // Re-renders transcriptLog from historyEntries (already fetched for
       // the current date range), applying only the length filter and the
       // render cap — neither of those require a server round-trip.
-      function applyHistoryFiltersAndRender() {
+      function filteredHistoryEntries() {
         const duration = historyDurationFilter();
-        const filtered = historyEntries.filter(ev => passesDurationFilter(ev.durationMs, duration));
+        return historyEntries.filter((ev) => passesDurationFilter(ev.durationMs, duration));
+      }
+
+      function filteredAudioURLs() {
+        return Array.from(new Set(filteredHistoryEntries().map((ev) => ev.audioUrl).filter(Boolean)));
+      }
+
+      function applyHistoryFiltersAndRender() {
+        const filtered = filteredHistoryEntries();
+        downloadFilteredAudioBtn.disabled = filteredAudioURLs().length === 0;
 
         transcriptLog.innerHTML = "";
         if (filtered.length === 0) {
@@ -1255,6 +1266,39 @@
         transcriptLog.append(fragment);
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
         updateClipPlayButtons();
+      }
+
+      async function downloadFilteredAudio() {
+        const audioUrls = filteredAudioURLs();
+        if (audioUrls.length === 0) return;
+
+        const originalText = downloadFilteredAudioBtn.textContent;
+        downloadFilteredAudioBtn.disabled = true;
+        downloadFilteredAudioBtn.textContent = "Preparing ZIP...";
+        try {
+          const response = await fetch("/recordings/download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ audioUrls }),
+          });
+          if (!response.ok) throw new Error(await response.text());
+          const blob = await response.blob();
+          const objectURL = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          const disposition = response.headers.get("Content-Disposition") || "";
+          const filenameMatch = disposition.match(/filename="([^"]+)"/);
+          link.href = objectURL;
+          link.download = filenameMatch ? filenameMatch[1] : "filtered-recordings.zip";
+          document.body.append(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(objectURL);
+        } catch (error) {
+          window.alert(`Unable to download recordings: ${error.message}`);
+        } finally {
+          downloadFilteredAudioBtn.textContent = originalText;
+          downloadFilteredAudioBtn.disabled = filteredAudioURLs().length === 0;
+        }
       }
 
       // Fetches history for the currently displayed stream over the
@@ -1312,6 +1356,7 @@
       historyToInput.addEventListener("change", () => void loadHistoryForCurrentStream());
       historyMinDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
       historyMaxDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
+      downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
 
       const connectionIndicators = {
         idle: "⚪",

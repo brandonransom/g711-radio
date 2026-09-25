@@ -471,6 +471,7 @@
             </label>
             <button id="historyStreamClearBtn" class="secondary" type="button">Clear stream filter</button>
           </span>
+          <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
         </div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
@@ -496,6 +497,7 @@
       const historyMaxDurationInput = document.getElementById("historyMaxDurationInput");
       const historyStreamSelect = document.getElementById("historyStreamSelect");
       const historyStreamClearBtn = document.getElementById("historyStreamClearBtn");
+      const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
       const clipAudio = new Audio();
 
       // Every card in this page manages its own independent RTCPeerConnection
@@ -1199,14 +1201,22 @@
       // Re-renders transcriptLog from historyEntries (already fetched for
       // the current date range), applying the length and stream filters
       // plus the render cap — none of those require a server round-trip.
-      function applyHistoryFiltersAndRender() {
+      function filteredHistoryEntries() {
         const duration = historyDurationFilter();
         const selectedStreamIds = getSelectedStreamIds();
-        const filtered = historyEntries.filter((ev) =>
+        return historyEntries.filter((ev) =>
           passesDurationFilter(ev.durationMs, duration) &&
           (selectedStreamIds.size === 0 || selectedStreamIds.has(ev.streamId))
         );
+      }
 
+      function filteredAudioURLs() {
+        return Array.from(new Set(filteredHistoryEntries().map((ev) => ev.audioUrl).filter(Boolean)));
+      }
+
+      function applyHistoryFiltersAndRender() {
+        const filtered = filteredHistoryEntries();
+        downloadFilteredAudioBtn.disabled = filteredAudioURLs().length === 0;
         transcriptLog.innerHTML = "";
         if (filtered.length === 0) {
           transcriptLog.innerHTML = historyEntries.length === 0
@@ -1238,6 +1248,39 @@
         transcriptLog.append(fragment);
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
         updateClipPlayButtons();
+      }
+
+      async function downloadFilteredAudio() {
+        const audioUrls = filteredAudioURLs();
+        if (audioUrls.length === 0) return;
+
+        const originalText = downloadFilteredAudioBtn.textContent;
+        downloadFilteredAudioBtn.disabled = true;
+        downloadFilteredAudioBtn.textContent = "Preparing ZIP...";
+        try {
+          const response = await fetch("/recordings/download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ audioUrls }),
+          });
+          if (!response.ok) throw new Error(await response.text());
+          const blob = await response.blob();
+          const objectURL = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          const disposition = response.headers.get("Content-Disposition") || "";
+          const filenameMatch = disposition.match(/filename="([^"]+)"/);
+          link.href = objectURL;
+          link.download = filenameMatch ? filenameMatch[1] : "filtered-recordings.zip";
+          document.body.append(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(objectURL);
+        } catch (error) {
+          window.alert(`Unable to download recordings: ${error.message}`);
+        } finally {
+          downloadFilteredAudioBtn.textContent = originalText;
+          downloadFilteredAudioBtn.disabled = filteredAudioURLs().length === 0;
+        }
       }
 
       // Fetches history for every stream on this page over the selected
@@ -1297,6 +1340,7 @@
       historyMinDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
       historyMaxDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
       historyStreamSelect.addEventListener("change", applyHistoryFiltersAndRender);
+      downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
       historyStreamClearBtn.addEventListener("click", () => {
         Array.from(historyStreamSelect.options).forEach((o) => { o.selected = false; });
         applyHistoryFiltersAndRender();
