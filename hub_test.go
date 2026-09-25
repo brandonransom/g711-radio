@@ -152,3 +152,62 @@ func TestRecordingHistoryUsesWAVWithoutTranscriptLog(t *testing.T) {
 		t.Fatalf("filesystem clip = %#v", events[0])
 	}
 }
+
+// TestRecordingHistoryAllTimeReturnsPreBootRecordings pins the "All time"
+// filter contract: a zero since must return recordings far older than the
+// current process, not just clips logged since the server booted.
+func TestRecordingHistoryAllTimeReturnsPreBootRecordings(t *testing.T) {
+	audioDir := t.TempDir()
+	logger := log.New(io.Discard, "", 0)
+	hub := newTranscriptHub(t.TempDir(), "", logger)
+	info := streamInfo{
+		ID:         "stream-1",
+		RegionName: "Region",
+		GroupName:  "Group",
+		StreamName: "Dispatch",
+	}
+
+	wavDir := filepath.Join(audioDir, "Region", "Group", "Dispatch")
+	if err := os.MkdirAll(wavDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	wav, err := encodePCM16WAV(make([]int16, recSampleRate/2), recSampleRate)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	old := time.Now().UTC().AddDate(0, 0, -90)
+	recent := time.Now().UTC().Add(-time.Hour)
+	oldName := "Dispatch_" + old.Format("2006-01-02T15_04_05Z") + ".wav"
+	recentName := "Dispatch_" + recent.Format("2006-01-02T15_04_05Z") + ".wav"
+	for _, name := range []string{oldName, recentName} {
+		if err := os.WriteFile(filepath.Join(wavDir, name), wav, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	all, err := hub.RecordingHistory(audioDir, info, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("all time returned %d events, want 2: %#v", len(all), all)
+	}
+	found := map[string]bool{}
+	for _, ev := range all {
+		found[ev.ClipID] = true
+	}
+	if !found[oldName] || !found[recentName] {
+		t.Fatalf("all time missing recordings: %#v", found)
+	}
+
+	// The bounded "last 8 days" view must still exclude the old recording,
+	// proving the range filter is applied rather than ignored.
+	bounded, err := hub.RecordingHistory(audioDir, info, time.Now().AddDate(0, 0, -8), time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bounded) != 1 || bounded[0].ClipID != recentName {
+		t.Fatalf("8-day window = %#v", bounded)
+	}
+}

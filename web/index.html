@@ -601,6 +601,30 @@
         font-style: italic;
       }
 
+      /* Header row above the oldest rendered recording, holding the count
+         and the control that pages in older ones. */
+      .transcript-more {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed var(--line);
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-style: italic;
+      }
+
+      .transcript-more button {
+        padding: 4px 10px;
+        font-size: 0.78rem;
+        font-style: normal;
+        white-space: nowrap;
+        box-shadow: none;
+      }
+
       .transcript-filters {
         margin-bottom: 10px;
         padding-bottom: 10px;
@@ -787,13 +811,19 @@
       // refetch, since only the date range affects what the server returns.
       let historyEntries = [];
 
-      // Caps how many history rows are actually rendered at once. A single
-      // busy stream's per-stream log is never pruned (see hub.go), so an
-      // unfiltered "All time" view can run into the thousands of rows —
-      // more than is useful to scroll through or cheap to build as DOM
-      // nodes. Users can narrow the date range and/or length filters to see
-      // the remainder instead of it silently being an unrecoverable cap.
+      // How many history rows are rendered at once. A single busy stream's
+      // per-stream log is never pruned (see hub.go), so an unfiltered
+      // "All time" view can run into the thousands of rows — more than is
+      // useful to scroll through or cheap to build as DOM nodes. Older rows
+      // stay reachable via the "Load older" button (see
+      // applyHistoryFiltersAndRender), which raises historyRenderLimit a
+      // page at a time.
       const MAX_RENDERED_HISTORY = 300;
+
+      // The newest historyRenderLimit matching rows are rendered. Reset to a
+      // single page whenever the filters or fetched data change, so a new
+      // query doesn't inherit a huge limit from previous paging.
+      let historyRenderLimit = MAX_RENDERED_HISTORY;
 
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
@@ -1251,7 +1281,17 @@
         return Array.from(new Set(filteredHistoryEntries().map((ev) => ev.audioUrl).filter(Boolean)));
       }
 
-      function applyHistoryFiltersAndRender() {
+      // Renders the newest historyRenderLimit matching rows. resetLimit is
+      // false only when paging in older rows, so "Load older" keeps what is
+      // already on screen instead of collapsing back to one page.
+      function applyHistoryFiltersAndRender(resetLimit = true, { preserveTopRow = false } = {}) {
+        if (resetLimit) historyRenderLimit = MAX_RENDERED_HISTORY;
+
+        // Captured before the log is cleared so newly prepended rows can be
+        // offset out of the viewport again below.
+        const previousScrollHeight = transcriptLog.scrollHeight;
+        const previousScrollTop = transcriptLog.scrollTop;
+
         const filtered = filteredHistoryEntries();
         downloadFilteredAudioBtn.disabled = filteredAudioURLs().length === 0;
 
@@ -1265,13 +1305,28 @@
         }
 
         const sorted = filtered.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        const truncatedCount = sorted.length - MAX_RENDERED_HISTORY;
+        const truncatedCount = Math.max(0, sorted.length - historyRenderLimit);
         const toRender = truncatedCount > 0 ? sorted.slice(truncatedCount) : sorted;
 
+        // Rows are oldest-first, so the control for reaching still-older
+        // recordings belongs above them.
         if (truncatedCount > 0) {
+          const olderBatch = Math.min(truncatedCount, MAX_RENDERED_HISTORY);
           const notice = document.createElement("div");
-          notice.className = "transcript-empty";
-          notice.textContent = `Showing the most recent ${MAX_RENDERED_HISTORY} of ${sorted.length} matching recordings — narrow the date range or length filters to see the rest.`;
+          notice.className = "transcript-more";
+          const label = document.createElement("span");
+          label.textContent = `Showing the most recent ${toRender.length} of ${sorted.length} matching recordings.`;
+          const loadOlderBtn = document.createElement("button");
+          loadOlderBtn.type = "button";
+          loadOlderBtn.className = "secondary";
+          loadOlderBtn.textContent = `Load ${olderBatch} older`;
+          loadOlderBtn.addEventListener("click", () => {
+            historyRenderLimit += MAX_RENDERED_HISTORY;
+            // Keep the viewport on the first previously-visible row rather
+            // than snapping to the bottom after older rows are prepended.
+            applyHistoryFiltersAndRender(false, { preserveTopRow: true });
+          });
+          notice.append(label, loadOlderBtn);
           transcriptLog.append(notice);
         }
 
@@ -1280,7 +1335,9 @@
           fragment.append(buildTranscriptEntry(ev.clipId, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
         }
         transcriptLog.append(fragment);
-        transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        transcriptLog.scrollTop = preserveTopRow
+          ? transcriptLog.scrollHeight - previousScrollHeight + previousScrollTop
+          : transcriptLog.scrollHeight;
         updateClipPlayButtons();
       }
 
@@ -1370,7 +1427,7 @@
       });
       historyFromInput.addEventListener("change", () => void loadHistoryForCurrentStream());
       historyToInput.addEventListener("change", () => void loadHistoryForCurrentStream());
-      historyMinDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
+      historyMinDurationInput.addEventListener("input", () => applyHistoryFiltersAndRender());
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
 
       const connectionIndicators = {
