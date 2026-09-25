@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -895,7 +896,12 @@ func main() {
 			http.Error(w, "unknown streamId", http.StatusNotFound)
 			return
 		}
-		events, err := hub.History(st.info.StreamName, 8*24*time.Hour)
+		since, until, err := parseHistoryRange(r.URL.Query())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		events, err := hub.History(st.info.StreamName, since, until)
 		if err != nil {
 			http.Error(w, "failed to read history", http.StatusInternalServerError)
 			logger.Printf("transcript history: %v", err)
@@ -1474,6 +1480,30 @@ func audioLoggingMiddleware(handler http.Handler, usageLogger *usageLogger) http
 		})
 		handler.ServeHTTP(w, r)
 	})
+}
+
+// parseHistoryRange parses the optional "since" and "until" RFC3339 query
+// parameters accepted by /transcripts/history. Both are optional and, left
+// unset, impose no bound in that direction: History treats a zero since as
+// "from the beginning of recorded history" and a zero until as "up to now",
+// so an unfiltered request returns everything on disk for that stream
+// (recordings and transcripts are kept indefinitely — see AudioLogDir).
+// Callers wanting a bounded window (e.g. the web UI's default "last 8
+// days" view) pass an explicit since.
+func parseHistoryRange(q url.Values) (since, until time.Time, err error) {
+	if s := q.Get("since"); s != "" {
+		since, err = time.Parse(time.RFC3339, s)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid since: %w", err)
+		}
+	}
+	if u := q.Get("until"); u != "" {
+		until, err = time.Parse(time.RFC3339, u)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid until: %w", err)
+		}
+	}
+	return since, until, nil
 }
 
 // getClientIP extracts the client IP address from an HTTP request.

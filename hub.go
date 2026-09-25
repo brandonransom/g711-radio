@@ -185,13 +185,17 @@ func (h *transcriptHub) appendArchive(event transcriptEvent) {
 	}
 }
 
-// History returns transcript events for a stream within the last maxAge
-// duration. Lookups are keyed by stream name rather than the server's
-// runtime stream ID: log files are already written one-per-stream-name (see
-// logFilename), and stream IDs are randomly regenerated on every server
-// restart (see nextStreamID), so they can't be used to find events written
-// during a previous run.
-func (h *transcriptHub) History(streamName string, maxAge time.Duration) ([]transcriptEvent, error) {
+// History returns transcript events for a stream with a timestamp in
+// (since, until]. A zero since means "from the beginning of recorded
+// history" and a zero until means "up to now" — callers wanting the full,
+// never-pruned history for a stream (see the package doc comment on
+// AudioLogDir: audio and transcripts are kept indefinitely) simply pass
+// zero values for both. Lookups are keyed by stream name rather than the
+// server's runtime stream ID: log files are already written
+// one-per-stream-name (see logFilename), and stream IDs are randomly
+// regenerated on every server restart (see nextStreamID), so they can't be
+// used to find events written during a previous run.
+func (h *transcriptHub) History(streamName string, since, until time.Time) ([]transcriptEvent, error) {
 	if h.logDir == "" || streamName == "" {
 		return nil, nil
 	}
@@ -206,7 +210,9 @@ func (h *transcriptHub) History(streamName string, maxAge time.Duration) ([]tran
 	}
 	defer f.Close()
 
-	cutoff := time.Now().Add(-maxAge)
+	if until.IsZero() {
+		until = time.Now()
+	}
 	var events []transcriptEvent
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -214,9 +220,13 @@ func (h *transcriptHub) History(streamName string, maxAge time.Duration) ([]tran
 		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
 			continue
 		}
-		if ev.Timestamp.After(cutoff) {
-			events = append(events, ev)
+		if !since.IsZero() && !ev.Timestamp.After(since) {
+			continue
 		}
+		if ev.Timestamp.After(until) {
+			continue
+		}
+		events = append(events, ev)
 	}
 	return events, nil
 }

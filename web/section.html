@@ -358,6 +358,58 @@
         font-style: italic;
       }
 
+      .transcript-filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 12px;
+        margin-bottom: 14px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .transcript-filters label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 0.76rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .transcript-filters select,
+      .transcript-filters input {
+        font: inherit;
+        font-size: 0.88rem;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 8px;
+      }
+
+      .transcript-filters-duration {
+        display: flex;
+        gap: 8px;
+      }
+
+      .transcript-filters-custom {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .transcript-filters-streams {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      #historyStreamSelect {
+        min-width: 12rem;
+      }
+
       .note {
         margin-top: 28px;
         font-size: 0.9rem;
@@ -379,6 +431,32 @@
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
         <strong class="transcript-label">Recordings &amp; Transcripts</strong>
+        <div class="transcript-filters">
+          <label>Date range
+            <select id="historyRangeSelect">
+              <option value="24h">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="8d" selected>Last 8 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="all">All time</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </label>
+          <span id="historyCustomRange" class="transcript-filters-custom" hidden>
+            <label>From <input type="datetime-local" id="historyFromInput"></label>
+            <label>To <input type="datetime-local" id="historyToInput"></label>
+          </span>
+          <span class="transcript-filters-duration">
+            <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
+            <label>Max length (s) <input type="number" id="historyMaxDurationInput" min="0" step="1" placeholder="Any"></label>
+          </span>
+          <span class="transcript-filters-streams">
+            <label>Streams (none = all)
+              <select id="historyStreamSelect" multiple size="4"></select>
+            </label>
+            <button id="historyStreamClearBtn" class="secondary" type="button">Clear stream filter</button>
+          </span>
+        </div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
 
@@ -395,6 +473,14 @@
       const disconnectAllBtn = document.getElementById("disconnectAllBtn");
       const transcriptPanel = document.getElementById("transcriptPanel");
       const transcriptLog = document.getElementById("transcriptLog");
+      const historyRangeSelect = document.getElementById("historyRangeSelect");
+      const historyCustomRange = document.getElementById("historyCustomRange");
+      const historyFromInput = document.getElementById("historyFromInput");
+      const historyToInput = document.getElementById("historyToInput");
+      const historyMinDurationInput = document.getElementById("historyMinDurationInput");
+      const historyMaxDurationInput = document.getElementById("historyMaxDurationInput");
+      const historyStreamSelect = document.getElementById("historyStreamSelect");
+      const historyStreamClearBtn = document.getElementById("historyStreamClearBtn");
       const clipAudio = new Audio();
 
       // Every card in this page manages its own independent RTCPeerConnection
@@ -412,6 +498,23 @@
       let clipPlaybackQueue = [];
       let clipPlaybackActive = null;
       let clipPlaybackSerial = 0;
+
+      // historyEntries holds the merged clip+transcript rows fetched across
+      // every stream on this page for the currently selected date range
+      // (see loadTranscriptHistory); the length and stream filters plus the
+      // MAX_RENDERED_HISTORY cap are re-applied to it client-side by
+      // applyHistoryFiltersAndRender without needing to refetch, since only
+      // the date range affects what the server returns.
+      let historyEntries = [];
+
+      // Caps how many merged history rows are actually rendered. Per-stream
+      // logs are never pruned (see hub.go), and a region page can aggregate
+      // dozens of streams, so an unfiltered "All time" view can run into
+      // the thousands of rows — far more than is useful to scroll through
+      // and expensive to build as DOM nodes. Users can narrow the date
+      // range, length, or stream filters to see the remainder instead of
+      // it being an unrecoverable cap.
+      const MAX_RENDERED_HISTORY = 300;
 
       function formatStreamDisplayName(stream) {
         return [stream.regionName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
@@ -712,6 +815,68 @@
         return m > 0 ? `${m}m${s.toString().padStart(2, "0")}s` : `${s}s`;
       }
 
+      // Maps a date-range preset to a "since" Date generator. "all" and
+      // "custom" are handled separately by currentHistoryRange.
+      const HISTORY_RANGE_PRESETS = {
+        "24h": () => new Date(Date.now() - 24 * 60 * 60 * 1000),
+        "7d": () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        "8d": () => new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+        "30d": () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      };
+
+      // currentHistoryRange reads the date-range filter controls and
+      // returns { since, until } as Dates or null (no bound in that
+      // direction — see parseHistoryRange on the server, which treats a
+      // missing since/until the same way: "since the beginning of recorded
+      // history" / "up to now").
+      function currentHistoryRange() {
+        const mode = historyRangeSelect.value;
+        if (mode === "all") return { since: null, until: null };
+        if (mode === "custom") {
+          return {
+            since: historyFromInput.value ? new Date(historyFromInput.value) : null,
+            until: historyToInput.value ? new Date(historyToInput.value) : null,
+          };
+        }
+        const preset = HISTORY_RANGE_PRESETS[mode] || HISTORY_RANGE_PRESETS["8d"];
+        return { since: preset(), until: null };
+      }
+
+      // historyDurationFilter reads the length filter controls (seconds).
+      // A null bound means "no limit" in that direction.
+      function historyDurationFilter() {
+        const min = historyMinDurationInput.value !== "" ? Number(historyMinDurationInput.value) : null;
+        const max = historyMaxDurationInput.value !== "" ? Number(historyMaxDurationInput.value) : null;
+        return { min, max };
+      }
+
+      function passesDurationFilter(durationMs, { min, max }) {
+        const sec = (durationMs || 0) / 1000;
+        if (min != null && sec < min) return false;
+        if (max != null && sec > max) return false;
+        return true;
+      }
+
+      // getSelectedStreamIds returns the set of stream IDs chosen in the
+      // stream filter. An empty set means "no filter — show all streams".
+      function getSelectedStreamIds() {
+        return new Set(Array.from(historyStreamSelect.selectedOptions).map((o) => o.value));
+      }
+
+      // populateStreamFilterOptions fills the stream filter <select> from
+      // the cards on this page. Called once after cards are built (see
+      // init) — the stream list for a given region/forest page is fixed
+      // for the lifetime of the page, so it never needs to be rebuilt.
+      function populateStreamFilterOptions(cardList) {
+        historyStreamSelect.innerHTML = "";
+        for (const card of cardList) {
+          const option = document.createElement("option");
+          option.value = card.stream.id;
+          option.textContent = card.stream.streamName;
+          historyStreamSelect.append(option);
+        }
+      }
+
       function updateClipPlayButtons() {
         const activeKey = clipPlaybackActive ? clipPlaybackActive.key : null;
         transcriptLog.querySelectorAll(".transcript-play[data-clip-key]").forEach((button) => {
@@ -942,6 +1107,11 @@
       }
 
       function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs) {
+        // Live clips are shown immediately regardless of the active length
+        // or stream filter, but we still record them into historyEntries so
+        // they aren't lost the next time a filter triggers a re-render.
+        const streamId = key.slice(0, key.indexOf(":"));
+        historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text: "" });
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
         transcriptLog.append(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, ""));
@@ -950,6 +1120,9 @@
       }
 
       function updateTranscript(key, streamName, isoTimestamp, audioUrl, durationMs, text) {
+        const historyEntry = historyEntries.find((ev) => ev.key === key);
+        if (historyEntry) historyEntry.text = text;
+
         const entry = transcriptLog.querySelector(`[data-clip-key="${key}"]`);
         if (entry) {
           const contentEl = entry.querySelector(".transcript-text");
@@ -958,6 +1131,10 @@
             contentEl.classList.remove("transcript-pending");
           }
         } else {
+          if (!historyEntry) {
+            const streamId = key.slice(0, key.indexOf(":"));
+            historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text });
+          }
           const empty = transcriptLog.querySelector(".transcript-empty");
           if (empty) empty.remove();
           transcriptLog.append(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text));
@@ -987,13 +1164,6 @@
         transcriptSSE.onerror = () => {};
       }
 
-      // Caps how many merged history rows are actually rendered. The server
-      // now retains 8 days of history per stream, and a region page can
-      // aggregate dozens of streams, so the merged set can run into the
-      // thousands of rows — far more than is useful to scroll through, and
-      // expensive to build as DOM nodes. Only the most recent rows are shown.
-      const MAX_RENDERED_HISTORY = 300;
-
       // Fetches history for `items`, running at most `limit` requests
       // concurrently, so a large region doesn't fire dozens of simultaneous
       // requests at once.
@@ -1011,16 +1181,67 @@
         return results;
       }
 
+      // Re-renders transcriptLog from historyEntries (already fetched for
+      // the current date range), applying the length and stream filters
+      // plus the render cap — none of those require a server round-trip.
+      function applyHistoryFiltersAndRender() {
+        const duration = historyDurationFilter();
+        const selectedStreamIds = getSelectedStreamIds();
+        const filtered = historyEntries.filter((ev) =>
+          passesDurationFilter(ev.durationMs, duration) &&
+          (selectedStreamIds.size === 0 || selectedStreamIds.has(ev.streamId))
+        );
+
+        transcriptLog.innerHTML = "";
+        if (filtered.length === 0) {
+          transcriptLog.innerHTML = historyEntries.length === 0
+            ? `<span class="transcript-empty">Waiting for transmissions...</span>`
+            : `<span class="transcript-empty">No recordings match the current filters.</span>`;
+          updateClipPlayButtons();
+          return;
+        }
+
+        const sorted = filtered.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const truncatedCount = sorted.length - MAX_RENDERED_HISTORY;
+        const toRender = truncatedCount > 0 ? sorted.slice(truncatedCount) : sorted;
+
+        if (truncatedCount > 0) {
+          const notice = document.createElement("div");
+          notice.className = "transcript-empty";
+          notice.textContent = `Showing the most recent ${MAX_RENDERED_HISTORY} of ${sorted.length} matching recordings — narrow the date range, length, or stream filters to see the rest.`;
+          transcriptLog.append(notice);
+        }
+
+        // Build every row into a detached fragment first so the browser
+        // only has to do one layout pass when it's attached, instead of
+        // one forced reflow per row (which is what made this hang on
+        // large regions).
+        const fragment = document.createDocumentFragment();
+        for (const ev of toRender) {
+          fragment.append(buildTranscriptEntry(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
+        }
+        transcriptLog.append(fragment);
+        transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        updateClipPlayButtons();
+      }
+
+      // Fetches history for every stream on this page over the selected
+      // date range and re-renders. Called on init and whenever the
+      // date-range filter changes; the length and stream filters are
+      // applied purely client-side (see applyHistoryFiltersAndRender)
+      // since they don't affect what the server needs to return.
       async function loadTranscriptHistory() {
         transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
 
+        const { since, until } = currentHistoryRange();
         const cacheBuster = Date.now();
         const cardList = Array.from(cards.values());
         const results = await mapWithConcurrency(cardList, 6, async (card) => {
           try {
-            const response = await fetch(`/transcripts/history?streamId=${encodeURIComponent(card.stream.id)}&t=${cacheBuster}`, {
-              cache: "no-store",
-            });
+            const params = new URLSearchParams({ streamId: card.stream.id, t: String(cacheBuster) });
+            if (since) params.set("since", since.toISOString());
+            if (until) params.set("until", until.toISOString());
+            const response = await fetch(`/transcripts/history?${params.toString()}`, { cache: "no-store" });
             if (!response.ok) return [];
             const events = await response.json();
             return (events || []).map((ev) => ({ ...ev, streamName: card.stream.streamName }));
@@ -1033,7 +1254,7 @@
         for (const events of results) {
           for (const ev of events) {
             const key = clipKey(ev.streamId, ev.clipId, ev.timestamp);
-            if (!merged.has(key)) merged.set(key, { key, streamName: ev.streamName });
+            if (!merged.has(key)) merged.set(key, { key, streamId: ev.streamId, streamName: ev.streamName });
             const entry = merged.get(key);
             if (ev.type === "clip" || !ev.type) {
               entry.timestamp = ev.timestamp;
@@ -1047,36 +1268,24 @@
           }
         }
 
-        transcriptLog.innerHTML = "";
-        if (merged.size === 0) {
-          transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
-        } else {
-          const sorted = Array.from(merged.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-          const truncatedCount = sorted.length - MAX_RENDERED_HISTORY;
-          const toRender = truncatedCount > 0 ? sorted.slice(truncatedCount) : sorted;
-
-          if (truncatedCount > 0) {
-            const notice = document.createElement("div");
-            notice.className = "transcript-empty";
-            notice.textContent = `Showing the most recent ${MAX_RENDERED_HISTORY} of ${sorted.length} recordings from the last 8 days.`;
-            transcriptLog.append(notice);
-          }
-
-          // Build every row into a detached fragment first so the browser
-          // only has to do one layout pass when it's attached, instead of
-          // one forced reflow per row (which is what made this hang on
-          // large regions).
-          const fragment = document.createDocumentFragment();
-          for (const ev of toRender) {
-            fragment.append(buildTranscriptEntry(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
-          }
-          transcriptLog.append(fragment);
-          transcriptLog.scrollTop = transcriptLog.scrollHeight;
-          updateClipPlayButtons();
-        }
-
+        historyEntries = Array.from(merged.values());
+        applyHistoryFiltersAndRender();
         openTranscriptsSSE();
       }
+
+      historyRangeSelect.addEventListener("change", () => {
+        historyCustomRange.hidden = historyRangeSelect.value !== "custom";
+        void loadTranscriptHistory();
+      });
+      historyFromInput.addEventListener("change", () => void loadTranscriptHistory());
+      historyToInput.addEventListener("change", () => void loadTranscriptHistory());
+      historyMinDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
+      historyMaxDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
+      historyStreamSelect.addEventListener("change", applyHistoryFiltersAndRender);
+      historyStreamClearBtn.addEventListener("click", () => {
+        Array.from(historyStreamSelect.options).forEach((o) => { o.selected = false; });
+        applyHistoryFiltersAndRender();
+      });
 
       async function init() {
         const params = new URL(window.location.href).searchParams;
@@ -1134,6 +1343,7 @@
           knownStreamIds.add(streamId);
         }
 
+        populateStreamFilterOptions(Array.from(cards.values()));
         updateAllButtons();
         transcriptPanel.hidden = false;
         void loadTranscriptHistory();

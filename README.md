@@ -186,6 +186,7 @@ Requires CUDA toolkit (`nvidia-cuda-toolkit`) to be installed.
 - The individual stream page displays a live scrollable transcript panel
 - Recording playback buttons queue clips; clicking the active recording's stop button ends that clip and advances to the next queued recording, if any
 - Every transcript is also appended as a row to `transcripts.csv` inside `audioLogDir` (the primary audio archive directory, see [Config](#config)) — one row per transcript, with the transcribed WAV filename and stream name. This file lives alongside the audio clips it accompanies, is never pruned, and is separate from the per-stream JSON logs under `transcripts/` used for the in-browser history
+- The "Recordings & Transcripts" panel (on both the individual stream page and the multi-stream region/forest pages) lets users browse the full, unpruned history rather than a fixed lookback window. A date-range filter (last 24 hours / 7 days / 8 days (default) / 30 days / all time / a custom from–to range) controls what `GET /transcripts/history?streamId=<id>&since=<RFC3339>&until=<RFC3339>` fetches from the server — `since`/`until` are both optional, and omitting one means "from the beginning of recorded history" / "up to now" respectively. A recording-length filter (min/max seconds) and, on multi-stream pages, a stream filter are applied client-side against the fetched results, with no extra round-trip. At most 300 matching rows are rendered at a time (narrow a filter to see the rest) to keep large "all time" views responsive
 
 ### Model selection
 

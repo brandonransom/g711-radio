@@ -586,6 +586,48 @@
         font-style: italic;
       }
 
+      .transcript-filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 12px;
+        margin-bottom: 14px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .transcript-filters label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 0.76rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .transcript-filters select,
+      .transcript-filters input {
+        font: inherit;
+        font-size: 0.88rem;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 8px;
+      }
+
+      .transcript-filters-duration {
+        display: flex;
+        gap: 8px;
+      }
+
+      .transcript-filters-custom {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       code {
         font-family: "Aptos Mono", "Courier New", monospace;
         background: rgba(28, 80, 138, 0.1);
@@ -619,6 +661,26 @@
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
         <strong class="transcript-label">Recordings &amp; Transcripts</strong>
+        <div class="transcript-filters">
+          <label>Date range
+            <select id="historyRangeSelect">
+              <option value="24h">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="8d" selected>Last 8 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="all">All time</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </label>
+          <span id="historyCustomRange" class="transcript-filters-custom" hidden>
+            <label>From <input type="datetime-local" id="historyFromInput"></label>
+            <label>To <input type="datetime-local" id="historyToInput"></label>
+          </span>
+          <span class="transcript-filters-duration">
+            <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
+            <label>Max length (s) <input type="number" id="historyMaxDurationInput" min="0" step="1" placeholder="Any"></label>
+          </span>
+        </div>
         <div id="transcriptLog" class="transcript-log"></div>
       </div>
 
@@ -641,6 +703,12 @@
       const streamsRoot = document.getElementById("streams");
       const transcriptPanel = document.getElementById("transcriptPanel");
       const transcriptLog = document.getElementById("transcriptLog");
+      const historyRangeSelect = document.getElementById("historyRangeSelect");
+      const historyCustomRange = document.getElementById("historyCustomRange");
+      const historyFromInput = document.getElementById("historyFromInput");
+      const historyToInput = document.getElementById("historyToInput");
+      const historyMinDurationInput = document.getElementById("historyMinDurationInput");
+      const historyMaxDurationInput = document.getElementById("historyMaxDurationInput");
       const basePageTitle = "USDA Forest Service Land Mobile Radio Streams";
       const clipAudio = new Audio();
 
@@ -673,6 +741,21 @@
       let connectionMeterTick = null;
       let connectionMeterStop = null;
 
+      // historyEntries holds the raw merged clip+transcript rows fetched for
+      // the currently selected date range (see loadHistoryForCurrentStream);
+      // the length filter and MAX_RENDERED_HISTORY cap are re-applied to it
+      // client-side by applyHistoryFiltersAndRender without needing to
+      // refetch, since only the date range affects what the server returns.
+      let historyEntries = [];
+
+      // Caps how many history rows are actually rendered at once. A single
+      // busy stream's per-stream log is never pruned (see hub.go), so an
+      // unfiltered "All time" view can run into the thousands of rows —
+      // more than is useful to scroll through or cheap to build as DOM
+      // nodes. Users can narrow the date range and/or length filters to see
+      // the remainder instead of it silently being an unrecoverable cap.
+      const MAX_RENDERED_HISTORY = 300;
+
       // Transcription via server-sent events from the backend Whisper pool.
       let transcriptSSE = null;
 
@@ -689,6 +772,58 @@
         const m = Math.floor(totalSec / 60);
         const s = totalSec % 60;
         return m > 0 ? `${m}m${s.toString().padStart(2, "0")}s` : `${s}s`;
+      }
+
+      // Maps a date-range preset to a "since" Date generator. "all" and
+      // "custom" are handled separately by currentHistoryRange.
+      const HISTORY_RANGE_PRESETS = {
+        "24h": () => new Date(Date.now() - 24 * 60 * 60 * 1000),
+        "7d": () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        "8d": () => new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+        "30d": () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      };
+
+      // currentHistoryRange reads the date-range filter controls and
+      // returns { since, until } as Dates or null (no bound in that
+      // direction — see parseHistoryRange on the server, which treats a
+      // missing since/until the same way: "since the beginning of recorded
+      // history" / "up to now").
+      function currentHistoryRange() {
+        const mode = historyRangeSelect.value;
+        if (mode === "all") return { since: null, until: null };
+        if (mode === "custom") {
+          return {
+            since: historyFromInput.value ? new Date(historyFromInput.value) : null,
+            until: historyToInput.value ? new Date(historyToInput.value) : null,
+          };
+        }
+        const preset = HISTORY_RANGE_PRESETS[mode] || HISTORY_RANGE_PRESETS["8d"];
+        return { since: preset(), until: null };
+      }
+
+      // historyRangeParams builds the since/until query params for
+      // /transcripts/history from the current date-range filter.
+      function historyRangeParams() {
+        const { since, until } = currentHistoryRange();
+        const params = new URLSearchParams();
+        if (since) params.set("since", since.toISOString());
+        if (until) params.set("until", until.toISOString());
+        return params;
+      }
+
+      // historyDurationFilter reads the length filter controls (seconds).
+      // A null bound means "no limit" in that direction.
+      function historyDurationFilter() {
+        const min = historyMinDurationInput.value !== "" ? Number(historyMinDurationInput.value) : null;
+        const max = historyMaxDurationInput.value !== "" ? Number(historyMaxDurationInput.value) : null;
+        return { min, max };
+      }
+
+      function passesDurationFilter(durationMs, { min, max }) {
+        const sec = (durationMs || 0) / 1000;
+        if (min != null && sec < min) return false;
+        if (max != null && sec > max) return false;
+        return true;
       }
 
       function setVuSegments(greenBar, yellowBar, redBar, level) {
@@ -921,10 +1056,10 @@
         playNextQueuedClip();
       }
 
-      function appendClip(clipId, isoTimestamp, audioUrl, durationMs, canTranscribe) {
-        const empty = transcriptLog.querySelector(".transcript-empty");
-        if (empty) empty.remove();
-
+      // Builds one transcript-log row. Shared by live SSE appends
+      // (appendClip/updateTranscript) and bulk history rendering
+      // (applyHistoryFiltersAndRender) so both stay visually identical.
+      function buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, text) {
         const entry = document.createElement("div");
         entry.className = "transcript-entry";
         entry.dataset.clipId = clipId;
@@ -943,8 +1078,13 @@
         }
 
         const content = document.createElement("span");
-        content.className = "transcript-text transcript-pending";
-        content.textContent = audioUrl ? "Recording received." : "";
+        if (text) {
+          content.className = "transcript-text";
+          content.textContent = text;
+        } else {
+          content.className = "transcript-text transcript-pending";
+          content.textContent = audioUrl ? "Recording received." : "";
+        }
 
         if (audioUrl) {
           const playBtn = document.createElement("button");
@@ -961,37 +1101,49 @@
           entry.append(time, content);
         }
 
-        if (canTranscribe) {
-          const transcribeBtn = document.createElement("button");
-          transcribeBtn.type = "button";
-          transcribeBtn.className = "transcript-play";
-          transcribeBtn.title = "Request transcription";
-          transcribeBtn.textContent = "Transcribe";
-          transcribeBtn.addEventListener("click", async () => {
-            transcribeBtn.disabled = true;
+        const transcribeBtn = document.createElement("button");
+        transcribeBtn.type = "button";
+        transcribeBtn.className = "transcript-play";
+        transcribeBtn.title = "Request transcription";
+        transcribeBtn.textContent = "Transcribe";
+        transcribeBtn.addEventListener("click", async () => {
+          transcribeBtn.disabled = true;
+          transcribeBtn.textContent = "Queued";
+          try {
+            const res = await fetch("/transcripts/request", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clipId, audioUrl }),
+            });
+            if (!res.ok) throw new Error("request failed");
             transcribeBtn.textContent = "Queued";
-            try {
-              const res = await fetch("/transcripts/request", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ clipId, audioUrl }),
-              });
-              if (!res.ok) throw new Error("request failed");
-              transcribeBtn.textContent = "Queued";
-            } catch (_) {
-              transcribeBtn.disabled = false;
-              transcribeBtn.textContent = "Transcribe";
-            }
-          });
-          entry.appendChild(transcribeBtn);
-        }
+          } catch (_) {
+            transcribeBtn.disabled = false;
+            transcribeBtn.textContent = "Transcribe";
+          }
+        });
+        entry.appendChild(transcribeBtn);
 
-        transcriptLog.append(entry);
+        return entry;
+      }
+
+      function appendClip(clipId, isoTimestamp, audioUrl, durationMs) {
+        // Live clips are shown immediately regardless of the active length
+        // filter (a filter shouldn't hide "just happened" activity), but we
+        // still record them into historyEntries so they aren't lost the next
+        // time the date range or length filter triggers a re-render.
+        historyEntries.push({ clipId, timestamp: isoTimestamp, audioUrl, durationMs, text: "" });
+        const empty = transcriptLog.querySelector(".transcript-empty");
+        if (empty) empty.remove();
+        transcriptLog.append(buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, ""));
         transcriptLog.scrollTop = transcriptLog.scrollHeight;
         updateClipPlayButtons();
       }
 
       function updateTranscript(clipId, text) {
+        const historyEntry = historyEntries.find((ev) => ev.clipId === clipId);
+        if (historyEntry) historyEntry.text = text;
+
         const entry = transcriptLog.querySelector(`[data-clip-id="${clipId}"]`);
         if (entry) {
           const content = entry.querySelector(".transcript-text");
@@ -1001,23 +1153,8 @@
           }
         } else {
           // Clip not in view (e.g. arrived before page load) — append as a plain entry.
-          appendClip(clipId, null, null, 0, true);
+          appendClip(clipId, null, null, 0);
           updateTranscript(clipId, text);
-        }
-      }
-
-      function appendTranscript(text, isoTimestamp, audioUrl, clipId, durationMs) {
-        // Used for history entries which have both clip and text already.
-        appendClip(clipId || `hist-${isoTimestamp}`, isoTimestamp, audioUrl, durationMs, true);
-        if (text) {
-          const entry = transcriptLog.querySelector(`[data-clip-id="${clipId || `hist-${isoTimestamp}`}"]`);
-          if (entry) {
-            const content = entry.querySelector(".transcript-text");
-            if (content) {
-              content.textContent = text;
-              content.classList.remove("transcript-pending");
-            }
-          }
         }
       }
 
@@ -1032,7 +1169,7 @@
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === "clip") {
-              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs, true);
+              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs);
             } else if (payload.type === "transcript") {
               updateTranscript(payload.clipId, payload.text);
             }
@@ -1040,6 +1177,87 @@
         };
 
         transcriptSSE.onerror = () => {};
+      }
+
+      // Merges raw clip/transcript event rows (fetched from
+      // /transcripts/history) into one row per clip, keyed by clipId (or a
+      // synthetic id derived from the timestamp for legacy entries with no
+      // clipId).
+      function mergeHistoryEvents(events) {
+        const merged = new Map();
+        (events || []).forEach(ev => {
+          const id = ev.clipId || `hist-${ev.timestamp}`;
+          if (!merged.has(id)) merged.set(id, { clipId: id });
+          const entry = merged.get(id);
+          if (ev.type === "clip" || !ev.type) {
+            entry.timestamp = ev.timestamp;
+            entry.audioUrl = ev.audioUrl;
+            if (ev.durationMs) entry.durationMs = ev.durationMs;
+          }
+          if (ev.type === "transcript" || !ev.type) {
+            if (ev.text) entry.text = ev.text;
+            if (!entry.timestamp) entry.timestamp = ev.timestamp;
+          }
+        });
+        return Array.from(merged.values());
+      }
+
+      // Re-renders transcriptLog from historyEntries (already fetched for
+      // the current date range), applying only the length filter and the
+      // render cap — neither of those require a server round-trip.
+      function applyHistoryFiltersAndRender() {
+        const duration = historyDurationFilter();
+        const filtered = historyEntries.filter(ev => passesDurationFilter(ev.durationMs, duration));
+
+        transcriptLog.innerHTML = "";
+        if (filtered.length === 0) {
+          transcriptLog.innerHTML = historyEntries.length === 0
+            ? `<span class="transcript-empty">Waiting for transmissions...</span>`
+            : `<span class="transcript-empty">No recordings match the current filters.</span>`;
+          updateClipPlayButtons();
+          return;
+        }
+
+        const sorted = filtered.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const truncatedCount = sorted.length - MAX_RENDERED_HISTORY;
+        const toRender = truncatedCount > 0 ? sorted.slice(truncatedCount) : sorted;
+
+        if (truncatedCount > 0) {
+          const notice = document.createElement("div");
+          notice.className = "transcript-empty";
+          notice.textContent = `Showing the most recent ${MAX_RENDERED_HISTORY} of ${sorted.length} matching recordings — narrow the date range or length filters to see the rest.`;
+          transcriptLog.append(notice);
+        }
+
+        const fragment = document.createDocumentFragment();
+        for (const ev of toRender) {
+          fragment.append(buildTranscriptEntry(ev.clipId, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
+        }
+        transcriptLog.append(fragment);
+        transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        updateClipPlayButtons();
+      }
+
+      // Fetches history for the currently displayed stream over the
+      // selected date range and re-renders. Called on initial stream
+      // selection and whenever the date-range filter changes.
+      async function loadHistoryForCurrentStream() {
+        if (!transcriptionStreamId) return;
+        transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
+
+        const params = historyRangeParams();
+        params.set("streamId", transcriptionStreamId);
+        params.set("t", String(Date.now()));
+
+        try {
+          const response = await fetch(`/transcripts/history?${params.toString()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(await response.text());
+          const events = await response.json();
+          historyEntries = mergeHistoryEvents(events);
+        } catch (_) {
+          historyEntries = [];
+        }
+        applyHistoryFiltersAndRender();
       }
 
       function startTranscription(streamId) {
@@ -1052,40 +1270,7 @@
         stopTranscription();
         transcriptionStreamId = streamId;
         transcriptPanel.hidden = false;
-        transcriptLog.innerHTML = `<span class="transcript-empty">Loading history...</span>`;
-
-        const cacheBuster = Date.now();
-        fetch(`/transcripts/history?streamId=${encodeURIComponent(streamId)}&t=${cacheBuster}`, {
-          cache: "no-store"
-        })
-          .then(r => r.json())
-          .then(events => {
-            transcriptLog.innerHTML = "";
-            const merged = new Map();
-            events.forEach(ev => {
-              const id = ev.clipId || `hist-${ev.timestamp}`;
-              if (!merged.has(id)) merged.set(id, { clipId: id });
-              const entry = merged.get(id);
-              if (ev.type === "clip" || !ev.type) {
-                entry.timestamp = ev.timestamp;
-                entry.audioUrl = ev.audioUrl;
-                if (ev.durationMs) entry.durationMs = ev.durationMs;
-              }
-              if (ev.type === "transcript" || !ev.type) {
-                if (ev.text) entry.text = ev.text;
-                if (!entry.timestamp) entry.timestamp = ev.timestamp;
-              }
-            });
-            if (merged.size === 0) {
-              transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
-            } else {
-              merged.forEach(ev => appendTranscript(ev.text || "", ev.timestamp, ev.audioUrl, ev.clipId, ev.durationMs));
-            }
-          })
-          .catch(() => {
-            transcriptLog.innerHTML = `<span class="transcript-empty">Waiting for transmissions...</span>`;
-          });
-
+        void loadHistoryForCurrentStream();
         openSseConnection(streamId);
       }
 
@@ -1095,9 +1280,19 @@
         clipPlaybackActive = null;
         updateClipPlayButtons();
         transcriptionStreamId = null;
+        historyEntries = [];
         transcriptPanel.hidden = true;
         transcriptLog.innerHTML = "";
       }
+
+      historyRangeSelect.addEventListener("change", () => {
+        historyCustomRange.hidden = historyRangeSelect.value !== "custom";
+        void loadHistoryForCurrentStream();
+      });
+      historyFromInput.addEventListener("change", () => void loadHistoryForCurrentStream());
+      historyToInput.addEventListener("change", () => void loadHistoryForCurrentStream());
+      historyMinDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
+      historyMaxDurationInput.addEventListener("input", applyHistoryFiltersAndRender);
 
       const connectionIndicators = {
         idle: "⚪",
