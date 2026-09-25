@@ -1194,6 +1194,14 @@
         return entry;
       }
 
+      // Live rows are always appended, but the log only auto-scrolls to the
+      // newest one when nothing is playing or queued. During playback the
+      // scrub bar lives inside the playing row, so scrolling to the bottom
+      // would drag the user away from the clip they're listening to.
+      function shouldAutoScrollHistory() {
+        return !clipPlaybackActive && clipPlaybackQueue.length === 0;
+      }
+
       function appendClip(clipId, isoTimestamp, audioUrl, durationMs) {
         // Live clips are shown immediately regardless of the active length
         // filter (a filter shouldn't hide "just happened" activity), but we
@@ -1203,7 +1211,7 @@
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
         transcriptLog.append(buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, ""));
-        transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        if (shouldAutoScrollHistory()) transcriptLog.scrollTop = transcriptLog.scrollHeight;
         updateClipPlayButtons();
       }
 
@@ -1335,9 +1343,19 @@
           fragment.append(buildTranscriptEntry(ev.clipId, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
         }
         transcriptLog.append(fragment);
-        transcriptLog.scrollTop = preserveTopRow
-          ? transcriptLog.scrollHeight - previousScrollHeight + previousScrollTop
-          : transcriptLog.scrollHeight;
+        // A re-render replaces the row the scrub bar was living in, so put it
+        // back and keep the playing clip in view instead of jumping to the
+        // newest row.
+        const playingClipId = clipPlaybackActive ? clipPlaybackActive.clipId : null;
+        if (playingClipId) {
+          attachClipScrubBar(playingClipId);
+          const playingRow = transcriptLog.querySelector(`[data-clip-id="${CSS.escape(playingClipId)}"]`);
+          if (playingRow) playingRow.scrollIntoView({ block: "nearest" });
+        } else {
+          transcriptLog.scrollTop = preserveTopRow
+            ? transcriptLog.scrollHeight - previousScrollHeight + previousScrollTop
+            : transcriptLog.scrollHeight;
+        }
         updateClipPlayButtons();
       }
 
