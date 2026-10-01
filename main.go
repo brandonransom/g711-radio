@@ -155,6 +155,11 @@ type appConfig struct {
 	// finalization, or transcription. Leave empty to disable.
 	AudioBackupDir string `json:"audioBackupDir"`
 
+	// RecordingIndex controls how the Recordings & Transcripts history is
+	// served; see recordingIndexConfig in recording_index.go. Omit for the
+	// default ("full").
+	RecordingIndex recordingIndexConfig `json:"recordingIndex"`
+
 	UsageLogFile   string            `json:"usageLogFile"`
 	CertFile       string            `json:"certFile"`
 	KeyFile        string            `json:"keyFile"`
@@ -654,6 +659,14 @@ func main() {
 	}
 
 	hub := newTranscriptHub("transcripts", transcriptArchivePath, logger)
+	hub.index = newRecordingIndex(config.RecordingIndex, config.AudioLogDir, "transcripts", logger)
+	if hub.index == nil {
+		logger.Printf("recording index: off (history requests scan the audio folders)")
+	} else if config.RecordingIndex.Mode == recordingIndexWindow {
+		logger.Printf("recording index: window (last %d days; older ranges scan the audio folders)", config.RecordingIndex.WindowDays)
+	} else {
+		logger.Printf("recording index: %s", config.RecordingIndex.Mode)
+	}
 
 	// Listener corrections live beside the transcript archive for the same
 	// reason: they are only useful paired with the WAVs they describe.
@@ -764,6 +777,7 @@ func main() {
 					whisperPool:    pool,
 					broadcastChan:  make(chan media.Sample, 64),
 				}
+				hub.index.register(info)
 				go st.runBroadcaster()
 
 				if pool != nil || config.AudioLogDir != "" {
@@ -793,7 +807,6 @@ func main() {
 							// Dispatch it to a background worker instead so
 							// this callback returns immediately.
 							job := func() {
-								clipID := nextClipID()
 								var wavPath, audioURL string
 								durationMs := len(samples) * 1000 / recSampleRate
 								if captureAudioLogDir != "" {
@@ -821,6 +834,13 @@ func main() {
 											_ = os.Remove(tmp.Name())
 										}
 									}
+								}
+								// The WAV filename is the clip's identity, so live
+								// rows and history rows share one key across
+								// restarts. Only unsaved clips need a synthetic ID.
+								clipID := wavBaseName(requestWavPath)
+								if clipID == "" {
+									clipID = nextClipID()
 								}
 								// Publish clip event immediately so the UI shows the recording.
 								hub.Publish(transcriptEvent{
@@ -950,6 +970,7 @@ func main() {
 
 		server.regionGroups = append(server.regionGroups, apiRegion)
 	}
+	go hub.index.build()
 
 	staticFS, err := fs.Sub(webFiles, "web")
 	if err != nil {
@@ -1187,6 +1208,9 @@ func loadConfig(path string) (appConfig, error) {
 		if err := config.Whisper.validate(); err != nil {
 			return appConfig{}, fmt.Errorf("%s: whisper: %w", path, err)
 		}
+	}
+	if err := config.RecordingIndex.normalize(); err != nil {
+		return appConfig{}, fmt.Errorf("%s: recordingIndex: %w", path, err)
 	}
 
 	// Overlay config.secrets.json if present (passwords and other sensitive values).

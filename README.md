@@ -65,6 +65,7 @@ Runtime output (`config.json`, `config.secrets.json`, `usage.csv`, `g711-radio.l
 - `pfxFile`: TLS certificate as a PFX/PKCS#12 bundle; its passwords go in `config.secrets.json`. Alternatively set `certFile` + `keyFile` (PEM).
 - `audioLogDir`: Directory for the primary, user-facing audio archive — recorded clips are written here, served over HTTP at `/audio/` for in-browser playback, and referenced by the clip/transcript history. Optional; recording is disabled without it (unless whisper is otherwise configured, in which case clips are still transcribed from a temp file but not persisted). Audio and transcripts are kept **indefinitely** — nothing in this codebase deletes them.
 - `audioBackupDir`: Optional. When set, every recorded clip is also written, byte-for-byte, to this second directory (mirroring the same region/group/stream folder structure) — a redundant copy for disaster recovery. It's never served over HTTP or shown in the UI, and a write failure here (e.g. a temporarily unreachable network mount) is logged but never blocks the primary recording. Any path that behaves like a normal filesystem works, including a mapped network drive.
+- `recordingIndex`: Optional. How the Recordings & Transcripts history is served. Each mode is rebuilt from the WAV files and transcript logs in the background at startup (history scans the folders until then); WAV files stay the source of truth. `"mode"`: `"full"` (default — every recording and its transcript text in memory, fastest), `"lean"` (recordings in memory, transcript text read from the log on demand — less memory), `"window"` (like lean, but only the last `"windowDays"` days, default 30; older ranges scan the folders), or `"off"` (scan the audio folders on every request). Example: `"recordingIndex": { "mode": "lean" }`.
 - `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
 - `whisper` block: Optional transcription configuration — see [Transcription settings](#transcription-settings). Omit it entirely to run without transcription.
 
@@ -203,6 +204,8 @@ All transcription settings live in the `whisper` block of `config.json` (decoded
 | `inferenceParams` | both | `{}` | Extra **per-request** `/inference` form fields; values may be strings, numbers, or booleans. `file` and `response_format` are reserved. |
 | `timeoutMs` | both | `60000` | Limit for a single `/inference` request. |
 | `gapMs`, `maxClipMs`, `autoTranscribeMinClipMs`, `autoTranscribeMaxClipMs` | both | see [How transcription works](#how-transcription-works) | Recording and auto-transcription controls. |
+| `hallucinationFilter` | both | built-in list on | Removes text whisper invents from silence or noise. See [Hallucination filter](#hallucination-filter). |
+
 
 By default, requests send `language=en`, `no_timestamps=true`, `beam_size=5`, and `best_of=5`. These match the previous `whisper-cli` behavior; whisper-server's own defaults are greedy decoding with `best_of=2`. Any `inferenceParams` entry overrides them.
 
@@ -214,6 +217,27 @@ By default, requests send `language=en`, `no_timestamps=true`, `beam_size=5`, an
 Old settings `binaryPath` (whisper-cli) and `remoteHost` (the removed `cmd/whisper-server`) are rejected at startup, with an error that names the replacement setting.
 
 If local mode can't start (missing binary or model), the server logs a warning and keeps streaming and recording with transcription disabled. A local instance that exits is restarted with backoff, and its last output is logged. On Windows (job object) and Linux (`Pdeathsig`), instances are also killed if g711-radio itself crashes, so they can't hold their ports.
+
+### Hallucination filter
+
+On silence, static, or squelch tails, Whisper often outputs text from its training data, such as `: Copyright Australian Broadcasting Corporation`, `Subtitles by the Amara.org community`, `Thanks for watching!`, or a lone `you`. g711-radio filters these before a transcript is published or logged:
+
+- **`phrases`** are removed wherever they appear, so `Engine 4 responding. Thanks for watching!` becomes `Engine 4 responding.` Keep these long and specific; a short phrase could delete real traffic.
+- **`exactPhrases`** are dropped only when they are the entire transcript (for example `you` or `thank you`), so the same words inside real traffic survive.
+- Matching ignores case and punctuation and only matches whole words.
+- If nothing real is left, **`replacement`** is published instead (default `[no speech detected]`). Bracketed text is treated as a status marker and kept out of `transcripts.csv`.
+- **`useDefaults`** (default `true`) keeps the built-in lists in `hallucination.go`; your entries are added to them. Set it to `false` to use only your own.
+
+Each filtered transcript is logged with its original text, so you can review what was removed. Transcripts already in the logs are not rewritten. whisper.cpp's `no_speech_thold`, `suppress_nst`, and `vad` options (via `inferenceParams`) reduce hallucinations at the source and work alongside the filter.
+
+```json
+"hallucinationFilter": {
+  "phrases": ["Sheriff's Office test tone"],
+  "exactPhrases": ["okay"],
+  "replacement": "[Silence]"
+}
+```
+
 ### How transcription works
 
 - Recording is presence-based: a WAV clip starts the moment a stream's incoming audio packets begin, with no voice/energy detection — the upstream source devices already gate transmission with their own VOX/squelch
@@ -227,7 +251,7 @@ If local mode can't start (missing binary or model), the server logs a warning a
 - The individual stream page displays a live scrollable transcript panel
 - Recording playback buttons queue clips; clicking the active recording's stop button ends that clip and advances to the next queued recording, if any
 - Every transcript is also appended as a row to `transcripts.csv` inside `audioLogDir` (the primary audio archive directory, see [Config](#config)) — one row per transcript, with the transcribed WAV filename and stream name. This file lives alongside the audio clips it accompanies, is never pruned, and is separate from the per-stream JSON logs under `transcripts/` used for the in-browser history
-- The "Recordings & Transcripts" panel (on both the individual stream page and the multi-stream region/forest pages) lets users browse the full, unpruned history rather than a fixed lookback window. The server scans each stream's WAV directory under `audioLogDir`, derives timestamps and durations from the files, and merges any matching text from the per-stream transcript log; recordings therefore remain visible across server restarts even if the separate transcript-event logs are missing. A date-range filter (last 24 hours / 7 days / 8 days (default) / 30 days / all time / a custom from–to range) controls what `GET /transcripts/history?streamId=<id>&since=<RFC3339>&until=<RFC3339>` fetches from the server — `since`/`until` are both optional, and omitting one means "from the beginning of recorded history" / "up to now" respectively. A recording-length filter (minimum seconds) and, on multi-stream pages, a stream filter are applied client-side against the fetched results, with no extra round-trip. **Download all filtered audio** sends the complete matching WAV set (including matching rows beyond the render cap) to `POST /recordings/download` and downloads a ZIP that preserves the archive's region/forest/stream folder structure. Rows render 300 at a time — newest first — to keep large "all time" views responsive; a **Load older** button above the oldest visible row pages in the next 300, so the entire history stays reachable without narrowing any filter
+- The "Recordings & Transcripts" panel (on both the individual stream page and the multi-stream region/forest pages) lets users browse the full, unpruned history rather than a fixed lookback window. The server indexes each stream's WAV directory under `audioLogDir` (see `recordingIndex`), derives timestamps and durations from the files, and merges any matching text from the per-stream transcript log; recordings therefore remain visible across server restarts even if the separate transcript-event logs are missing. A date-range filter (last 24 hours (default) / 7 days / 30 days / all time / a custom from–to range) controls what `GET /transcripts/history?streamId=<id>&since=<RFC3339>&until=<RFC3339>` fetches from the server — `since`/`until` are both optional, and omitting one means "from the beginning of recorded history" / "up to now" respectively. A recording-length filter (minimum seconds) and, on multi-stream pages, a stream filter are applied client-side against the fetched results, with no extra round-trip. **Download all filtered audio** sends the complete matching WAV set (including matching rows beyond the render cap) to `POST /recordings/download` and downloads a ZIP that preserves the archive's region/forest/stream folder structure. Rows render 300 at a time — newest first — to keep large "all time" views responsive; a **Load older** button above the oldest visible row pages in the next 300, so the entire history stays reachable without narrowing any filter
 
 ### Model selection
 

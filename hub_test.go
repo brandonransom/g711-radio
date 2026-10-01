@@ -202,7 +202,7 @@ func TestRecordingHistoryAllTimeReturnsPreBootRecordings(t *testing.T) {
 		t.Fatalf("all time missing recordings: %#v", found)
 	}
 
-	// The bounded "last 8 days" view must still exclude the old recording,
+	// The bounded "recent" view must still exclude the old recording,
 	// proving the range filter is applied rather than ignored.
 	bounded, err := hub.RecordingHistory(audioDir, info, time.Now().AddDate(0, 0, -8), time.Time{})
 	if err != nil {

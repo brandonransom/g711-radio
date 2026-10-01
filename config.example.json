@@ -4,6 +4,7 @@
   "pfxFile": "C:\\Certs\\your-cert.pfx",
   "audioLogDir": "audio",
   "audioBackupDir": "",
+  "recordingIndex": { "mode": "full", "windowDays": 30 },
   "usageLogFile": "usage.csv",
   "whisper": {
     "remoteServers": [],
@@ -20,7 +21,13 @@
     "gapMs": 4000,
     "maxClipMs": 600000,
     "autoTranscribeMinClipMs": 20000,
-    "autoTranscribeMaxClipMs": 0
+    "autoTranscribeMaxClipMs": 0,
+    "hallucinationFilter": {
+      "useDefaults": true,
+      "phrases": [],
+      "exactPhrases": [],
+      "replacement": "[no speech detected]"
+    }
   },
   "regions": {
     "California": {

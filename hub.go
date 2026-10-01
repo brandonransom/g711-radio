@@ -39,10 +39,11 @@ type transcriptEvent struct {
 	AudioURL   string    `json:"audioUrl,omitempty"`
 	DurationMs int       `json:"durationMs,omitempty"`
 	Timestamp  time.Time `json:"timestamp"`
-	// WAVFilename is the clip's recording on disk. It is the stable identity
-	// of a clip across restarts and page reloads: live events carry a
-	// per-process "clip-N" ClipID, while recording history keys rows by
-	// filename, so the browser matches on either (see web/index.html).
+	// WAVFilename is the clip's recording on disk and its stable identity
+	// across restarts and page reloads. Live clips use it as their ClipID
+	// too; only legacy log lines (and clips never written to disk) carry a
+	// per-process "clip-N" ClipID, so the browser matches on either (see
+	// web/index.html).
 	WAVFilename string `json:"wavFilename,omitempty"`
 	// Corrected is the listener-supplied text shown in place of Text. It is
 	// never persisted to the transcript logs; transcript-feedback.csv is its
@@ -74,6 +75,13 @@ type transcriptHub struct {
 	// orthogonal to the per-stream JSON logs and SSE fan-out.
 	archiveMu   sync.Mutex
 	archivePath string
+
+	// logMu serializes per-stream log appends so each line's starting
+	// offset is known (the recording index reads transcripts back by it).
+	logMu sync.Mutex
+	// index, when non-nil, answers history requests without scanning the
+	// audio folders (see recordingIndex). Set before streams start.
+	index *recordingIndex
 }
 
 func newTranscriptHub(logDir string, archivePath string, logger *log.Logger) *transcriptHub {
@@ -123,8 +131,12 @@ func (h *transcriptHub) Publish(event transcriptEvent) {
 	status := event.Type == "transcribing" || event.Type == "correction"
 
 	// Write to per-stream log file.
-	if h.logDir != "" && !status {
-		h.appendLog(event)
+	if !status {
+		off, n := int64(-1), 0
+		if h.logDir != "" {
+			off, n = h.appendLog(event)
+		}
+		h.index.observe(event, off, n)
 	}
 
 	// Write to the permanent, never-pruned transcript archive. Only
@@ -159,18 +171,35 @@ func logFilename(streamName string) string {
 	return safe + ".log"
 }
 
-// appendLog writes one transcript event as a JSON line to the stream's log file.
-func (h *transcriptHub) appendLog(event transcriptEvent) {
+// appendLog writes one transcript event as a JSON line to the stream's log
+// file, returning the line's starting offset and length (offset -1 on failure).
+func (h *transcriptHub) appendLog(event transcriptEvent) (int64, int) {
+	line, err := json.Marshal(event)
+	if err != nil {
+		h.logger.Printf("transcript log: encode: %v", err)
+		return -1, 0
+	}
+	line = append(line, '\n')
+
 	path := filepath.Join(h.logDir, logFilename(event.StreamName))
+	h.logMu.Lock()
+	defer h.logMu.Unlock()
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		h.logger.Printf("transcript log: open %s: %v", path, err)
-		return
+		return -1, 0
 	}
 	defer f.Close()
-	if err := json.NewEncoder(f).Encode(event); err != nil {
-		h.logger.Printf("transcript log: write %s: %v", path, err)
+	fi, err := f.Stat()
+	if err != nil {
+		h.logger.Printf("transcript log: stat %s: %v", path, err)
+		return -1, 0
 	}
+	if _, err := f.Write(line); err != nil {
+		h.logger.Printf("transcript log: write %s: %v", path, err)
+		return -1, 0
+	}
+	return fi.Size(), len(line)
 }
 
 // appendArchive appends one row — WAV filename, stream name, transcript text —
@@ -261,10 +290,14 @@ func (h *transcriptHub) History(streamName string, since, until time.Time) ([]tr
 
 // RecordingHistory returns every WAV recording currently present in the
 // configured audio archive for a stream, enriched with any matching
-// transcript-log events. WAV files are the source of truth so recordings
+// transcript-log events. It answers from the recording index when one is
+// configured and ready, and otherwise scans the stream's folder. WAV files are the source of truth so recordings
 // remain visible if the server restarts with a missing or relocated
 // transcripts directory. Log-only events are retained for compatibility.
 func (h *transcriptHub) RecordingHistory(audioLogDir string, info streamInfo, since, until time.Time) ([]transcriptEvent, error) {
+	if events, ok := h.index.history(info, since, until); ok {
+		return events, nil
+	}
 	logged, err := h.History(info.StreamName, since, until)
 	if err != nil {
 		h.logger.Printf("recording history: read transcript log for %s: %v", info.StreamName, err)

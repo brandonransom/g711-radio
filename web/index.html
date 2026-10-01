@@ -782,9 +782,8 @@
           <div class="transcript-filters-grid">
             <label>Date range
               <select id="historyRangeSelect">
-                <option value="24h">Last 24 hours</option>
+                <option value="24h" selected>Last 24 hours</option>
                 <option value="7d">Last 7 days</option>
-                <option value="8d" selected>Last 8 days</option>
                 <option value="30d">Last 30 days</option>
                 <option value="all">All time</option>
                 <option value="custom">Custom range</option>
@@ -908,7 +907,6 @@
       const HISTORY_RANGE_PRESETS = {
         "24h": () => new Date(Date.now() - 24 * 60 * 60 * 1000),
         "7d": () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        "8d": () => new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
         "30d": () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
       };
 
@@ -926,7 +924,7 @@
             until: historyToInput.value ? new Date(historyToInput.value) : null,
           };
         }
-        const preset = HISTORY_RANGE_PRESETS[mode] || HISTORY_RANGE_PRESETS["8d"];
+        const preset = HISTORY_RANGE_PRESETS[mode] || HISTORY_RANGE_PRESETS["24h"];
         return { since: preset(), until: null };
       }
 

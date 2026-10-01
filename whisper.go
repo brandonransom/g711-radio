@@ -99,6 +99,11 @@ type whisperConfig struct {
 	AutoTranscribeMinClipMs int `json:"autoTranscribeMinClipMs"`
 	AutoTranscribeMaxClipMs int `json:"autoTranscribeMaxClipMs"`
 
+	// HallucinationFilter removes text whisper invents from silence or
+	// noise (subtitle credits and the like); see hallucination.go. On by
+	// default with a built-in phrase list.
+	HallucinationFilter *hallucinationFilterConfig `json:"hallucinationFilter"`
+
 	// Removed settings. They are still decoded so validate() can explain
 	// how to migrate instead of failing with a bare "unknown field" error.
 	LegacyBinaryPath string `json:"binaryPath"`
@@ -161,6 +166,9 @@ func (c *whisperConfig) validate() error {
 	}
 	if c.LocalBasePort > 0 && c.Workers > 0 && c.LocalBasePort+c.Workers-1 > 65535 {
 		return fmt.Errorf("localBasePort %d + workers %d runs past port 65535", c.LocalBasePort, c.Workers)
+	}
+	if _, err := newHallucinationFilter(c.HallucinationFilter); err != nil {
+		return fmt.Errorf("hallucinationFilter: %w", err)
 	}
 	return nil
 }
@@ -318,10 +326,17 @@ type whisperPool struct {
 	httpClient *http.Client
 	endpoints  []*whisperEndpoint
 	formFields map[string]string
+	filter     *hallucinationFilter
 }
 
 func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *whisperPool {
 	ctx, cancel := context.WithCancel(context.Background())
+	filter, err := newHallucinationFilter(cfg.HallucinationFilter)
+	if err != nil {
+		// validate() rejects bad filters at startup; this only guards
+		// callers that skip it.
+		logger.Printf("whisper: hallucination filter disabled: %v", err)
+	}
 	p := &whisperPool{
 		cfg:        cfg,
 		ready:      make(chan struct{}, 1),
@@ -332,6 +347,7 @@ func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *
 		cancel:     cancel,
 		httpClient: &http.Client{}, // per-request deadlines come from TimeoutMs contexts
 		formFields: inferenceFormFields(cfg.InferenceParams),
+		filter:     filter,
 	}
 	return p
 }
@@ -581,12 +597,17 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 			continue
 		}
 		text = strings.TrimSpace(text)
+		if filtered, changed := p.filter.Apply(text); changed {
+			p.logger.Printf("whisper %s: clip %s from %s: filtered hallucination %q -> %q",
+				ep.label, job.clipID, job.info.StreamName, text, filtered)
+			text = filtered
+		}
 		if text == "" {
 			// No speech detected — a normal outcome (e.g. a keyed-up but
 			// silent transmission), published so the clip isn't left pending.
 			p.logger.Printf("whisper %s: clip %s from %s produced no speech in %s (queue depth: %d)",
 				ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond), p.queueDepth())
-			p.publish(job, "[no speech detected]")
+			p.publish(job, noSpeechMarker)
 			continue
 		}
 		p.publish(job, text)
