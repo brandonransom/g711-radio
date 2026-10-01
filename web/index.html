@@ -458,6 +458,39 @@
         text-decoration: underline;
       }
 
+      /* Wide screens on a stream page: live audio on the left, recordings and
+         transcripts in a column on the right that stays in view while the
+         page scrolls. The landing directory (no transcript panel) keeps its
+         narrower single-column layout. */
+      @media (min-width: 1100px) {
+        main:has(.transcript-panel:not([hidden])) {
+          width: min(1440px, 100%);
+        }
+
+        .page-layout:has(> .transcript-panel:not([hidden])) {
+          display: grid;
+          grid-template-columns: minmax(0, 2fr) minmax(460px, 3fr);
+          gap: 24px;
+          align-items: start;
+        }
+
+        .page-layout > .transcript-panel {
+          margin-top: 28px;
+          position: sticky;
+          top: 24px;
+          display: flex;
+          flex-direction: column;
+          max-height: calc(100vh - 48px);
+          box-sizing: border-box;
+        }
+
+        .page-layout > .transcript-panel .transcript-log {
+          flex: 1 1 auto;
+          min-height: 0;
+          max-height: none;
+        }
+      }
+
       .transcript-panel {
         margin-top: 18px;
         padding: 18px 20px;
@@ -727,6 +760,8 @@
     <main>
       <h1>USDA Forest Service Land Mobile Radio Streams</h1>
 
+      <div class="page-layout">
+      <div class="live-pane">
       <div id="launchRoot"></div>
 
       <div id="streams" class="streams"></div>
@@ -744,6 +779,7 @@
           <button id="disconnectBtn" class="secondary" type="button" disabled>Disconnect audio</button>
         </div>
         <audio id="player" controls autoplay playsinline></audio>
+      </div>
       </div>
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
@@ -771,6 +807,7 @@
           </div>
         </div>
         <div id="transcriptLog" class="transcript-log"></div>
+      </div>
       </div>
 
       <p class="note">
