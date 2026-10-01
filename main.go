@@ -354,6 +354,7 @@ type webrtcServer struct {
 	clips        map[string]clipRecord
 	clipMu       sync.RWMutex
 	whisperPool  *whisperPool
+	feedback     *feedbackStore
 	audioLogDir  string
 	iceServers   []webrtc.ICEServer
 
@@ -624,6 +625,18 @@ func main() {
 
 	hub := newTranscriptHub("transcripts", transcriptArchivePath, logger)
 
+	// Listener corrections live beside the transcript archive for the same
+	// reason: they are only useful paired with the WAVs they describe.
+	var feedbackPath string
+	if config.AudioLogDir != "" {
+		feedbackPath = filepath.Join(config.AudioLogDir, "transcript-feedback.csv")
+		if abs, err := filepath.Abs(feedbackPath); err == nil {
+			feedbackPath = abs
+		}
+		logger.Printf("transcript feedback file: %s (CSV, permanent, never pruned)", feedbackPath)
+	}
+	feedback := newFeedbackStore(feedbackPath, logger)
+
 	var pool *whisperPool
 	if config.Whisper.enabled() {
 		config.Whisper.setDefaults()
@@ -665,6 +678,7 @@ func main() {
 		hub:          hub,
 		clips:        make(map[string]clipRecord),
 		whisperPool:  pool,
+		feedback:     feedback,
 		audioLogDir:  config.AudioLogDir,
 		iceServers:   config.webrtcICEServers(),
 		clipJobs:     make(chan func(), 256),
@@ -918,6 +932,7 @@ func main() {
 	mux.HandleFunc("/stream-status", server.handleStreamStatus)
 	mux.HandleFunc("/offer", server.handleOffer)
 	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
+	mux.HandleFunc("/transcripts/feedback", server.handleTranscriptFeedback)
 	mux.Handle("/transcripts", hub)
 	mux.HandleFunc("/recordings/download", recordingDownloadHandler(config.AudioLogDir, logger))
 	mux.HandleFunc("/transcripts/history", func(w http.ResponseWriter, r *http.Request) {

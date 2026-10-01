@@ -595,6 +595,48 @@
         border-color: var(--ink);
       }
 
+      /* Feedback controls span the full row width, below the transcript
+         text, the same way the playback scrub bar does. */
+      .transcript-feedback {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0 2px;
+      }
+
+      /* An author `display` declaration outranks the user-agent
+         `[hidden] { display: none }` rule, so hiding via the hidden
+         property needs this explicit opt-out. */
+      .transcript-feedback[hidden] {
+        display: none;
+      }
+
+      .transcript-feedback textarea {
+        flex: 1 1 18rem;
+        min-height: 2.2rem;
+        font: inherit;
+        font-size: 0.85rem;
+        color: var(--ink);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 4px 6px;
+        resize: vertical;
+      }
+
+      .transcript-feedback-status {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .transcript-rate.is-selected {
+        color: var(--ink);
+        border-color: var(--ink);
+        background: var(--panel);
+      }
+
       .transcript-empty {
         color: var(--muted);
         font-size: 0.94rem;
@@ -1195,8 +1237,126 @@
           }
         });
         entry.appendChild(transcribeBtn);
+        entry.appendChild(buildFeedbackControls(entry, clipId, audioUrl, wavFilename));
 
         return entry;
+      }
+
+      // Builds the "was this transcript right?" controls for one row.
+      //
+      // Whisper does not learn from these clicks. What they produce is a
+      // corpus of corrected transcripts paired with the WAV that produced
+      // them, which is what makes it possible to mine domain vocabulary for
+      // the server's initial prompt, measure whether a settings change
+      // actually helped, or fine-tune a model later. That is why a written
+      // correction is worth far more here than a bare thumbs-down, and why
+      // the correction box is prefilled with whisper's output: editing a
+      // near-miss is much less work than typing from scratch.
+      function buildFeedbackControls(entry, clipId, audioUrl, wavFilename) {
+        const wrap = document.createElement("div");
+        wrap.className = "transcript-feedback";
+        wrap.hidden = true;
+
+        const good = document.createElement("button");
+        good.type = "button";
+        good.className = "transcript-play transcript-rate";
+        good.title = "Transcript is accurate";
+        good.textContent = "👍";
+
+        const bad = document.createElement("button");
+        bad.type = "button";
+        bad.className = "transcript-play transcript-rate";
+        bad.title = "Transcript is wrong";
+        bad.textContent = "👎";
+
+        const box = document.createElement("textarea");
+        box.rows = 1;
+        box.placeholder = "Correction (what was actually said)";
+        box.spellcheck = false;
+
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "transcript-play";
+        save.textContent = "Save";
+
+        const status = document.createElement("span");
+        status.className = "transcript-feedback-status";
+
+        let rating = "";
+        const select = (value) => {
+          rating = value;
+          good.classList.toggle("is-selected", value === "good");
+          bad.classList.toggle("is-selected", value === "bad");
+        };
+        good.addEventListener("click", () => select(rating === "good" ? "" : "good"));
+        bad.addEventListener("click", () => select(rating === "bad" ? "" : "bad"));
+
+        const send = async () => {
+          const corrected = box.value.trim();
+          if (!rating && !corrected) {
+            status.textContent = "Rate it or type a correction.";
+            return;
+          }
+          save.disabled = true;
+          status.textContent = "Saving...";
+          try {
+            const textEl = entry.querySelector(".transcript-text");
+            const original = textEl && !textEl.classList.contains("transcript-pending")
+              ? textEl.textContent
+              : "";
+            const res = await fetch("/transcripts/feedback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clipId,
+                wavFilename: wavFilename || entry.dataset.wav || "",
+                audioUrl: audioUrl || "",
+                streamName: currentStreamName,
+                rating,
+                original,
+                corrected,
+              }),
+            });
+            if (!res.ok) throw new Error("request failed");
+            status.textContent = "Thanks — recorded.";
+            box.disabled = true;
+            good.disabled = true;
+            bad.disabled = true;
+          } catch (_) {
+            save.disabled = false;
+            status.textContent = "Could not save.";
+          }
+        };
+        save.addEventListener("click", send);
+        // Enter submits, Shift+Enter inserts a newline, matching the usual
+        // single-line-comment convention.
+        box.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            send();
+          }
+        });
+
+        wrap.append(good, bad, box, save, status);
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "transcript-play";
+        toggle.title = "Rate or correct this transcript";
+        toggle.textContent = "Feedback";
+        toggle.addEventListener("click", () => {
+          wrap.hidden = !wrap.hidden;
+          if (!wrap.hidden) {
+            const textEl = entry.querySelector(".transcript-text");
+            if (!box.value && textEl && !textEl.classList.contains("transcript-pending")) {
+              box.value = textEl.textContent;
+            }
+            box.focus();
+          }
+        });
+        entry.appendChild(toggle);
+
+        return wrap;
       }
 
       // Live rows are always appended, but the log only auto-scrolls to the
