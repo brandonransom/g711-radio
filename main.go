@@ -1057,6 +1057,7 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("/streams", server.handleStreams)
 	mux.HandleFunc("/stream-status", server.handleStreamStatus)
+	mux.HandleFunc("/stream-activity", server.handleStreamActivity)
 	mux.HandleFunc("/offer", server.handleOffer)
 	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
 	mux.HandleFunc("/transcripts/request-bulk", server.handleBulkTranscriptRequest)
@@ -2147,6 +2148,39 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 	}
 
 	json.NewEncoder(w).Encode(statuses)
+}
+
+// streamActivityWindow is how recently a stream must have received audio
+// packets to count as "active" for the UI's activity lights. Packets only
+// flow while a radio is keyed, so this tracks live transmissions.
+const streamActivityWindow = 3 * time.Second
+
+// handleStreamActivity returns the IDs of streams currently receiving audio.
+// It only reads in-memory timestamps, so pages can poll it every few seconds.
+func (s *webrtcServer) handleStreamActivity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Content-Type", "application/json")
+
+	cutoff := time.Now().Add(-streamActivityWindow)
+	active := make([]string, 0)
+	for id, st := range s.streams {
+		st.mu.RLock()
+		last := st.lastPacketAt
+		st.mu.RUnlock()
+		if last.After(cutoff) {
+			active = append(active, id)
+		}
+	}
+	sort.Strings(active)
+
+	json.NewEncoder(w).Encode(struct {
+		Active []string `json:"active"`
+	}{active})
 }
 
 func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {

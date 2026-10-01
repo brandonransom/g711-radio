@@ -672,6 +672,7 @@
       </p>
     </main>
 
+    <script src="/activity.js"></script>
     <script>
       const pageTitle = document.getElementById("pageTitle");
       const pageSubtitle = document.getElementById("pageSubtitle");
@@ -1022,7 +1023,7 @@
         const titleRow = document.createElement("div");
         titleRow.className = "stream-title-row";
         const title = document.createElement("h3");
-        title.append(buildLink(streamPagePath(stream), stream.streamName, "Open this stream's own page"));
+        title.append(buildActivityDot([stream.id]), buildLink(streamPagePath(stream), stream.streamName, "Open this stream's own page"));
         titleRow.append(title, buildFavoriteToggle(stream));
 
         const statusEl = document.createElement("div");
@@ -2102,14 +2103,20 @@
             const stateSection = document.createElement("section");
             stateSection.className = "state-group";
             const stateHeading = document.createElement("h2");
-            stateHeading.append(buildLink(sectionPagePath(state.stateName), state.stateName, "Open this state's page"));
+            stateHeading.append(
+              buildActivityDot(state.subGroups.flatMap((group) => group.streams.map((stream) => stream.id))),
+              buildLink(sectionPagePath(state.stateName), state.stateName, "Open this state's page"),
+            );
             stateSection.append(stateHeading);
 
             for (const group of state.subGroups) {
               const forestSection = document.createElement("section");
               forestSection.className = "forest-group";
               const forestHeading = document.createElement("h2");
-              forestHeading.append(buildLink(sectionPagePath(state.stateName, group.groupName), group.groupName, "Open this forest's page"));
+              forestHeading.append(
+                buildActivityDot(group.streams.map((stream) => stream.id)),
+                buildLink(sectionPagePath(state.stateName, group.groupName), group.groupName, "Open this forest's page"),
+              );
               forestSection.append(forestHeading, renderStreamsGrid(group.streams));
               stateSection.append(forestSection);
             }
@@ -2143,7 +2150,10 @@
               const section = document.createElement("section");
               section.className = "forest-group";
               const heading = document.createElement("h2");
-              heading.append(buildLink(sectionPagePath(state.stateName, group.groupName), group.groupName, "Open this forest's page"));
+              heading.append(
+                buildActivityDot(group.streams.map((stream) => stream.id)),
+                buildLink(sectionPagePath(state.stateName, group.groupName), group.groupName, "Open this forest's page"),
+              );
               section.append(heading, renderStreamsGrid(group.streams));
               content.append(section);
             }

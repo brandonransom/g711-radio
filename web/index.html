@@ -780,6 +780,7 @@
       </p>
     </main>
 
+    <script src="/activity.js"></script>
     <script>
       // Stream connection logic
       const disconnectBtn = document.getElementById("disconnectBtn");
@@ -2030,7 +2031,7 @@
         const titleRow = document.createElement("div");
         titleRow.className = "launch-title-row";
         const title = document.createElement("h2");
-        title.textContent = formatStreamDisplayName(sharePageStream);
+        title.append(buildActivityDot([sharePageStream.id]), formatStreamDisplayName(sharePageStream));
         titleRow.append(title, buildFavoriteToggle(sharePageStream));
 
         const description = document.createElement("p");
@@ -2157,19 +2158,19 @@
         return button;
       }
 
-      function buildDirectoryLink(href, label, detail) {
+      function buildDirectoryLink(href, label, detail, streamIds) {
         const link = document.createElement("a");
         link.className = "forest-link";
         link.href = href;
         const name = document.createElement("strong");
-        name.textContent = label;
+        name.append(buildActivityDot(streamIds), label);
         const meta = document.createElement("span");
         meta.textContent = detail;
         link.append(name, meta);
         return link;
       }
 
-      function buildDirectoryCard(href, titleText, metaText, goText, links, extraClass) {
+      function buildDirectoryCard(href, titleText, metaText, goText, links, streamIds, extraClass) {
         const card = document.createElement("section");
         card.className = extraClass ? `state-card ${extraClass}` : "state-card";
 
@@ -2180,7 +2181,7 @@
         info.className = "state-info";
         const title = document.createElement("h2");
         title.className = "state-title";
-        title.textContent = titleText;
+        title.append(buildActivityDot(streamIds), titleText);
         const meta = document.createElement("div");
         meta.className = "state-meta";
         meta.textContent = metaText;
@@ -2229,7 +2230,8 @@
             formatStreamCount(favoriteStreams.length),
             "Open my page →",
             favoriteStreams.map((stream) =>
-              buildDirectoryLink(streamPagePath(stream), stream.streamName, `${stream.stateName} / ${stream.groupName}`)),
+              buildDirectoryLink(streamPagePath(stream), stream.streamName, `${stream.stateName} / ${stream.groupName}`, [stream.id])),
+            favoriteStreams.map((stream) => stream.id),
             "favorites-card",
           ));
         }
@@ -2243,7 +2245,9 @@
             `${formatStreamCount(totalStreams)} · ${forestCount} ${forestCount === 1 ? "forest" : "forests"}`,
             "Open state page →",
             state.subGroups.map((group) =>
-              buildDirectoryLink(sectionPagePath(state.stateName, group.groupName), group.groupName, formatStreamCount(group.streams.length))),
+              buildDirectoryLink(sectionPagePath(state.stateName, group.groupName), group.groupName, formatStreamCount(group.streams.length),
+                group.streams.map((stream) => stream.id))),
+            state.subGroups.flatMap((group) => group.streams.map((stream) => stream.id)),
           ));
         }
       }
