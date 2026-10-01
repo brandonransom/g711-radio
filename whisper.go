@@ -365,12 +365,13 @@ func (p *whisperPool) Start() error {
 		if ignored := p.cfg.ignoredLocalFields(); len(ignored) > 0 {
 			p.logger.Printf("whisper: remote mode — ignoring local-mode settings: %s", strings.Join(ignored, ", "))
 		}
-		for _, raw := range p.cfg.RemoteServers {
+		for i, raw := range p.cfg.RemoteServers {
 			base, err := whisperServerURL(raw)
 			if err != nil {
 				return err
 			}
-			p.endpoints = append(p.endpoints, newWhisperEndpoint(base, base, false))
+			p.endpoints = append(p.endpoints, newWhisperEndpoint(
+				fmt.Sprintf("server#%d %s", i+1, base), base, false))
 		}
 		p.checkRemoteReachability()
 	} else {
@@ -389,10 +390,10 @@ func (p *whisperPool) Start() error {
 func (p *whisperPool) checkRemoteReachability() {
 	for _, ep := range p.endpoints {
 		if err := checkWhisperHealth(p.ctx, ep.baseURL, 5*time.Second); err != nil {
-			p.logger.Printf("WARNING: whisper server %s is not ready: %v", ep.baseURL, err)
+			p.logger.Printf("WARNING: whisper server %s is not ready: %v", ep.label, err)
 			continue
 		}
-		p.logger.Printf("whisper server %s is ready", ep.baseURL)
+		p.logger.Printf("whisper server %s is ready", ep.label)
 	}
 }
 
@@ -424,7 +425,15 @@ func (p *whisperPool) Submit(job transcriptJob) {
 	qlen := len(p.queue)
 	p.mu.Unlock()
 	p.signal()
-	p.logger.Printf("whisper pool: queued clip from %s (queue depth: %d)", job.info.StreamName, qlen)
+	p.logger.Printf("whisper pool: queued clip %s from %s (queue depth: %d, servers: %d)",
+		job.clipID, job.info.StreamName, qlen, len(p.endpoints))
+}
+
+// queueDepth reports how many clips are waiting for a free server.
+func (p *whisperPool) queueDepth() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.queue)
 }
 
 // requeueFront puts a job back at the head of the queue so another endpoint
@@ -443,8 +452,9 @@ func (p *whisperPool) signal() {
 	}
 }
 
-// nextJob blocks until a job is available or the pool is closed.
-func (p *whisperPool) nextJob() (transcriptJob, bool) {
+// nextJob blocks until a job is available or the pool is closed. It also
+// reports the queue depth left behind after this job was taken.
+func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
 	for {
 		p.mu.Lock()
 		if len(p.queue) > 0 {
@@ -456,12 +466,12 @@ func (p *whisperPool) nextJob() (transcriptJob, bool) {
 				// Wake another worker for the rest.
 				p.signal()
 			}
-			return job, true
+			return job, remaining, true
 		}
 		p.mu.Unlock()
 		select {
 		case <-p.done:
-			return transcriptJob{}, false
+			return transcriptJob{}, 0, false
 		case <-p.ready:
 		}
 	}
@@ -505,7 +515,7 @@ func (p *whisperPool) awaitEndpoint(ep *whisperEndpoint) bool {
 		case <-time.After(backoff):
 		}
 		if err := checkWhisperHealth(p.ctx, ep.baseURL, 5*time.Second); err == nil {
-			p.logger.Printf("whisper server %s is reachable again", ep.baseURL)
+			p.logger.Printf("whisper server %s is reachable again", ep.label)
 			ep.setReady(true)
 			break
 		}
@@ -519,11 +529,13 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		if !p.awaitEndpoint(ep) {
 			return
 		}
-		job, ok := p.nextJob()
+		job, waiting, ok := p.nextJob()
 		if !ok {
 			return
 		}
 		started := time.Now()
+		p.logger.Printf("whisper %s: transcribing clip %s from %s (queue depth: %d)",
+			ep.label, job.clipID, job.info.StreamName, waiting)
 		text, err := p.transcribe(ep, job.wavPath, job.info.StreamName)
 		if err != nil {
 			var unreachable *endpointUnreachableError
@@ -559,11 +571,14 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		if text == "" {
 			// No speech detected — a normal outcome (e.g. a keyed-up but
 			// silent transmission), published so the clip isn't left pending.
+			p.logger.Printf("whisper %s: clip %s from %s produced no speech in %s (queue depth: %d)",
+				ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond), p.queueDepth())
 			p.publish(job, "[no speech detected]")
 			continue
 		}
 		p.publish(job, text)
-		p.logger.Printf("whisper %s (%s): [%s] %s", ep.label, time.Since(started).Round(time.Millisecond), job.info.StreamName, text)
+		p.logger.Printf("whisper %s: clip %s from %s done in %s (queue depth: %d): %s",
+			ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond), p.queueDepth(), text)
 	}
 }
 
