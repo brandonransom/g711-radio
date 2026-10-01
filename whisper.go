@@ -536,6 +536,19 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		started := time.Now()
 		p.logger.Printf("whisper %s: transcribing clip %s from %s (queue depth: %d)",
 			ep.label, job.clipID, job.info.StreamName, waiting)
+		// Tell the UI a server has picked this clip up, so the row stops
+		// reading "Recording received." while whisper works on it.
+		p.hub.Publish(transcriptEvent{
+			Type:        "transcribing",
+			ClipID:      job.clipID,
+			StreamID:    job.info.ID,
+			StreamName:  job.info.StreamName,
+			RegionName:  job.info.RegionName,
+			GroupName:   job.info.GroupName,
+			AudioURL:    job.audioURL,
+			Timestamp:   job.start,
+			WAVFilename: wavBaseName(job.wavPath),
+		})
 		text, err := p.transcribe(ep, job.wavPath, job.info.StreamName)
 		if err != nil {
 			var unreachable *endpointUnreachableError
@@ -593,7 +606,7 @@ func (p *whisperPool) publish(job transcriptJob, text string) {
 		Text:        text,
 		AudioURL:    job.audioURL,
 		Timestamp:   job.start,
-		WAVFilename: filepath.Base(job.wavPath),
+		WAVFilename: wavBaseName(job.wavPath),
 	})
 }
 

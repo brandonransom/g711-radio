@@ -180,14 +180,22 @@ func newTestPool(t *testing.T, cfg whisperConfig) (*whisperPool, chan transcript
 	return pool, events
 }
 
+// awaitTranscript returns the next real transcript, skipping the
+// "transcribing" status events the pool now emits when a clip is picked up.
 func awaitTranscript(t *testing.T, events chan transcriptEvent, timeout time.Duration) transcriptEvent {
 	t.Helper()
-	select {
-	case ev := <-events:
-		return ev
-	case <-time.After(timeout):
-		t.Fatal("timed out waiting for a transcript")
-		return transcriptEvent{}
+	deadline := time.After(timeout)
+	for {
+		select {
+		case ev := <-events:
+			if ev.Type == "transcribing" {
+				continue
+			}
+			return ev
+		case <-deadline:
+			t.Fatal("timed out waiting for a transcript")
+			return transcriptEvent{}
+		}
 	}
 }
 

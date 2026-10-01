@@ -780,15 +780,16 @@ func main() {
 								}
 								// Publish clip event immediately so the UI shows the recording.
 								hub.Publish(transcriptEvent{
-									Type:       "clip",
-									ClipID:     clipID,
-									StreamID:   captureInfo.ID,
-									StreamName: captureInfo.StreamName,
-									RegionName: captureInfo.RegionName,
-									GroupName:  captureInfo.GroupName,
-									AudioURL:   audioURL,
-									DurationMs: durationMs,
-									Timestamp:  start,
+									Type:        "clip",
+									ClipID:      clipID,
+									StreamID:    captureInfo.ID,
+									StreamName:  captureInfo.StreamName,
+									RegionName:  captureInfo.RegionName,
+									GroupName:   captureInfo.GroupName,
+									AudioURL:    audioURL,
+									DurationMs:  durationMs,
+									Timestamp:   start,
+									WAVFilename: wavBaseName(requestWavPath),
 								})
 								server.storeClip(clipRecord{
 									clipID:   clipID,

@@ -23,19 +23,33 @@ var recordingTimestampPattern = regexp.MustCompile(`_(\d{4}-\d{2}-\d{2}T\d{2}_\d
 
 // transcriptEvent is the JSON payload sent to SSE subscribers.
 // When Type == "clip", the audio is ready but text may be empty (pending transcription).
+// When Type == "transcribing", a whisper server has started on a prior clip.
 // When Type == "transcript", the text has been filled in for a prior clip (matched by ClipID).
 type transcriptEvent struct {
-	Type        string    `json:"type"` // "clip" or "transcript"
-	ClipID      string    `json:"clipId"`
-	StreamID    string    `json:"streamId"`
-	StreamName  string    `json:"streamName"`
-	RegionName  string    `json:"regionName"`
-	GroupName   string    `json:"groupName"`
-	Text        string    `json:"text,omitempty"`
-	AudioURL    string    `json:"audioUrl,omitempty"`
-	DurationMs  int       `json:"durationMs,omitempty"`
-	Timestamp   time.Time `json:"timestamp"`
-	WAVFilename string    `json:"-"`
+	Type       string    `json:"type"` // "clip", "transcribing" or "transcript"
+	ClipID     string    `json:"clipId"`
+	StreamID   string    `json:"streamId"`
+	StreamName string    `json:"streamName"`
+	RegionName string    `json:"regionName"`
+	GroupName  string    `json:"groupName"`
+	Text       string    `json:"text,omitempty"`
+	AudioURL   string    `json:"audioUrl,omitempty"`
+	DurationMs int       `json:"durationMs,omitempty"`
+	Timestamp  time.Time `json:"timestamp"`
+	// WAVFilename is the clip's recording on disk. It is the stable identity
+	// of a clip across restarts and page reloads: live events carry a
+	// per-process "clip-N" ClipID, while recording history keys rows by
+	// filename, so the browser matches on either (see web/index.html).
+	WAVFilename string `json:"wavFilename,omitempty"`
+}
+
+// wavBaseName returns the filename portion of a clip's WAV path, or "" when
+// the clip was never written to disk (filepath.Base("") would yield ".").
+func wavBaseName(wavPath string) string {
+	if wavPath == "" {
+		return ""
+	}
+	return filepath.Base(wavPath)
 }
 
 // transcriptHub fans out transcript events to SSE subscribers.
@@ -93,8 +107,14 @@ func (h *transcriptHub) unsubscribe(id string) {
 // log, and — for actual transcript text — appends it to the permanent
 // transcript archive.
 func (h *transcriptHub) Publish(event transcriptEvent) {
+	// "transcribing" is a transient UI status — it carries no text and is
+	// superseded by the "transcript" event moments later — so it is fanned
+	// out to subscribers but never persisted to the per-stream log or the
+	// archive, which would otherwise fill with contentless rows.
+	status := event.Type == "transcribing"
+
 	// Write to per-stream log file.
-	if h.logDir != "" {
+	if h.logDir != "" && !status {
 		h.appendLog(event)
 	}
 
@@ -107,7 +127,6 @@ func (h *transcriptHub) Publish(event transcriptEvent) {
 	if event.Type == "transcript" && event.Text != "" && !strings.HasPrefix(event.Text, "[") {
 		h.appendArchive(event)
 	}
-
 	h.mu.RLock()
 	targets := make(map[string]chan transcriptEvent, len(h.subs))
 	for id, ch := range h.subs {
@@ -291,6 +310,12 @@ func (h *transcriptHub) RecordingHistory(audioLogDir string, info streamInfo, si
 			ev.ClipID = events[recordingIndex].ClipID
 			ev.AudioURL = events[recordingIndex].AudioURL
 			ev.Timestamp = events[recordingIndex].Timestamp
+			// Transcript lines written before wavFilename was persisted have
+			// none; take it from the recording they matched so the browser
+			// can key the row by filename either way.
+			if ev.WAVFilename == "" {
+				ev.WAVFilename = events[recordingIndex].WAVFilename
+			}
 		}
 		events = append(events, ev)
 	}

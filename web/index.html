@@ -1126,10 +1126,15 @@
       // Builds one transcript-log row. Shared by live SSE appends
       // (appendClip/updateTranscript) and bulk history rendering
       // (applyHistoryFiltersAndRender) so both stay visually identical.
-      function buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, text) {
+      function buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, text, wavFilename) {
         const entry = document.createElement("div");
         entry.className = "transcript-entry";
         entry.dataset.clipId = clipId;
+        // Live events identify a clip as "clip-N" (unique only to the
+        // running server process) while history rows are keyed by WAV
+        // filename. Recording both lets findTranscriptEntry match a
+        // transcript to its row no matter which path created it.
+        if (wavFilename) entry.dataset.wav = wavFilename;
 
         const time = document.createElement("span");
         time.className = "transcript-time";
@@ -1202,24 +1207,59 @@
         return !clipPlaybackActive && clipPlaybackQueue.length === 0;
       }
 
-      function appendClip(clipId, isoTimestamp, audioUrl, durationMs) {
+      function appendClip(clipId, isoTimestamp, audioUrl, durationMs, wavFilename) {
         // Live clips are shown immediately regardless of the active length
         // filter (a filter shouldn't hide "just happened" activity), but we
         // still record them into historyEntries so they aren't lost the next
         // time the date range or length filter triggers a re-render.
-        historyEntries.push({ clipId, timestamp: isoTimestamp, audioUrl, durationMs, text: "" });
+        historyEntries.push({ clipId, timestamp: isoTimestamp, audioUrl, durationMs, text: "", wavFilename });
         const empty = transcriptLog.querySelector(".transcript-empty");
         if (empty) empty.remove();
-        transcriptLog.append(buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, ""));
+        transcriptLog.append(buildTranscriptEntry(clipId, isoTimestamp, audioUrl, durationMs, "", wavFilename));
         if (shouldAutoScrollHistory()) transcriptLog.scrollTop = transcriptLog.scrollHeight;
         updateClipPlayButtons();
       }
 
-      function updateTranscript(clipId, text) {
-        const historyEntry = historyEntries.find((ev) => ev.clipId === clipId);
+      // Locates an existing row for a clip. A clip has two identities — the
+      // per-process "clip-N" id used by live SSE events and the WAV filename
+      // used by recording history — and a row may have been created under
+      // either one (history is re-rendered whenever the date filter changes,
+      // which re-keys live rows to filenames). Matching on both is what
+      // keeps a late-arriving transcript from stranding its row on
+      // "Recording received." and appending a duplicate below it.
+      function findTranscriptEntry(clipId, wavFilename) {
+        let entry = clipId ? transcriptLog.querySelector(`[data-clip-id="${CSS.escape(clipId)}"]`) : null;
+        if (!entry && wavFilename) {
+          entry = transcriptLog.querySelector(`[data-clip-id="${CSS.escape(wavFilename)}"]`) ||
+            transcriptLog.querySelector(`[data-wav="${CSS.escape(wavFilename)}"]`);
+        }
+        return entry;
+      }
+
+      function findHistoryEntry(clipId, wavFilename) {
+        let found = clipId ? historyEntries.find((ev) => ev.clipId === clipId) : null;
+        if (!found && wavFilename) {
+          found = historyEntries.find((ev) => ev.clipId === wavFilename || ev.wavFilename === wavFilename);
+        }
+        return found;
+      }
+
+      // Marks a clip as picked up by a whisper server. Purely a status
+      // update: the text is replaced by the real transcript moments later.
+      function markTranscribing(clipId, wavFilename) {
+        const entry = findTranscriptEntry(clipId, wavFilename);
+        if (!entry) return;
+        const content = entry.querySelector(".transcript-text");
+        if (content && content.classList.contains("transcript-pending")) {
+          content.textContent = "Transcribing...";
+        }
+      }
+
+      function updateTranscript(clipId, text, wavFilename) {
+        const historyEntry = findHistoryEntry(clipId, wavFilename);
         if (historyEntry) historyEntry.text = text;
 
-        const entry = transcriptLog.querySelector(`[data-clip-id="${clipId}"]`);
+        const entry = findTranscriptEntry(clipId, wavFilename);
         if (entry) {
           const content = entry.querySelector(".transcript-text");
           if (content) {
@@ -1228,8 +1268,8 @@
           }
         } else {
           // Clip not in view (e.g. arrived before page load) — append as a plain entry.
-          appendClip(clipId, null, null, 0);
-          updateTranscript(clipId, text);
+          appendClip(clipId, null, null, 0, wavFilename);
+          updateTranscript(clipId, text, wavFilename);
         }
       }
 
@@ -1244,9 +1284,11 @@
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === "clip") {
-              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs);
+              appendClip(payload.clipId, payload.timestamp, payload.audioUrl, payload.durationMs, payload.wavFilename);
+            } else if (payload.type === "transcribing") {
+              markTranscribing(payload.clipId, payload.wavFilename);
             } else if (payload.type === "transcript") {
-              updateTranscript(payload.clipId, payload.text);
+              updateTranscript(payload.clipId, payload.text, payload.wavFilename);
             }
           } catch (_) {}
         };
@@ -1264,6 +1306,7 @@
           const id = ev.clipId || `hist-${ev.timestamp}`;
           if (!merged.has(id)) merged.set(id, { clipId: id });
           const entry = merged.get(id);
+          if (ev.wavFilename) entry.wavFilename = ev.wavFilename;
           if (ev.type === "clip" || !ev.type) {
             entry.timestamp = ev.timestamp;
             entry.audioUrl = ev.audioUrl;
@@ -1340,7 +1383,7 @@
 
         const fragment = document.createDocumentFragment();
         for (const ev of toRender) {
-          fragment.append(buildTranscriptEntry(ev.clipId, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || ""));
+          fragment.append(buildTranscriptEntry(ev.clipId, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || "", ev.wavFilename));
         }
         transcriptLog.append(fragment);
         // A re-render replaces the row the scrub bar was living in, so put it

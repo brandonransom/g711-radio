@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"io"
 	"log"
 	"os"
@@ -209,5 +210,71 @@ func TestRecordingHistoryAllTimeReturnsPreBootRecordings(t *testing.T) {
 	}
 	if len(bounded) != 1 || bounded[0].ClipID != recentName {
 		t.Fatalf("8-day window = %#v", bounded)
+	}
+}
+
+// TestTranscribingEventIsNotPersisted guards the "transcribing" status event:
+// it must reach SSE subscribers but never land in the per-stream log or the
+// permanent archive, which exist for real transcript output.
+func TestTranscribingEventIsNotPersisted(t *testing.T) {
+	logDir := t.TempDir()
+	archive := filepath.Join(t.TempDir(), "transcripts.csv")
+	hub := newTranscriptHub(logDir, archive, log.New(io.Discard, "", 0))
+	id, ch := hub.subscribe()
+	defer hub.unsubscribe(id)
+
+	hub.Publish(transcriptEvent{
+		Type:        "transcribing",
+		ClipID:      "clip-1",
+		StreamName:  "Pomeroy Net",
+		WAVFilename: "Pomeroy_Net_2026-10-01T01_00_00Z.wav",
+		Timestamp:   time.Now(),
+	})
+
+	select {
+	case ev := <-ch:
+		if ev.Type != "transcribing" || ev.WAVFilename == "" {
+			t.Fatalf("subscriber event = %#v", ev)
+		}
+	default:
+		t.Fatal("transcribing event was not delivered to the subscriber")
+	}
+
+	if entries, err := os.ReadDir(logDir); err != nil || len(entries) != 0 {
+		t.Fatalf("per-stream log should be empty, got %v (err %v)", entries, err)
+	}
+	if _, err := os.Stat(archive); !os.IsNotExist(err) {
+		t.Fatalf("archive should not have been created, stat err = %v", err)
+	}
+}
+
+// TestTranscriptEventCarriesWAVFilename pins the second clip identity the
+// browser needs: live events use a per-process "clip-N" ID, history rows are
+// keyed by WAV filename, and a transcript must carry the filename so a row
+// created by either path can be matched.
+func TestTranscriptEventCarriesWAVFilename(t *testing.T) {
+	hub := newTranscriptHub("", "", log.New(io.Discard, "", 0))
+	id, ch := hub.subscribe()
+	defer hub.unsubscribe(id)
+
+	hub.Publish(transcriptEvent{
+		Type:        "transcript",
+		ClipID:      "clip-7",
+		Text:        "engine 632 en route",
+		WAVFilename: "Pomeroy_Net_2026-10-01T01_00_00Z.wav",
+		Timestamp:   time.Now(),
+	})
+
+	ev := <-ch
+	data, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload["wavFilename"] != "Pomeroy_Net_2026-10-01T01_00_00Z.wav" {
+		t.Fatalf("wavFilename missing from SSE payload: %s", data)
 	}
 }
