@@ -348,9 +348,8 @@ func TestRemoteTranscriptionFailsOverToHealthyServer(t *testing.T) {
 	defer healthy.Close()
 
 	pool, events := newTestPool(t, whisperConfig{RemoteServers: []string{deadURL, healthy.URL}})
-	wavPath := writeTestWAV(t)
 	for i := 0; i < 4; i++ {
-		pool.Submit(transcriptJob{clipID: fmt.Sprintf("c%d", i), wavPath: wavPath})
+		pool.Submit(transcriptJob{clipID: fmt.Sprintf("c%d", i), wavPath: writeTestWAV(t)})
 	}
 	for i := 0; i < 4; i++ {
 		if ev := awaitTranscript(t, events, 5*time.Second); ev.Text != "ok" {
@@ -383,9 +382,8 @@ func TestLocalModeLaunchesSupervisedWhisperServers(t *testing.T) {
 		ServerArgs:       []string{"-t", "3", "-fa"},
 		InferenceParams:  map[string]any{"beam_size": 4.0},
 	})
-	wavPath := writeTestWAV(t)
-	pool.Submit(transcriptJob{clipID: "c1", wavPath: wavPath})
-	pool.Submit(transcriptJob{clipID: "c2", wavPath: wavPath})
+	pool.Submit(transcriptJob{clipID: "c1", wavPath: writeTestWAV(t)})
+	pool.Submit(transcriptJob{clipID: "c2", wavPath: writeTestWAV(t)})
 
 	for i := 0; i < 2; i++ {
 		ev := awaitTranscript(t, events, 20*time.Second)
@@ -411,5 +409,73 @@ func TestConfigExampleLoads(t *testing.T) {
 	}
 	if !cfg.Whisper.enabled() || cfg.Whisper.isRemote() {
 		t.Fatalf("example whisper block should configure local mode: %+v", cfg.Whisper)
+	}
+}
+
+func TestConfigLegacyRegionsKey(t *testing.T) {
+	const streams = `{"Oregon": {"Umatilla NF": [{"streamName": "Pomeroy", "udpPort": 5004}]}}`
+	write := func(body string) string {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	cfg, err := loadConfig(write(`{"httpPort": 8080, "regions": ` + streams + `}`))
+	if err != nil {
+		t.Fatalf("legacy regions key: %v", err)
+	}
+	if len(cfg.streamGroups) != 1 || cfg.streamGroups[0].StateName != "Oregon" {
+		t.Fatalf("legacy regions key not loaded as states: %+v", cfg.streamGroups)
+	}
+
+	if _, err := loadConfig(write(`{"httpPort": 8080, "states": ` + streams + `, "regions": ` + streams + `}`)); err == nil {
+		t.Fatal("expected an error when both states and regions are set")
+	}
+}
+
+func TestWhisperPoolBulkPriorityAndDedupe(t *testing.T) {
+	p := newWhisperPool(whisperConfig{}, nil, log.New(io.Discard, "", 0))
+	job := func(name string) transcriptJob {
+		return transcriptJob{clipID: name, wavPath: filepath.Join("audio", name+".wav")}
+	}
+	if got := p.SubmitBulk(job("b1")); got != bulkQueued {
+		t.Fatalf("SubmitBulk b1 = %v, want queued", got)
+	}
+	if got := p.SubmitBulk(job("b1")); got != bulkDuplicate {
+		t.Fatalf("SubmitBulk duplicate = %v, want duplicate", got)
+	}
+	p.SubmitBulk(job("b2"))
+	if !p.Submit(job("n1")) {
+		t.Fatal("Submit n1 should queue")
+	}
+	// Requesting a bulk-queued clip directly promotes it ahead of the backlog.
+	if p.Submit(job("b2")) {
+		t.Fatal("Submit b2 should report it was already queued")
+	}
+	if got := p.queueDepth(); got != 3 {
+		t.Fatalf("queueDepth = %d, want 3", got)
+	}
+	var order []string
+	for i := 0; i < 3; i++ {
+		j, _, ok := p.nextJob()
+		if !ok {
+			t.Fatal("nextJob returned !ok")
+		}
+		order = append(order, j.clipID)
+	}
+	if strings.Join(order, ",") != "n1,b2,b1" {
+		t.Fatalf("order = %v, want n1,b2,b1", order)
+	}
+	// Taken jobs may be queued again.
+	if got := p.SubmitBulk(job("b1")); got != bulkQueued {
+		t.Fatalf("re-SubmitBulk b1 = %v, want queued", got)
+	}
+	for i := 1; i < maxBulkQueue; i++ {
+		p.SubmitBulk(job(fmt.Sprintf("x%d", i)))
+	}
+	if got := p.SubmitBulk(job("overflow")); got != bulkFull {
+		t.Fatalf("SubmitBulk past cap = %v, want full", got)
 	}
 }

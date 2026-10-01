@@ -16,7 +16,7 @@ import (
 
 func TestRecordingDownloadHandlerCreatesZip(t *testing.T) {
 	audioDir := t.TempDir()
-	relative := filepath.Join("Region", "Forest", "Dispatch", "Dispatch_2026-09-25T12_00_00Z.wav")
+	relative := filepath.Join("State", "Forest", "Dispatch", "Dispatch_2026-09-25T12_00_00Z.wav")
 	fullPath := filepath.Join(audioDir, relative)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestRecordingDownloadHandlerCreatesZip(t *testing.T) {
 	}
 
 	body, err := json.Marshal(recordingDownloadRequest{
-		AudioURLs: []string{"/audio/Region/Forest/Dispatch/Dispatch_2026-09-25T12_00_00Z.wav"},
+		AudioURLs: []string{"/audio/State/Forest/Dispatch/Dispatch_2026-09-25T12_00_00Z.wav"},
 	})
 	if err != nil {
 		t.Fatal(err)

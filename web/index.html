@@ -141,138 +141,126 @@
         margin-top: 28px;
       }
 
-      .region {
+      .directory-intro {
+        margin-top: 4px;
+      }
+
+      .state-card {
         border-radius: 20px;
         background: rgba(255, 255, 255, 0.72);
         border: 1px solid var(--line);
         overflow: hidden;
       }
 
-      .region summary {
+      .state-card-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 16px;
         padding: 18px 20px;
-        cursor: pointer;
-        list-style: none;
-        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: linear-gradient(135deg, rgba(55, 99, 148, 0.05), rgba(0, 114, 7, 0.05));
+        color: inherit;
+        text-decoration: none;
+        background: linear-gradient(135deg, rgba(55, 99, 148, 0.08), rgba(0, 114, 7, 0.08));
       }
 
-      .region summary::-webkit-details-marker {
-        display: none;
+      .state-card-header:hover {
+        background: linear-gradient(135deg, rgba(55, 99, 148, 0.18), rgba(0, 114, 7, 0.18));
       }
 
-      .region summary:hover {
-        background: linear-gradient(135deg, rgba(55, 99, 148, 0.16), rgba(0, 114, 7, 0.16));
+      .favorites-card .state-card-header {
+        background: linear-gradient(135deg, rgba(227, 166, 72, 0.22), rgba(212, 139, 28, 0.12));
       }
 
-      .region-info {
+      .favorites-card .state-card-header:hover {
+        background: linear-gradient(135deg, rgba(227, 166, 72, 0.34), rgba(212, 139, 28, 0.22));
+      }
+
+      .state-info {
         display: grid;
         gap: 4px;
       }
 
-      .region-title {
+      .state-title {
         margin: 0;
         font-size: 1.32rem;
         font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-weight: 700;
       }
 
-      .region-meta {
+      .state-meta {
         color: var(--muted);
         font-size: 0.92rem;
       }
 
-      .region-indicator {
-        color: var(--muted);
-        font-size: 1rem;
-        transition: transform 160ms ease;
-      }
-
-      .section-link {
-        font-size: 0.78rem;
-        color: var(--muted);
-        text-decoration: none;
-        opacity: 0.7;
+      .state-card-go {
+        color: var(--accent);
+        font-weight: 700;
         white-space: nowrap;
       }
 
-      .section-link:hover {
-        opacity: 1;
-        text-decoration: underline;
-        color: var(--accent);
-      }
-
-      .region[open] .region-indicator {
-        transform: rotate(180deg);
-      }
-
-      .region-body {
+      .forest-links {
         display: grid;
-        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 8px;
         padding: 12px 18px 18px;
       }
 
-      .group {
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 1px solid var(--line);
-        overflow: hidden;
-        margin-left: 12px;
-      }
-
-      .group summary {
+      .forest-link {
         display: flex;
-        align-items: center;
+        flex-wrap: wrap;
+        align-items: baseline;
         justify-content: space-between;
-        gap: 16px;
-        padding: 14px 18px;
-        cursor: pointer;
-        list-style: none;
-        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      .group summary::-webkit-details-marker {
-        display: none;
-      }
-
-      .group summary:hover {
-        background: rgba(28, 80, 138, 0.08);
-      }
-
-      .group-info {
-        display: grid;
-        gap: 4px;
-      }
-
-      .group-title {
-        margin: 0;
-        font-size: 1.12rem;
-        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        gap: 4px 10px;
+        padding: 10px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--ink);
+        text-decoration: none;
         font-weight: 600;
       }
 
-      .group-meta {
+      .forest-link:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .forest-link span {
         color: var(--muted);
-        font-size: 0.88rem;
+        font-weight: 400;
+        font-size: 0.85rem;
       }
 
-      .group-indicator {
-        color: var(--muted);
-        font-size: 0.96rem;
-        transition: transform 160ms ease;
+      .favorite-toggle {
+        flex: none;
+        padding: 0 6px;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        color: var(--secondary1-2);
+        font-size: 1.7rem;
+        line-height: 1;
       }
 
-      .group[open] .group-indicator {
-        transform: rotate(180deg);
+      .favorite-toggle:hover:not(:disabled) {
+        background: transparent;
+        color: var(--secondary1-0);
       }
 
-      .group-body {
-        display: grid;
-        gap: 12px;
-        padding: 0 14px 14px;
+      .launch-title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .launch strong a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .launch strong a:hover {
+        color: var(--accent);
+        text-decoration: underline;
       }
 
       .launch {
@@ -335,15 +323,6 @@
         background: var(--complement-2);
       }
 
-      .stream {
-        display: grid;
-        gap: 12px;
-        padding: 18px;
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 1px solid var(--line);
-      }
-
       .stream-notice {
         font-size: 0.85rem;
         padding: 6px 10px;
@@ -362,48 +341,9 @@
         font-weight: 600;
       }
 
-      .stream header {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .stream h3 {
-        margin: 0;
-        font-size: 1.2rem;
-        font-family: "Aptos", "Aptos Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-weight: 600;
-      }
-
       .meta {
         color: var(--muted);
         font-size: 0.92rem;
-      }
-
-      .stream button {
-        width: 100%;
-        min-height: 48px;
-        border-radius: 14px;
-        padding: 12px 20px;
-        font-size: 1rem;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-      }
-
-      .stream button:not(:disabled) {
-        background: var(--secondary2-2);
-        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.28);
-      }
-
-      .stream button:hover:not(:disabled) {
-        background: var(--secondary2-1);
-        box-shadow: 0 12px 24px rgba(28, 80, 138, 0.32);
-      }
-
-      .stream button:disabled {
-        background: var(--muted);
-        opacity: 0.7;
       }
 
       .empty,
@@ -796,6 +736,7 @@
             <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
             <div class="transcript-filters-actions">
               <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
+              <button id="transcribeFilteredAudioBtn" class="secondary" type="button" disabled title="Queue every filtered recording that has no transcript yet">Transcribe all filtered audio</button>
             </div>
           </div>
         </div>
@@ -831,6 +772,7 @@
       const historyToInput = document.getElementById("historyToInput");
       const historyMinDurationInput = document.getElementById("historyMinDurationInput");
       const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
+      const transcribeFilteredAudioBtn = document.getElementById("transcribeFilteredAudioBtn");
       const basePageTitle = "USDA Forest Service Land Mobile Radio Streams";
       const clipAudio = new Audio();
 
@@ -846,13 +788,6 @@
       let baseReconnectDelay = 1000;
       let activeConnectToken = 0;
       let currentConnectionState = "idle";
-      const expandedGroups = new Set();
-      const DEFAULT_OPEN_REGION_COUNT = 1;
-      const DEFAULT_OPEN_GROUP_COUNT = 1;
-      const streamCardCache = new Map();
-      const streamStatusTargets = new Map();
-      const groupBodyByKey = new Map();
-      const regionBodyByName = new Map();
       let pollTimer = null;
       let pollIntervalMs = 30000;
       let clipPlaybackQueue = [];
@@ -926,6 +861,21 @@
         }
         const preset = HISTORY_RANGE_PRESETS[mode] || HISTORY_RANGE_PRESETS["24h"];
         return { since: preset(), until: null };
+      }
+
+      // emptyHistoryMessage describes an empty date range in terms of the
+      // selected range, and only promises live updates when the range runs
+      // up to now (a custom range ending in the past won't receive new clips).
+      function emptyHistoryMessage() {
+        const mode = historyRangeSelect.value;
+        if (mode === "all") return "No recordings yet. New transmissions will appear here automatically.";
+        const option = historyRangeSelect.selectedOptions[0];
+        const span = mode === "custom" || !option
+          ? "the selected date range"
+          : option.textContent.trim().replace(/^Last\b/, "the last");
+        const { until } = currentHistoryRange();
+        const live = !until || until.getTime() >= Date.now();
+        return `No recordings in ${span}.` + (live ? " New transmissions will appear here automatically." : "");
       }
 
       // historyRangeParams builds the since/until query params for
@@ -1181,6 +1131,36 @@
         playNextQueuedClip();
       }
 
+      // Identities (clip ID and WAV filename) of rows the listener asked to
+      // transcribe whose result hasn't arrived yet. Kept outside the DOM so
+      // a history re-render doesn't lose a row's "Queued" state; cleared
+      // when the transcript event for the clip arrives.
+      const pendingTranscriptions = new Set();
+
+      function isTranscriptionPending(ids) {
+        return ids.some((id) => id && pendingTranscriptions.has(id));
+      }
+
+      function setTranscriptionPending(ids, pending) {
+        ids.forEach((id) => {
+          if (!id) return;
+          if (pending) pendingTranscriptions.add(id);
+          else pendingTranscriptions.delete(id);
+        });
+      }
+
+      function setTranscribeButtonState(btn, pending, hasText) {
+        btn.disabled = pending;
+        btn.textContent = pending ? "Queued" : hasText ? "Transcribe again" : "Transcribe";
+      }
+
+      function markRowQueued(clipId, wavFilename) {
+        setTranscriptionPending([clipId, wavFilename], true);
+        const entry = findTranscriptEntry(clipId, wavFilename);
+        const btn = entry ? entry.querySelector(".transcript-transcribe") : null;
+        if (btn) setTranscribeButtonState(btn, true, false);
+      }
+
       // Builds one transcript-log row. Shared by live SSE appends
       // (appendClip/updateTranscript) and bulk history rendering
       // (applyHistoryFiltersAndRender) so both stay visually identical.
@@ -1235,12 +1215,13 @@
 
         const transcribeBtn = document.createElement("button");
         transcribeBtn.type = "button";
-        transcribeBtn.className = "transcript-play";
+        transcribeBtn.className = "transcript-play transcript-transcribe";
         transcribeBtn.title = "Request transcription";
-        transcribeBtn.textContent = "Transcribe";
+        setTranscribeButtonState(transcribeBtn, isTranscriptionPending([clipId, wavFilename]), Boolean(text));
         transcribeBtn.addEventListener("click", async () => {
-          transcribeBtn.disabled = true;
-          transcribeBtn.textContent = "Queued";
+          const hadText = transcribeBtn.textContent !== "Transcribe";
+          setTranscriptionPending([clipId, wavFilename], true);
+          setTranscribeButtonState(transcribeBtn, true, hadText);
           try {
             const res = await fetch("/transcripts/request", {
               method: "POST",
@@ -1248,10 +1229,9 @@
               body: JSON.stringify({ clipId, audioUrl }),
             });
             if (!res.ok) throw new Error("request failed");
-            transcribeBtn.textContent = "Queued";
           } catch (_) {
-            transcribeBtn.disabled = false;
-            transcribeBtn.textContent = "Transcribe";
+            setTranscriptionPending([clipId, wavFilename], false);
+            setTranscribeButtonState(transcribeBtn, false, hadText);
           }
         });
         entry.appendChild(transcribeBtn);
@@ -1515,7 +1495,10 @@
 
       function updateTranscript(clipId, text, wavFilename) {
         const historyEntry = findHistoryEntry(clipId, wavFilename);
-        if (historyEntry) historyEntry.text = text;
+        if (historyEntry) {
+          historyEntry.text = text;
+          setTranscriptionPending([historyEntry.clipId, historyEntry.wavFilename], false);
+        }
 
         const entry = findTranscriptEntry(clipId, wavFilename);
         if (entry) {
@@ -1528,6 +1511,9 @@
             content.textContent = text;
             content.classList.remove("transcript-pending");
           }
+          setTranscriptionPending([clipId, wavFilename, entry.dataset.clipId, entry.dataset.wav], false);
+          const transcribeBtn = entry.querySelector(".transcript-transcribe");
+          if (transcribeBtn) setTranscribeButtonState(transcribeBtn, false, true);
         } else {
           // Clip not in view (e.g. arrived before page load) — append as a plain entry.
           appendClip(clipId, null, null, 0, wavFilename);
@@ -1608,6 +1594,62 @@
         return Array.from(new Set(filteredHistoryEntries().map((ev) => ev.audioUrl).filter(Boolean)));
       }
 
+      // Matches maxBulkTranscriptRequest on the server.
+      const MAX_BULK_TRANSCRIBE = 1000;
+      const TRANSCRIPTION_FAILED = "[transcription failed]";
+      let transcribeFilteredBusy = false;
+
+      // Filtered rows with audio but no transcript (or a failed one) that
+      // aren't already queued, newest first.
+      function untranscribedFilteredEntries() {
+        return filteredHistoryEntries()
+          .filter((ev) => ev.audioUrl && (!ev.text || ev.text === TRANSCRIPTION_FAILED) &&
+            !isTranscriptionPending([ev.clipId, ev.wavFilename]))
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      }
+
+      function updateTranscribeFilteredButton() {
+        transcribeFilteredAudioBtn.disabled = transcribeFilteredBusy || untranscribedFilteredEntries().length === 0;
+      }
+
+      async function transcribeFilteredAudio() {
+        const candidates = untranscribedFilteredEntries();
+        if (candidates.length === 0) return;
+        const batch = candidates.slice(0, MAX_BULK_TRANSCRIBE);
+        const capNote = candidates.length > batch.length ? ` (the newest ${batch.length} of ${candidates.length})` : "";
+        const plural = batch.length === 1 ? "" : "s";
+        if (!window.confirm(`Queue ${batch.length} untranscribed recording${plural}${capNote} for transcription? ` +
+          "Live traffic is transcribed first, so this may take a while.")) return;
+
+        const originalText = transcribeFilteredAudioBtn.textContent;
+        transcribeFilteredBusy = true;
+        transcribeFilteredAudioBtn.disabled = true;
+        transcribeFilteredAudioBtn.textContent = "Queuing...";
+        try {
+          const response = await fetch("/transcripts/request-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clips: batch.map((ev) => ({ clipId: ev.clipId, audioUrl: ev.audioUrl })) }),
+          });
+          if (!response.ok) throw new Error((await response.text()).trim() || response.statusText);
+          const result = await response.json();
+          const accepted = new Set([...(result.queued || []), ...(result.alreadyQueued || [])]);
+          batch.forEach((ev) => {
+            if (accepted.has(ev.clipId)) markRowQueued(ev.clipId, ev.wavFilename);
+          });
+          const problems = [];
+          if (result.notFound) problems.push(`${result.notFound} could not be found`);
+          if (result.queueFull) problems.push(`${result.queueFull} were skipped because the transcription queue is full`);
+          if (problems.length) window.alert(`Queued ${accepted.size} recording${accepted.size === 1 ? "" : "s"}; ${problems.join(" and ")}.`);
+        } catch (error) {
+          window.alert(`Unable to queue transcriptions: ${error.message}`);
+        } finally {
+          transcribeFilteredBusy = false;
+          transcribeFilteredAudioBtn.textContent = originalText;
+          updateTranscribeFilteredButton();
+        }
+      }
+
       // Renders the newest historyRenderLimit matching rows. resetLimit is
       // false only when paging in older rows, so "Load older" keeps what is
       // already on screen instead of collapsing back to one page.
@@ -1621,12 +1663,16 @@
 
         const filtered = filteredHistoryEntries();
         downloadFilteredAudioBtn.disabled = filteredAudioURLs().length === 0;
+        updateTranscribeFilteredButton();
 
         transcriptLog.innerHTML = "";
         if (filtered.length === 0) {
-          transcriptLog.innerHTML = historyEntries.length === 0
-            ? `<span class="transcript-empty">Waiting for transmissions...</span>`
-            : `<span class="transcript-empty">No recordings match the current filters.</span>`;
+          const empty = document.createElement("span");
+          empty.className = "transcript-empty";
+          empty.textContent = historyEntries.length === 0
+            ? emptyHistoryMessage()
+            : "No recordings match the current filters.";
+          transcriptLog.append(empty);
           updateClipPlayButtons();
           return;
         }
@@ -1766,6 +1812,7 @@
       historyToInput.addEventListener("change", () => void loadHistoryForCurrentStream());
       historyMinDurationInput.addEventListener("input", () => applyHistoryFiltersAndRender());
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
+      transcribeFilteredAudioBtn.addEventListener("click", transcribeFilteredAudio);
 
       const connectionIndicators = {
         idle: "⚪",
@@ -1796,14 +1843,14 @@
         }
       }
 
-      function flattenStreamGroups(regionGroups) {
-        return regionGroups.flatMap((region) =>
-          region.subGroups.flatMap((group) => group.streams)
+      function flattenStreamGroups(stateGroups) {
+        return stateGroups.flatMap((state) =>
+          state.subGroups.flatMap((group) => group.streams)
         );
       }
 
       function getRootStatusText() {
-        return streams.length ? "Expand a group to choose a stream." : "No streams configured.";
+        return streams.length ? "Choose a state or forest." : "No streams configured.";
       }
 
       function formatStreamCount(count) {
@@ -1827,16 +1874,18 @@
       // as an internal lookup key, so it isn't meaningful to bookmark/share
       // and a stale cached copy must never be able to resolve to a different
       // stream. Instead, shareable/bookmarkable links identify a stream by
-      // its (region, group, name) triple — stable, human-readable values
+      // its (state, group, name) triple — stable, human-readable values
       // straight from the config — which is re-resolved against the current
       // stream list on every load.
       function buildStreamURL(stream) {
         const url = new URL(window.location.href);
         if (stream) {
-          url.searchParams.set("region", stream.regionName);
+          url.searchParams.delete("region");
+          url.searchParams.set("state", stream.stateName);
           url.searchParams.set("group", stream.groupName);
           url.searchParams.set("name", stream.streamName);
         } else {
+          url.searchParams.delete("state");
           url.searchParams.delete("region");
           url.searchParams.delete("group");
           url.searchParams.delete("name");
@@ -1844,12 +1893,21 @@
         return url;
       }
 
-      function formatStreamDisplayName(stream) {
-        return [stream.regionName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
+      // Path of a stream's dedicated page (see buildStreamURL).
+      function streamPagePath(stream) {
+        const params = new URLSearchParams({ state: stream.stateName, group: stream.groupName, name: stream.streamName });
+        return `/?${params}`;
       }
 
-      function formatMainListStreamName(stream) {
-        return stream.streamName || formatStreamDisplayName(stream);
+      // Path of a state page, or of one forest within it.
+      function sectionPagePath(stateName, forestName) {
+        const params = new URLSearchParams({ state: stateName });
+        if (forestName) params.set("forest", forestName);
+        return `/section.html?${params}`;
+      }
+
+      function formatStreamDisplayName(stream) {
+        return [stream.stateName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
       }
 
       function syncURL(stream) {
@@ -1857,15 +1915,16 @@
         renderPageChrome();
       }
 
-      // Reads the (region, group, name) triple identifying a requested stream
+      // Reads the (state, group, name) triple identifying a requested stream
       // from the URL, or null if the URL doesn't fully specify one.
       function getRequestedStreamSelector() {
         const params = new URL(window.location.href).searchParams;
-        const region = params.get("region");
+        // "region" is the pre-rename parameter, kept so old links still work.
+        const state = params.get("state") || params.get("region");
         const group = params.get("group");
         const name = params.get("name");
-        if (!region || !group || !name) return null;
-        return { region, group, name };
+        if (!state || !group || !name) return null;
+        return { state, group, name };
       }
 
       // Resolves the URL's requested stream selector against the current
@@ -1875,14 +1934,10 @@
         const selector = getRequestedStreamSelector();
         if (!selector) return null;
         return streams.find((stream) =>
-          stream.regionName === selector.region &&
+          stream.stateName === selector.state &&
           stream.groupName === selector.group &&
           stream.streamName === selector.name
         ) || null;
-      }
-
-      function openStreamInNewTab(stream) {
-        window.open(buildStreamURL(stream).toString(), "_blank", "noopener,noreferrer");
       }
 
       function runAfterFirstPaint(task) {
@@ -1934,10 +1989,21 @@
         card.className = "launch";
 
         const eyebrow = document.createElement("strong");
-        eyebrow.textContent = `${sharePageStream.regionName} / ${sharePageStream.groupName}`;
+        const stateLink = document.createElement("a");
+        stateLink.href = sectionPagePath(sharePageStream.stateName);
+        stateLink.textContent = sharePageStream.stateName;
+        stateLink.title = "Open the state page";
+        const forestLink = document.createElement("a");
+        forestLink.href = sectionPagePath(sharePageStream.stateName, sharePageStream.groupName);
+        forestLink.textContent = sharePageStream.groupName;
+        forestLink.title = "Open the forest page";
+        eyebrow.append(stateLink, " / ", forestLink);
 
+        const titleRow = document.createElement("div");
+        titleRow.className = "launch-title-row";
         const title = document.createElement("h2");
         title.textContent = formatStreamDisplayName(sharePageStream);
+        titleRow.append(title, buildFavoriteToggle(sharePageStream));
 
         const description = document.createElement("p");
         description.textContent = "Ready to connect.";
@@ -1967,7 +2033,7 @@
         const allStreamsButton = document.createElement("button");
         allStreamsButton.type = "button";
         allStreamsButton.className = "secondary";
-        allStreamsButton.textContent = "All Streams";
+        allStreamsButton.textContent = "All states";
         allStreamsButton.addEventListener("click", () => {
           sharePageStream = null;
           launchViewStreamId = null;
@@ -1979,7 +2045,7 @@
         });
 
         actions.append(startStreamButton, allStreamsButton);
-        card.append(eyebrow, title, description, actions);
+        card.append(eyebrow, titleRow, description, actions);
         launchRoot.append(card);
       }
 
@@ -2000,117 +2066,116 @@
         });
       }
 
-      function buildStreamCard(stream) {
-        const card = document.createElement("section");
-        card.className = "stream";
-        card.dataset.streamId = stream.id;
+      // Favorite streams live only in this browser's localStorage and are
+      // never sent to the server. They are stored by (state, group, name)
+      // because server stream IDs change on every restart.
+      const FAVORITES_KEY = "favoriteStreams";
 
-        const header = document.createElement("header");
-        const title = document.createElement("h3");
-        title.textContent = formatMainListStreamName(stream);
-        header.append(title);
+      function loadFavorites() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+          return Array.isArray(parsed) ? parsed.filter((f) => f && f.state && f.group && f.name) : [];
+        } catch (_) {
+          return [];
+        }
+      }
 
-        const quietNotice = document.createElement("div");
-        quietNotice.className = "stream-notice quiet";
-        quietNotice.textContent = "";
+      function saveFavorites(list) {
+        try {
+          localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+        } catch (_) { /* storage disabled or full */ }
+      }
 
-        const conflictNotice = document.createElement("div");
-        conflictNotice.className = "stream-notice conflict";
-        conflictNotice.textContent = "";
+      function isSameStream(favorite, stream) {
+        return favorite.state === stream.stateName && favorite.group === stream.groupName && favorite.name === stream.streamName;
+      }
 
-        const button = document.createElement("button");
-        button.dataset.action = "stream-primary";
-        button.dataset.streamId = stream.id;
-        if (connectingStreamId) {
-          button.textContent = connectingStreamId === stream.id ? "Connecting..." : "Busy";
-          button.disabled = true;
-        } else if (currentStreamId === stream.id && pc) {
-          button.textContent = "Listening";
-          button.disabled = false;
-          button.title = "Open this feed in a new tab";
+      function isFavorite(stream) {
+        return loadFavorites().some((f) => isSameStream(f, stream));
+      }
+
+      function toggleFavorite(stream) {
+        const list = loadFavorites();
+        const index = list.findIndex((f) => isSameStream(f, stream));
+        if (index >= 0) {
+          list.splice(index, 1);
         } else {
-          button.textContent = "Listen";
-          button.disabled = false;
+          list.push({ state: stream.stateName, group: stream.groupName, name: stream.streamName });
         }
+        saveFavorites(list);
+      }
 
-        card.append(header, quietNotice, conflictNotice, button);
-        streamStatusTargets.set(stream.id, { quietEl: quietNotice, conflictEl: conflictNotice });
+      function buildFavoriteToggle(stream) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "favorite-toggle";
+        const render = () => {
+          const on = isFavorite(stream);
+          button.textContent = on ? "★" : "☆";
+          button.title = on ? "Remove from my favorites" : "Add to my favorites";
+          button.setAttribute("aria-label", button.title);
+          button.setAttribute("aria-pressed", String(on));
+        };
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleFavorite(stream);
+          render();
+        });
+        render();
+        return button;
+      }
+
+      function buildDirectoryLink(href, label, detail) {
+        const link = document.createElement("a");
+        link.className = "forest-link";
+        link.href = href;
+        const name = document.createElement("strong");
+        name.textContent = label;
+        const meta = document.createElement("span");
+        meta.textContent = detail;
+        link.append(name, meta);
+        return link;
+      }
+
+      function buildDirectoryCard(href, titleText, metaText, goText, links, extraClass) {
+        const card = document.createElement("section");
+        card.className = extraClass ? `state-card ${extraClass}` : "state-card";
+
+        const header = document.createElement("a");
+        header.className = "state-card-header";
+        header.href = href;
+        const info = document.createElement("div");
+        info.className = "state-info";
+        const title = document.createElement("h2");
+        title.className = "state-title";
+        title.textContent = titleText;
+        const meta = document.createElement("div");
+        meta.className = "state-meta";
+        meta.textContent = metaText;
+        info.append(title, meta);
+        const go = document.createElement("span");
+        go.className = "state-card-go";
+        go.textContent = goText;
+        header.append(info, go);
+        card.append(header);
+
+        if (links.length) {
+          const list = document.createElement("div");
+          list.className = "forest-links";
+          list.append(...links);
+          card.append(list);
+        }
         return card;
       }
 
-      function updateStreamCard(stream) {
-        let card = streamCardCache.get(stream.id);
-        if (!card) {
-          card = buildStreamCard(stream);
-          streamCardCache.set(stream.id, card);
-          return card;
-        }
-
-        const title = card.querySelector("h3");
-        const nextTitle = formatStreamDisplayName(stream);
-        if (title && title.textContent !== nextTitle) {
-          title.textContent = nextTitle;
-        }
-
-        const button = card.querySelector("button");
-        if (button) {
-          let nextText = "Listen";
-          let nextDisabled = false;
-          let nextTitle = "";
-
-          if (connectingStreamId) {
-            nextText = connectingStreamId === stream.id ? "Connecting..." : "Busy";
-            nextDisabled = true;
-          } else if (currentStreamId === stream.id && pc) {
-            nextText = "Listening";
-            nextDisabled = false;
-            nextTitle = "Open this feed in a new tab";
-          }
-
-          if (button.textContent !== nextText) button.textContent = nextText;
-          if (button.disabled !== nextDisabled) button.disabled = nextDisabled;
-          if ((button.title || "") !== nextTitle) button.title = nextTitle;
-        }
-
-        return card;
-      }
-
-      function renderGroupBody(regionName, group) {
-        const key = `${regionName}/${group.groupName}`;
-        const groupBody = groupBodyByKey.get(key);
-        if (!groupBody || groupBody.dataset.rendered === "true") return;
-        for (const stream of group.streams) {
-          groupBody.append(updateStreamCard(stream));
-        }
-        groupBody.dataset.rendered = "true";
-      }
-
-      function renderRegionBodies(regionName) {
-        const region = streamGroups.find((r) => r.regionName === regionName);
-        if (!region) return;
-        const regionBody = regionBodyByName.get(regionName);
-        if (!regionBody) return;
-        for (const group of region.subGroups) {
-          const key = `${regionName}/${group.groupName}`;
-          if (expandedGroups.has(key)) {
-            renderGroupBody(regionName, group);
-          }
-        }
-      }
-
+      // The landing page is a directory: every state links to its state
+      // page, with its forests listed beneath, and the listener's favorites
+      // (if any) come first.
       function renderStreams() {
         streamsRoot.hidden = isDedicatedStreamPage();
-        if (streamsRoot.hidden) {
-          streamsRoot.innerHTML = "";
-          groupBodyByKey.clear();
-          regionBodyByName.clear();
-          return;
-        }
-
         streamsRoot.innerHTML = "";
-        groupBodyByKey.clear();
-        regionBodyByName.clear();
-        streamStatusTargets.clear();
+        if (streamsRoot.hidden) return;
 
         if (!streamGroups.length) {
           const empty = document.createElement("div");
@@ -2120,115 +2185,35 @@
           return;
         }
 
-        for (const region of streamGroups) {
-          const regionDetails = document.createElement("details");
-          regionDetails.className = "region";
-          const shouldOpenRegion = expandedGroups.has(region.regionName);
-          regionDetails.open = shouldOpenRegion;
-          regionDetails.dataset.region = region.regionName;
-          regionDetails.addEventListener("toggle", () => {
-            if (regionDetails.open) {
-              expandedGroups.add(region.regionName);
-              renderRegionBodies(region.regionName);
-            } else {
-              expandedGroups.delete(region.regionName);
-            }
-          });
+        const intro = document.createElement("p");
+        intro.className = "directory-intro";
+        intro.textContent = "Choose a state or forest to listen live and browse recordings and transcripts.";
+        streamsRoot.append(intro);
 
-          const regionSummary = document.createElement("summary");
-
-          const regionInfo = document.createElement("div");
-          regionInfo.className = "region-info";
-
-          const regionTitle = document.createElement("h2");
-          regionTitle.className = "region-title";
-          regionTitle.textContent = region.regionName;
-
-          const totalStreamsInRegion = region.subGroups.reduce((sum, group) => sum + group.streams.length, 0);
-          const regionMeta = document.createElement("div");
-          regionMeta.className = "region-meta";
-          regionMeta.textContent = formatStreamCount(totalStreamsInRegion);
-
-          const regionLink = document.createElement("a");
-          regionLink.className = "section-link";
-          regionLink.textContent = "Region connection page ↗";
-          regionLink.href = `/section.html?region=${encodeURIComponent(region.regionName)}`;
-          regionLink.target = "_blank";
-          regionLink.rel = "noopener noreferrer";
-          regionLink.addEventListener("click", (event) => event.stopPropagation());
-
-          const regionIndicator = document.createElement("div");
-          regionIndicator.className = "region-indicator";
-          regionIndicator.textContent = "▾";
-
-          regionInfo.append(regionTitle, regionMeta, regionLink);
-          regionSummary.append(regionInfo, regionIndicator);
-          regionDetails.append(regionSummary);
-
-          const regionBody = document.createElement("div");
-          regionBody.className = "region-body";
-          regionBodyByName.set(region.regionName, regionBody);
-
-          region.subGroups.forEach((group, groupIndex) => {
-            const groupDetails = document.createElement("details");
-            groupDetails.className = "group";
-            const key = `${region.regionName}/${group.groupName}`;
-            groupDetails.open = expandedGroups.has(key);
-            groupDetails.dataset.group = key;
-            groupDetails.addEventListener("toggle", () => {
-              if (groupDetails.open) {
-                expandedGroups.add(key);
-                renderGroupBody(region.regionName, group);
-              } else {
-                expandedGroups.delete(key);
-              }
-            });
-
-            const groupSummary = document.createElement("summary");
-
-            const groupInfo = document.createElement("div");
-            groupInfo.className = "group-info";
-
-            const groupTitle = document.createElement("h3");
-            groupTitle.className = "group-title";
-            groupTitle.textContent = group.groupName;
-
-            const groupMeta = document.createElement("div");
-            groupMeta.className = "group-meta";
-            groupMeta.textContent = formatStreamCount(group.streams.length);
-
-            const groupLink = document.createElement("a");
-            groupLink.className = "section-link";
-            groupLink.textContent = "Forest connection page ↗";
-            groupLink.href = `/section.html?region=${encodeURIComponent(region.regionName)}&forest=${encodeURIComponent(group.groupName)}`;
-            groupLink.target = "_blank";
-            groupLink.rel = "noopener noreferrer";
-            groupLink.addEventListener("click", (event) => event.stopPropagation());
-
-            const groupIndicator = document.createElement("div");
-            groupIndicator.className = "group-indicator";
-            groupIndicator.textContent = "▾";
-
-            groupInfo.append(groupTitle, groupMeta, groupLink);
-            groupSummary.append(groupInfo, groupIndicator);
-            groupDetails.append(groupSummary);
-
-            const groupBody = document.createElement("div");
-            groupBody.className = "group-body";
-            groupBodyByKey.set(key, groupBody);
-
-            groupDetails.append(groupBody);
-            regionBody.append(groupDetails);
-          });
-
-          regionDetails.append(regionBody);
-          streamsRoot.append(regionDetails);
+        const favoriteStreams = streams.filter(isFavorite);
+        if (favoriteStreams.length) {
+          streamsRoot.append(buildDirectoryCard(
+            "/section.html?favorites=1",
+            "★ My favorites",
+            formatStreamCount(favoriteStreams.length),
+            "Open my page →",
+            favoriteStreams.map((stream) =>
+              buildDirectoryLink(streamPagePath(stream), stream.streamName, `${stream.stateName} / ${stream.groupName}`)),
+            "favorites-card",
+          ));
         }
 
-        for (const region of streamGroups) {
-          if (expandedGroups.has(region.regionName)) {
-            renderRegionBodies(region.regionName);
-          }
+        for (const state of streamGroups) {
+          const totalStreams = state.subGroups.reduce((sum, group) => sum + group.streams.length, 0);
+          const forestCount = state.subGroups.length;
+          streamsRoot.append(buildDirectoryCard(
+            sectionPagePath(state.stateName),
+            state.stateName,
+            `${formatStreamCount(totalStreams)} · ${forestCount} ${forestCount === 1 ? "forest" : "forests"}`,
+            "Open state page →",
+            state.subGroups.map((group) =>
+              buildDirectoryLink(sectionPagePath(state.stateName, group.groupName), group.groupName, formatStreamCount(group.streams.length))),
+          ));
         }
       }
 
@@ -2450,19 +2435,6 @@
         streamGroups = await response.json();
         streams = flattenStreamGroups(streamGroups);
 
-        if (expandedGroups.size === 0 && streamGroups.length) {
-          streamGroups.forEach((region, regionIndex) => {
-            if (regionIndex < DEFAULT_OPEN_REGION_COUNT) {
-              expandedGroups.add(region.regionName);
-            }
-            region.subGroups.forEach((group, groupIndex) => {
-              if (regionIndex < DEFAULT_OPEN_REGION_COUNT && groupIndex < DEFAULT_OPEN_GROUP_COUNT) {
-                expandedGroups.add(`${region.regionName}/${group.groupName}`);
-              }
-            });
-          });
-        }
-
         renderStreams();
 
         const requestedSelector = getRequestedStreamSelector();
@@ -2502,42 +2474,15 @@
       }
 
       disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
-      streamsRoot.addEventListener("click", (event) => {
-        const button = event.target.closest("button[data-action='stream-primary']");
-        if (!button) return;
-        const { streamId } = button.dataset;
-        if (!streamId) return;
-        const stream = streams.find((s) => s.id === streamId);
-        if (!stream) return;
 
-        if (currentStreamId === stream.id && pc) {
-          openStreamInNewTab(stream);
-          return;
-        }
-
-        if (sharePageStream) {
-          void connect(stream);
-          return;
-        }
-
-        openStreamInNewTab(stream);
+      // Keep the favorites card in step with stars toggled in other tabs.
+      window.addEventListener("storage", (event) => {
+        if (event.key === FAVORITES_KEY) renderStreams();
       });
 
+      // Only the dedicated stream page shows a live status notice.
       function getVisibleStreamIds() {
-        if (isDedicatedStreamPage()) {
-          return sharePageStream ? [sharePageStream.id] : [];
-        }
-        const ids = [];
-        for (const region of streamGroups) {
-          if (!expandedGroups.has(region.regionName)) continue;
-          for (const group of region.subGroups) {
-            if (!expandedGroups.has(`${region.regionName}/${group.groupName}`)) continue;
-            for (const stream of group.streams) {
-              ids.push(stream.id);
-            }
-          }
-        }
-        return ids;
+        return sharePageStream ? [sharePageStream.id] : [];
       }
 
       function schedulePollLoop() {
@@ -2565,18 +2510,6 @@
           const statuses = await resp.json();
           requestAnimationFrame(() => {
             for (const s of statuses) {
-              const targets = streamStatusTargets.get(s.id);
-              if (targets) {
-                if (targets.conflictEl) {
-                  targets.conflictEl.style.display = s.hasConflict ? "block" : "none";
-                  targets.conflictEl.textContent = s.statusMessage || "";
-                }
-                if (targets.quietEl) {
-                  targets.quietEl.style.display = (!s.heardToday && !s.hasConflict) ? "block" : "none";
-                  targets.quietEl.textContent = s.statusMessage || "";
-                }
-              }
-
               if (sharePageStream && s.id === sharePageStream.id) {
                 if (s.statusMessage) {
                   statusNotice.className = s.hasConflict ? "stream-notice conflict" : "stream-notice quiet";

@@ -123,9 +123,9 @@ func newRecordingIndex(cfg recordingIndexConfig, audioLogDir, logDir string, log
 	return idx
 }
 
-func recordingDirKey(regionName, groupName, streamName string) string {
+func recordingDirKey(stateName, groupName, streamName string) string {
 	safe := func(s string) string { return unsafeChars.ReplaceAllString(s, "_") }
-	return safe(regionName) + "/" + safe(groupName) + "/" + safe(streamName)
+	return safe(stateName) + "/" + safe(groupName) + "/" + safe(streamName)
 }
 
 // register adds a stream to the index. Call for every stream before build.
@@ -133,7 +133,7 @@ func (idx *recordingIndex) register(info streamInfo) {
 	if idx == nil {
 		return
 	}
-	key := recordingDirKey(info.RegionName, info.GroupName, info.StreamName)
+	key := recordingDirKey(info.StateName, info.GroupName, info.StreamName)
 	s := &streamRecordingIndex{
 		info: info,
 		dir:  filepath.Join(idx.audioLogDir, filepath.FromSlash(key)),
@@ -348,7 +348,7 @@ func (idx *recordingIndex) observe(ev transcriptEvent, off int64, lineLen int) {
 		return
 	}
 	idx.mu.RLock()
-	s := idx.streams[recordingDirKey(ev.RegionName, ev.GroupName, ev.StreamName)]
+	s := idx.streams[recordingDirKey(ev.StateName, ev.GroupName, ev.StreamName)]
 	idx.mu.RUnlock()
 	if s == nil {
 		return
@@ -438,7 +438,7 @@ func (idx *recordingIndex) history(info streamInfo, since, until time.Time) (eve
 	if idx == nil {
 		return nil, false
 	}
-	key := recordingDirKey(info.RegionName, info.GroupName, info.StreamName)
+	key := recordingDirKey(info.StateName, info.GroupName, info.StreamName)
 	idx.mu.RLock()
 	s := idx.streams[key]
 	idx.mu.RUnlock()
@@ -487,7 +487,7 @@ func (idx *recordingIndex) history(info streamInfo, since, until time.Time) (eve
 			ClipID:      rec.name,
 			StreamID:    info.ID,
 			StreamName:  info.StreamName,
-			RegionName:  info.RegionName,
+			StateName:  info.StateName,
 			GroupName:   info.GroupName,
 			AudioURL:    urlPrefix + rec.name,
 			DurationMs:  int(rec.durationMs),

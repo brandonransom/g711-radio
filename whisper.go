@@ -312,9 +312,17 @@ func (e *whisperEndpoint) readyChan() <-chan struct{} {
 // whisperPool manages an unbounded FIFO job queue and one worker goroutine
 // per whisper-server endpoint.
 type whisperPool struct {
-	cfg        whisperConfig
-	mu         sync.Mutex
-	queue      []transcriptJob
+	cfg   whisperConfig
+	mu    sync.Mutex
+	queue []transcriptJob
+	// bulkQueue holds "transcribe all filtered" requests. Workers drain it
+	// only when queue is empty, so a large backfill never delays live clips
+	// or a listener's single on-demand request.
+	bulkQueue []transcriptJob
+	// queued is the set of WAV paths waiting in either queue, so the same
+	// clip requested twice (e.g. a bulk request overlapping an earlier one)
+	// is only transcribed once.
+	queued     map[string]struct{}
 	ready      chan struct{}
 	hub        *transcriptHub
 	logger     *log.Logger
@@ -434,28 +442,93 @@ func checkWhisperHealth(ctx context.Context, baseURL string, timeout time.Durati
 	return nil
 }
 
-// Submit enqueues a clip for transcription. Never drops — unbounded FIFO.
-func (p *whisperPool) Submit(job transcriptJob) {
+// maxBulkQueue caps how many bulk-transcription jobs may wait at once, so
+// repeated "transcribe all" clicks can't queue an unbounded backlog.
+const maxBulkQueue = 5000
+
+// bulkSubmitResult reports what SubmitBulk did with one job.
+type bulkSubmitResult int
+
+const (
+	bulkQueued bulkSubmitResult = iota
+	bulkDuplicate
+	bulkFull
+)
+
+// markQueuedLocked records job as waiting. It reports false if the same WAV
+// is already queued. Callers hold p.mu.
+func (p *whisperPool) markQueuedLocked(job transcriptJob) bool {
+	if job.wavPath == "" {
+		return true
+	}
+	if p.queued == nil {
+		p.queued = make(map[string]struct{})
+	}
+	if _, dup := p.queued[job.wavPath]; dup {
+		return false
+	}
+	p.queued[job.wavPath] = struct{}{}
+	return true
+}
+
+// Submit queues a clip at normal priority. The normal queue is an unbounded
+// FIFO and never drops. A clip whose WAV is already
+// waiting is not queued twice; it reports false in that case, and the
+// waiting job's transcript will still be published to every listener.
+func (p *whisperPool) Submit(job transcriptJob) bool {
 	p.mu.Lock()
+	if !p.markQueuedLocked(job) {
+		// A clip waiting in the low-priority bulk queue is promoted, so a
+		// listener's explicit request isn't stuck behind a backfill.
+		for i, waiting := range p.bulkQueue {
+			if waiting.wavPath == job.wavPath {
+				p.bulkQueue = append(p.bulkQueue[:i], p.bulkQueue[i+1:]...)
+				p.queue = append(p.queue, waiting)
+				break
+			}
+		}
+		p.mu.Unlock()
+		p.signal()
+		return false
+	}
 	p.queue = append(p.queue, job)
-	qlen := len(p.queue)
+	qlen := len(p.queue) + len(p.bulkQueue)
 	p.mu.Unlock()
 	p.signal()
 	p.logger.Printf("whisper pool: queued clip %s from %s (queue depth: %d, servers: %d)",
 		job.clipID, job.info.StreamName, qlen, len(p.endpoints))
+	return true
+}
+
+// SubmitBulk queues a clip at low priority (see bulkQueue).
+func (p *whisperPool) SubmitBulk(job transcriptJob) bulkSubmitResult {
+	p.mu.Lock()
+	if len(p.bulkQueue) >= maxBulkQueue {
+		p.mu.Unlock()
+		return bulkFull
+	}
+	if !p.markQueuedLocked(job) {
+		p.mu.Unlock()
+		return bulkDuplicate
+	}
+	p.bulkQueue = append(p.bulkQueue, job)
+	p.mu.Unlock()
+	p.signal()
+	return bulkQueued
 }
 
 // queueDepth reports how many clips are waiting for a free server.
 func (p *whisperPool) queueDepth() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return len(p.queue)
+	return len(p.queue) + len(p.bulkQueue)
 }
 
 // requeueFront puts a job back at the head of the queue so another endpoint
 // can pick it up without losing its place in line.
 func (p *whisperPool) requeueFront(job transcriptJob) {
 	p.mu.Lock()
+	p.markQueuedLocked(job)
 	p.queue = append([]transcriptJob{job}, p.queue...)
 	p.mu.Unlock()
 	p.signal()
@@ -469,14 +542,26 @@ func (p *whisperPool) signal() {
 }
 
 // nextJob blocks until a job is available or the pool is closed. It also
-// reports the queue depth left behind after this job was taken.
+// reports the queue depth left behind after this job was taken. Normal jobs
+// always go first; bulk jobs only run when nothing else is waiting.
 func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
 	for {
 		p.mu.Lock()
-		if len(p.queue) > 0 {
-			job := p.queue[0]
+		var job transcriptJob
+		found := true
+		switch {
+		case len(p.queue) > 0:
+			job = p.queue[0]
 			p.queue = p.queue[1:]
-			remaining := len(p.queue)
+		case len(p.bulkQueue) > 0:
+			job = p.bulkQueue[0]
+			p.bulkQueue = p.bulkQueue[1:]
+		default:
+			found = false
+		}
+		if found {
+			delete(p.queued, job.wavPath)
+			remaining := len(p.queue) + len(p.bulkQueue)
 			p.mu.Unlock()
 			if remaining > 0 {
 				// Wake another worker for the rest.
@@ -559,7 +644,7 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 			ClipID:      job.clipID,
 			StreamID:    job.info.ID,
 			StreamName:  job.info.StreamName,
-			RegionName:  job.info.RegionName,
+			StateName:   job.info.StateName,
 			GroupName:   job.info.GroupName,
 			AudioURL:    job.audioURL,
 			Timestamp:   job.start,
@@ -622,7 +707,7 @@ func (p *whisperPool) publish(job transcriptJob, text string) {
 		ClipID:      job.clipID,
 		StreamID:    job.info.ID,
 		StreamName:  job.info.StreamName,
-		RegionName:  job.info.RegionName,
+		StateName:   job.info.StateName,
 		GroupName:   job.info.GroupName,
 		Text:        text,
 		AudioURL:    job.audioURL,

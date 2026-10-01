@@ -29,7 +29,7 @@
       "replacement": "[no speech detected]"
     }
   },
-  "regions": {
+  "states": {
     "California": {
       "Plumas NF": [
         { "streamName": "Admin Net", "udpPort": 51110 },

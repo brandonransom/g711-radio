@@ -16,7 +16,7 @@ func writeCSV(t *testing.T, body string) string {
 	return path
 }
 
-const csvHeader = "timestamp,filename,clipId,streamName,regionName,groupName,audioUrl,rating,original,corrected,clientIp\n"
+const csvHeader = "timestamp,filename,clipId,streamName,stateName,groupName,audioUrl,rating,original,corrected,clientIp\n"
 
 func TestReadFeedbackUsesHeaderNames(t *testing.T) {
 	// Columns deliberately reordered and an unknown one appended: the

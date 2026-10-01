@@ -116,7 +116,7 @@ func TestFeedbackPrefersServerSideClipMetadata(t *testing.T) {
 		clipID: "clip-9",
 		info: streamInfo{
 			StreamName: "Pomeroy Net",
-			RegionName: "Oregon",
+			StateName: "Oregon",
 			GroupName:  "Umatilla NF",
 		},
 		wavPath:  filepath.Join("D:", "audio", "Pomeroy", "real.wav"),
@@ -228,7 +228,7 @@ func TestFeedbackCorrectionIsSharedAndBroadcast(t *testing.T) {
 	s, path := newFeedbackServer(t)
 	s.hub = newTranscriptHub("", "", log.New(io.Discard, "", 0))
 	s.streams = map[string]*station{
-		"pomeroy": {info: streamInfo{ID: "pomeroy", StreamName: "Pomeroy Net", RegionName: "Oregon", GroupName: "Umatilla NF"}},
+		"pomeroy": {info: streamInfo{ID: "pomeroy", StreamName: "Pomeroy Net", StateName: "Oregon", GroupName: "Umatilla NF"}},
 	}
 	subID, ch := s.hub.subscribe()
 	defer s.hub.unsubscribe(subID)
@@ -349,8 +349,8 @@ func TestFeedbackIgnoresCorrectionsWithoutRecordingURL(t *testing.T) {
 
 func TestStreamForAudioURLMatchesRecordingHistoryPaths(t *testing.T) {
 	s := &webrtcServer{streams: map[string]*station{
-		"pomeroy": {info: streamInfo{ID: "pomeroy", StreamName: "Pomeroy Net", RegionName: "Oregon", GroupName: "Umatilla NF"}},
-		"capilla": {info: streamInfo{ID: "capilla", StreamName: "Capilla", RegionName: "New Mexico", GroupName: "Cibola NF"}},
+		"pomeroy": {info: streamInfo{ID: "pomeroy", StreamName: "Pomeroy Net", StateName: "Oregon", GroupName: "Umatilla NF"}},
+		"capilla": {info: streamInfo{ID: "capilla", StreamName: "Capilla", StateName: "New Mexico", GroupName: "Cibola NF"}},
 	}}
 	tests := []struct {
 		url    string

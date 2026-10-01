@@ -18,7 +18,7 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 
 ## Config
 
-`config.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `regions` map. It is read once at startup by `loadConfig` in `main.go`. Every setting in this README, including all transcription settings for both local and remote mode, lives in this one file. The only other file read is the optional `config.secrets.json` (see `config.secrets.json.example`), which overlays `pfxPassword`, `pfxKeyPassword`, `certFile`, `keyFile`, and `iceServers`. Changes take effect on restart.
+`config.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `states` map (state → forest/group → streams; the older `regions` key is still accepted as an alias). It is read once at startup by `loadConfig` in `main.go`. Every setting in this README, including all transcription settings for both local and remote mode, lives in this one file. The only other file read is the optional `config.secrets.json` (see `config.secrets.json.example`), which overlays `pfxPassword`, `pfxKeyPassword`, `certFile`, `keyFile`, and `iceServers`. Changes take effect on restart.
 
 It is **not tracked in git** — each deployment keeps its own ports, certificate paths, and stream list. Copy the template to create one:
 
@@ -42,7 +42,7 @@ Runtime output (`config.json`, `config.secrets.json`, `usage.csv`, `g711-radio.l
     "autoTranscribeMinClipMs": 20000,
     "autoTranscribeMaxClipMs": 120000
   },
-  "regions": {
+  "states": {
     "California": {
       "Plumas NF": [
         { "streamName": "Admin Net", "udpPort": 51110 },
@@ -64,7 +64,7 @@ Runtime output (`config.json`, `config.secrets.json`, `usage.csv`, `g711-radio.l
 - `httpPort`: HTTPS port to listen on (default 443)
 - `pfxFile`: TLS certificate as a PFX/PKCS#12 bundle; its passwords go in `config.secrets.json`. Alternatively set `certFile` + `keyFile` (PEM).
 - `audioLogDir`: Directory for the primary, user-facing audio archive — recorded clips are written here, served over HTTP at `/audio/` for in-browser playback, and referenced by the clip/transcript history. Optional; recording is disabled without it (unless whisper is otherwise configured, in which case clips are still transcribed from a temp file but not persisted). Audio and transcripts are kept **indefinitely** — nothing in this codebase deletes them.
-- `audioBackupDir`: Optional. When set, every recorded clip is also written, byte-for-byte, to this second directory (mirroring the same region/group/stream folder structure) — a redundant copy for disaster recovery. It's never served over HTTP or shown in the UI, and a write failure here (e.g. a temporarily unreachable network mount) is logged but never blocks the primary recording. Any path that behaves like a normal filesystem works, including a mapped network drive.
+- `audioBackupDir`: Optional. When set, every recorded clip is also written, byte-for-byte, to this second directory (mirroring the same state/group/stream folder structure) — a redundant copy for disaster recovery. It's never served over HTTP or shown in the UI, and a write failure here (e.g. a temporarily unreachable network mount) is logged but never blocks the primary recording. Any path that behaves like a normal filesystem works, including a mapped network drive.
 - `recordingIndex`: Optional. How the Recordings & Transcripts history is served. Each mode is rebuilt from the WAV files and transcript logs in the background at startup (history scans the folders until then); WAV files stay the source of truth. `"mode"`: `"full"` (default — every recording and its transcript text in memory, fastest), `"lean"` (recordings in memory, transcript text read from the log on demand — less memory), `"window"` (like lean, but only the last `"windowDays"` days, default 30; older ranges scan the folders), or `"off"` (scan the audio folders on every request). Example: `"recordingIndex": { "mode": "lean" }`.
 - `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
 - `whisper` block: Optional transcription configuration — see [Transcription settings](#transcription-settings). Omit it entirely to run without transcription.
@@ -84,7 +84,7 @@ Each stream can use:
 Example:
 ```json
 {
-  "regions": {
+  "states": {
     "Alaska": {
       "Chugach NF": [
         { "streamName": "Single Port", "udpPort": 5000 },
@@ -251,7 +251,7 @@ Each filtered transcript is logged with its original text, so you can review wha
 - The individual stream page displays a live scrollable transcript panel
 - Recording playback buttons queue clips; clicking the active recording's stop button ends that clip and advances to the next queued recording, if any
 - Every transcript is also appended as a row to `transcripts.csv` inside `audioLogDir` (the primary audio archive directory, see [Config](#config)) — one row per transcript, with the transcribed WAV filename and stream name. This file lives alongside the audio clips it accompanies, is never pruned, and is separate from the per-stream JSON logs under `transcripts/` used for the in-browser history
-- The "Recordings & Transcripts" panel (on both the individual stream page and the multi-stream region/forest pages) lets users browse the full, unpruned history rather than a fixed lookback window. The server indexes each stream's WAV directory under `audioLogDir` (see `recordingIndex`), derives timestamps and durations from the files, and merges any matching text from the per-stream transcript log; recordings therefore remain visible across server restarts even if the separate transcript-event logs are missing. A date-range filter (last 24 hours (default) / 7 days / 30 days / all time / a custom from–to range) controls what `GET /transcripts/history?streamId=<id>&since=<RFC3339>&until=<RFC3339>` fetches from the server — `since`/`until` are both optional, and omitting one means "from the beginning of recorded history" / "up to now" respectively. A recording-length filter (minimum seconds) and, on multi-stream pages, a stream filter are applied client-side against the fetched results, with no extra round-trip. **Download all filtered audio** sends the complete matching WAV set (including matching rows beyond the render cap) to `POST /recordings/download` and downloads a ZIP that preserves the archive's region/forest/stream folder structure. Rows render 300 at a time — newest first — to keep large "all time" views responsive; a **Load older** button above the oldest visible row pages in the next 300, so the entire history stays reachable without narrowing any filter
+- The "Recordings & Transcripts" panel (on both the individual stream page and the multi-stream state/forest pages) lets users browse the full, unpruned history rather than a fixed lookback window. The server indexes each stream's WAV directory under `audioLogDir` (see `recordingIndex`), derives timestamps and durations from the files, and merges any matching text from the per-stream transcript log; recordings therefore remain visible across server restarts even if the separate transcript-event logs are missing. A date-range filter (last 24 hours (default) / 7 days / 30 days / all time / a custom from–to range) controls what `GET /transcripts/history?streamId=<id>&since=<RFC3339>&until=<RFC3339>` fetches from the server — `since`/`until` are both optional, and omitting one means "from the beginning of recorded history" / "up to now" respectively. A recording-length filter (minimum seconds) and, on multi-stream pages, a stream filter are applied client-side against the fetched results, with no extra round-trip. **Download all filtered audio** sends the complete matching WAV set (including matching rows beyond the render cap) to `POST /recordings/download` and downloads a ZIP that preserves the archive's state/forest/stream folder structure. **Transcribe all filtered audio** queues every matching recording that has no transcript yet (newest first, up to 1000 per click) via `POST /transcripts/request-bulk`. Bulk jobs run at low priority behind live auto-transcription and individual requests, at most 5000 wait at once, and a clip already queued is never queued twice; rows show **Queued** until their transcript arrives, after which the button reads **Transcribe again**. Rows render 300 at a time — newest first — to keep large "all time" views responsive; a **Load older** button above the oldest visible row pages in the next 300, so the entire history stays reachable without narrowing any filter
 
 ### Model selection
 
@@ -400,7 +400,7 @@ curl http://whisper-host:8080/inference -F file=@clip.wav -F response_format=jso
 
 ```json
 {
-  "regions": {
+  "states": {
    "Alaska": {
      "Chugach NF": [
        {
@@ -465,7 +465,7 @@ sudo tcpdump -i eth0 -n host 224.0.0.1 and port 5000
 ## Notes
 
 - The server assumes 8 kHz mono G.711 PCMU frames with a 12-byte transport header and 160 audio bytes per packet (20 ms).
-- The client loads streams from `/streams`, renders them as a hierarchical region → group → stream accordion, and opens each feed in its own dedicated tab.
+- The client loads streams from `/streams`, renders the landing page as a directory of states, each linking to its state page (`/section.html?state=…`) and forest pages (`&forest=…`). Every stream has a ☆ toggle; starred streams appear on the landing page and on `/section.html?favorites=1`. Favorites are kept in the browser's localStorage, never on the server. Older `?region=` links still work.
 - The client uses non-trickle ICE and is intended for local or LAN use. For internet-facing deployments, add STUN/TURN configuration.
 - Transcription requires Chrome or Edge on the client (SSE is supported in all modern browsers; the panel displays regardless).
 - Multicast streams support up to 4 ports per stream. Port priority ensures seamless failover in redundant encoder scenarios.

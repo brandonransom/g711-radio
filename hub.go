@@ -33,7 +33,7 @@ type transcriptEvent struct {
 	ClipID     string    `json:"clipId"`
 	StreamID   string    `json:"streamId"`
 	StreamName string    `json:"streamName"`
-	RegionName string    `json:"regionName"`
+	StateName string    `json:"stateName"`
 	GroupName  string    `json:"groupName"`
 	Text       string    `json:"text,omitempty"`
 	AudioURL   string    `json:"audioUrl,omitempty"`
@@ -338,7 +338,7 @@ func (h *transcriptHub) RecordingHistory(audioLogDir string, info streamInfo, si
 	for _, ev := range logged {
 		ev.StreamID = info.ID
 		ev.StreamName = info.StreamName
-		ev.RegionName = info.RegionName
+		ev.StateName = info.StateName
 		ev.GroupName = info.GroupName
 
 		recordingIndex, matched := recordingByURL[ev.AudioURL]
@@ -375,10 +375,10 @@ func scanStreamRecordings(audioLogDir string, info streamInfo, since, until time
 	safe := func(s string) string {
 		return unsafeChars.ReplaceAllString(s, "_")
 	}
-	regionName := safe(info.RegionName)
+	stateName := safe(info.StateName)
 	groupName := safe(info.GroupName)
 	streamName := safe(info.StreamName)
-	dir := filepath.Join(audioLogDir, regionName, groupName, streamName)
+	dir := filepath.Join(audioLogDir, stateName, groupName, streamName)
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -414,13 +414,13 @@ func scanStreamRecordings(audioLogDir string, info streamInfo, since, until time
 		if err != nil {
 			logger.Printf("recording history: read duration %s: %v", wavPath, err)
 		}
-		audioURL := "/" + path.Join("audio", regionName, groupName, streamName, entry.Name())
+		audioURL := "/" + path.Join("audio", stateName, groupName, streamName, entry.Name())
 		recordings = append(recordings, transcriptEvent{
 			Type:        "clip",
 			ClipID:      entry.Name(),
 			StreamID:    info.ID,
 			StreamName:  info.StreamName,
-			RegionName:  info.RegionName,
+			StateName:  info.StateName,
 			GroupName:   info.GroupName,
 			AudioURL:    audioURL,
 			DurationMs:  durationMs,

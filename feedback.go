@@ -48,7 +48,7 @@ type feedbackRecord struct {
 	WAVFilename string
 	ClipID      string
 	StreamName  string
-	RegionName  string
+	StateName  string
 	GroupName   string
 	AudioURL    string
 	Rating      feedbackRating
@@ -61,7 +61,7 @@ type feedbackRecord struct {
 // existing files are never rewritten, so reordering would silently
 // misinterpret every row already on disk.
 var feedbackHeader = []string{
-	"timestamp", "filename", "clipId", "streamName", "regionName",
+	"timestamp", "filename", "clipId", "streamName", "stateName",
 	"groupName", "audioUrl", "rating", "original", "corrected", "clientIp",
 }
 
@@ -231,7 +231,7 @@ func (s *feedbackStore) Append(rec feedbackRecord) (bool, error) {
 		rec.WAVFilename,
 		rec.ClipID,
 		rec.StreamName,
-		rec.RegionName,
+		rec.StateName,
 		rec.GroupName,
 		rec.AudioURL,
 		string(rec.Rating),
@@ -375,7 +375,7 @@ func (s *webrtcServer) handleTranscriptFeedback(w http.ResponseWriter, r *http.R
 	}
 	if info.StreamName != "" {
 		rec.StreamName = info.StreamName
-		rec.RegionName = info.RegionName
+		rec.StateName = info.StateName
 		rec.GroupName = info.GroupName
 	}
 
@@ -395,7 +395,7 @@ func (s *webrtcServer) handleTranscriptFeedback(w http.ResponseWriter, r *http.R
 			ClipID:      rec.ClipID,
 			StreamID:    info.ID,
 			StreamName:  rec.StreamName,
-			RegionName:  rec.RegionName,
+			StateName:  rec.StateName,
 			GroupName:   rec.GroupName,
 			Text:        collapseSpace(rec.Original),
 			AudioURL:    rec.AudioURL,

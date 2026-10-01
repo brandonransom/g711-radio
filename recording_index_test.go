@@ -26,7 +26,7 @@ func newIndexFixture(t *testing.T, cfg recordingIndexConfig) *indexFixture {
 	logger := log.New(io.Discard, "", 0)
 	hub := newTranscriptHub(logDir, "", logger)
 	hub.index = newRecordingIndex(cfg, audioDir, logDir, logger)
-	info := streamInfo{ID: "s1", RegionName: "New Mexico", GroupName: "Cibola NF", StreamName: "Capilla"}
+	info := streamInfo{ID: "s1", StateName: "New Mexico", GroupName: "Cibola NF", StreamName: "Capilla"}
 	wavDir := filepath.Join(audioDir, "New_Mexico", "Cibola_NF", "Capilla")
 	if err := os.MkdirAll(wavDir, 0755); err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func (f *indexFixture) writeWAV(t *testing.T, ts time.Time, samples int) (string
 func (f *indexFixture) event(typ, name, url, text string, ts time.Time) transcriptEvent {
 	return transcriptEvent{
 		Type: typ, ClipID: name, StreamID: f.info.ID, StreamName: f.info.StreamName,
-		RegionName: f.info.RegionName, GroupName: f.info.GroupName,
+		StateName: f.info.StateName, GroupName: f.info.GroupName,
 		AudioURL: url, Text: text, Timestamp: ts, WAVFilename: name,
 	}
 }

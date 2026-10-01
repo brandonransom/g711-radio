@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -131,8 +132,11 @@ type appConfig struct {
 	HTTPRedirectPort int                                  `json:"httpRedirectPort"`
 	EnableHTTP       bool                                 `json:"enableHttp"`
 	DebugMulticast   bool                                 `json:"debugMulticast"`
-	Regions          map[string]map[string][]streamConfig `json:"regions"`
-	Whisper          *whisperConfig                       `json:"whisper"` // all transcription settings (local and remote); see whisperConfig in whisper.go
+	States           map[string]map[string][]streamConfig `json:"states"`
+	// LegacyRegions is the pre-rename spelling of States, still accepted so
+	// existing config files keep working. Setting both is an error.
+	LegacyRegions map[string]map[string][]streamConfig `json:"regions"`
+	Whisper       *whisperConfig                       `json:"whisper"` // all transcription settings (local and remote); see whisperConfig in whisper.go
 
 	// AudioLogDir is the primary, user-facing audio archive: every
 	// recorded clip is written here (see saveAudioClip), served over HTTP
@@ -148,7 +152,7 @@ type appConfig struct {
 
 	// AudioBackupDir, when non-empty, makes every recorded clip also get
 	// written, byte-for-byte, to this second directory (same relative
-	// region/group/stream path, same filename) — a redundant copy for
+	// state/group/stream path, same filename) — a redundant copy for
 	// disaster recovery, not served over HTTP or referenced anywhere in
 	// the UI. A write failure here (e.g. a temporarily unreachable network
 	// mount) is logged but never blocks the primary write, clip
@@ -179,7 +183,7 @@ type appConfig struct {
 	// Leave empty in normal operation — this is a diagnostic-only feature.
 	AudioDumpDir string `json:"audioDumpDir"`
 
-	streamGroups []configuredRegion
+	streamGroups []configuredState
 	totalStreams int
 }
 
@@ -225,7 +229,7 @@ type streamConfig struct {
 }
 
 type streamInfo struct {
-	RegionName string `json:"regionName"`
+	StateName  string `json:"stateName"`
 	GroupName  string `json:"groupName"`
 	ForestName string `json:"forestName"`
 	ID         string `json:"id"`
@@ -234,7 +238,7 @@ type streamInfo struct {
 }
 
 func (s streamInfo) displayName() string {
-	return fmt.Sprintf("%s / %s / %s", s.RegionName, s.GroupName, s.StreamName)
+	return fmt.Sprintf("%s / %s / %s", s.StateName, s.GroupName, s.StreamName)
 }
 
 type subGroup struct {
@@ -242,9 +246,9 @@ type subGroup struct {
 	Streams   []streamInfo `json:"streams"`
 }
 
-type regionGroup struct {
-	RegionName string     `json:"regionName"`
-	SubGroups  []subGroup `json:"subGroups"`
+type stateGroup struct {
+	StateName string     `json:"stateName"`
+	SubGroups []subGroup `json:"subGroups"`
 }
 
 type configuredSubGroup struct {
@@ -252,9 +256,9 @@ type configuredSubGroup struct {
 	Streams   []streamConfig
 }
 
-type configuredRegion struct {
-	RegionName string
-	SubGroups  []configuredSubGroup
+type configuredState struct {
+	StateName string
+	SubGroups []configuredSubGroup
 }
 
 // audioFrame is one extracted, codec-tagged audio payload from a UDP packet.
@@ -350,18 +354,18 @@ type offerRequest struct {
 }
 
 type webrtcServer struct {
-	api          *webrtc.API
-	logger       *log.Logger
-	usageLogger  *usageLogger
-	streams      map[string]*station
-	regionGroups []regionGroup
-	hub          *transcriptHub
-	clips        map[string]clipRecord
-	clipMu       sync.RWMutex
-	whisperPool  *whisperPool
-	feedback     *feedbackStore
-	audioLogDir  string
-	iceServers   []webrtc.ICEServer
+	api         *webrtc.API
+	logger      *log.Logger
+	usageLogger *usageLogger
+	streams     map[string]*station
+	stateGroups []stateGroup
+	hub         *transcriptHub
+	clips       map[string]clipRecord
+	clipMu      sync.RWMutex
+	whisperPool *whisperPool
+	feedback    *feedbackStore
+	audioLogDir string
+	iceServers  []webrtc.ICEServer
 
 	// clipJobs offloads recorder clip finalization (WAV file write, hub
 	// publish, whisper submission) off each station's ingest goroutine.
@@ -390,29 +394,62 @@ func (s *webrtcServer) storeClip(rec clipRecord) {
 	s.clipMu.Unlock()
 }
 
-func (s *webrtcServer) requestClipTranscription(clipID string) bool {
+// manualTranscriptJob resolves a listener's transcription request to a job.
+// Clips recorded by this server run are found in the registry; older ones
+// (from before a restart) are located on disk from their audio URL. source
+// names which path matched, for usage logging.
+func (s *webrtcServer) manualTranscriptJob(clipID, audioURL string) (job transcriptJob, source string, ok bool) {
+	if s.whisperPool == nil {
+		return transcriptJob{}, "", false
+	}
 	s.clipMu.RLock()
-	rec, ok := s.clips[clipID]
+	rec, found := s.clips[clipID]
 	s.clipMu.RUnlock()
-	if !ok || s.whisperPool == nil {
-		return false
+	if found && rec.wavPath != "" {
+		return transcriptJob{
+			info:     rec.info,
+			clipID:   rec.clipID,
+			wavPath:  rec.wavPath,
+			audioURL: rec.audioURL,
+			start:    rec.start,
+			manual:   true,
+		}, "registry", true
 	}
-	if rec.wavPath == "" {
-		return false
+	if audioURL == "" || s.audioLogDir == "" {
+		return transcriptJob{}, "", false
 	}
-	s.whisperPool.Submit(transcriptJob{
-		info:     rec.info,
-		clipID:   rec.clipID,
-		wavPath:  rec.wavPath,
-		audioURL: rec.audioURL,
-		start:    rec.start,
+	// audioUrl is /audio/<state>/<group>/<stream>/<file>.wav
+	// Strip the leading /audio/ prefix and convert to a local path.
+	info, known := s.streamForAudioURL(audioURL)
+	if !known || !strings.HasPrefix(audioURL, "/audio/") {
+		s.logger.Printf("transcribe: clip %q audioUrl %q does not belong to a configured stream", clipID, audioURL)
+		return transcriptJob{}, "", false
+	}
+	wavPath := filepath.Join(s.audioLogDir, filepath.FromSlash(strings.TrimPrefix(audioURL, "/audio/")))
+	if _, err := os.Stat(wavPath); err != nil {
+		s.logger.Printf("transcribe: clip %q audioUrl fallback wav=%s not found on disk", clipID, wavPath)
+		return transcriptJob{}, "", false
+	}
+	// The stream identity and recording time must match what the history
+	// endpoint served for this row: the stream page filters SSE by stream
+	// ID, the multi-stream page keys rows by it, and the per-stream log is
+	// chosen by stream name.
+	start, ok := recordingTimestamp(filepath.Base(wavPath))
+	if !ok {
+		start = time.Now()
+	}
+	return transcriptJob{
+		info:     info,
+		clipID:   clipID,
+		wavPath:  wavPath,
+		audioURL: audioURL,
+		start:    start,
 		manual:   true,
-	})
-	return true
+	}, "audiourl_fallback", true
 }
 
 // streamForAudioURL finds the configured stream whose recording directory an
-// /audio/<region>/<group>/<stream>/<file>.wav URL points into, using the same
+// /audio/<state>/<group>/<stream>/<file>.wav URL points into, using the same
 // sanitized names RecordingHistory builds those URLs from. Matching against
 // configured streams also confines the fallback to real recording folders.
 func (s *webrtcServer) streamForAudioURL(audioURL string) (streamInfo, bool) {
@@ -422,7 +459,7 @@ func (s *webrtcServer) streamForAudioURL(audioURL string) (streamInfo, bool) {
 	}
 	safe := func(v string) string { return unsafeChars.ReplaceAllString(v, "_") }
 	for _, st := range s.streams {
-		if safe(st.info.RegionName) == parts[0] && safe(st.info.GroupName) == parts[1] && safe(st.info.StreamName) == parts[2] {
+		if safe(st.info.StateName) == parts[0] && safe(st.info.GroupName) == parts[1] && safe(st.info.StreamName) == parts[2] {
 			return st.info, true
 		}
 	}
@@ -435,8 +472,6 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	clientIP := getClientIP(r)
-
 	var req struct {
 		ClipID   string `json:"clipId"`
 		AudioURL string `json:"audioUrl"`
@@ -445,54 +480,93 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	// Try registry first (clips from current server run).
-	if s.requestClipTranscription(req.ClipID) {
-		s.usageLogger.logUsage("transcript_request", map[string]string{
-			"client_ip": clientIP,
-			"clip_id":   req.ClipID,
-			"source":    "registry",
-		})
-		w.WriteHeader(http.StatusAccepted)
+	job, source, ok := s.manualTranscriptJob(req.ClipID, req.AudioURL)
+	if !ok {
+		http.Error(w, "clip not found or transcription unavailable", http.StatusNotFound)
 		return
 	}
-	// Fallback: derive wavPath from audioUrl for clips from before a server restart.
-	if req.AudioURL != "" && s.audioLogDir != "" && s.whisperPool != nil {
-		// audioUrl is /audio/<region>/<group>/<stream>/<file>.wav
-		// Strip the leading /audio/ prefix and convert to a local path.
-		rel := strings.TrimPrefix(req.AudioURL, "/audio/")
-		wavPath := filepath.Join(s.audioLogDir, filepath.FromSlash(rel))
-		info, known := s.streamForAudioURL(req.AudioURL)
-		if !known || !strings.HasPrefix(req.AudioURL, "/audio/") {
-			s.logger.Printf("transcribe: clip %q audioUrl %q does not belong to a configured stream", req.ClipID, req.AudioURL)
-		} else if _, err := os.Stat(wavPath); err == nil {
-			// The stream identity and recording time must match what the
-			// history endpoint served for this row: the stream page filters
-			// SSE by stream ID, the multi-stream page keys rows by it, and
-			// the per-stream log is chosen by stream name.
-			start, ok := recordingTimestamp(filepath.Base(filepath.FromSlash(req.AudioURL)))
-			if !ok {
-				start = time.Now()
-			}
-			s.logger.Printf("transcribe: clip %q not in registry, using audioUrl fallback wav=%s stream=%s", req.ClipID, wavPath, info.StreamName)
-			s.whisperPool.Submit(transcriptJob{
-				info:     info,
-				clipID:   req.ClipID,
-				wavPath:  wavPath,
-				audioURL: req.AudioURL,
-				start:    start,
-				manual:   true,
-			})
-			s.usageLogger.logUsage("transcript_request", map[string]string{
-				"client_ip": clientIP,
-				"clip_id":   req.ClipID,
-				"source":    "audiourl_fallback",
-			})
-			w.WriteHeader(http.StatusAccepted)
-			return
-		}
-		s.logger.Printf("transcribe: clip %q audioUrl fallback wav=%s not found on disk", req.ClipID, wavPath)
+	if source != "registry" {
+		s.logger.Printf("transcribe: clip %q not in registry, using audioUrl fallback wav=%s stream=%s", req.ClipID, job.wavPath, job.info.StreamName)
 	}
-	http.Error(w, "clip not found or transcription unavailable", http.StatusNotFound)
+	// A clip already waiting in the queue is not added twice; its pending
+	// transcript is published to every listener, this one included.
+	s.whisperPool.Submit(job)
+	s.usageLogger.logUsage("transcript_request", map[string]string{
+		"client_ip": getClientIP(r),
+		"clip_id":   req.ClipID,
+		"source":    source,
+	})
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// maxBulkTranscriptRequest caps how many clips one "transcribe all filtered
+// audio" request may name.
+const maxBulkTranscriptRequest = 1000
+
+// handleBulkTranscriptRequest queues every listed clip at low priority (see
+// whisperPool.SubmitBulk) and reports which were accepted, so the page can
+// mark those rows as queued.
+func (s *webrtcServer) handleBulkTranscriptRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.whisperPool == nil {
+		http.Error(w, "transcription is not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Clips []struct {
+			ClipID   string `json:"clipId"`
+			AudioURL string `json:"audioUrl"`
+		} `json:"clips"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Clips) == 0 {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if len(req.Clips) > maxBulkTranscriptRequest {
+		http.Error(w, fmt.Sprintf("at most %d clips per request", maxBulkTranscriptRequest), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	resp := struct {
+		Queued        []string `json:"queued"`
+		AlreadyQueued []string `json:"alreadyQueued"`
+		NotFound      int      `json:"notFound"`
+		QueueFull     int      `json:"queueFull"`
+	}{Queued: []string{}, AlreadyQueued: []string{}}
+	for _, c := range req.Clips {
+		if c.ClipID == "" {
+			resp.NotFound++
+			continue
+		}
+		job, _, ok := s.manualTranscriptJob(c.ClipID, c.AudioURL)
+		if !ok {
+			resp.NotFound++
+			continue
+		}
+		switch s.whisperPool.SubmitBulk(job) {
+		case bulkQueued:
+			resp.Queued = append(resp.Queued, c.ClipID)
+		case bulkDuplicate:
+			resp.AlreadyQueued = append(resp.AlreadyQueued, c.ClipID)
+		case bulkFull:
+			resp.QueueFull++
+		}
+	}
+	s.logger.Printf("transcribe: bulk request from %s: %d queued, %d already queued, %d not found, %d over capacity (queue depth: %d)",
+		getClientIP(r), len(resp.Queued), len(resp.AlreadyQueued), resp.NotFound, resp.QueueFull, s.whisperPool.queueDepth())
+	s.usageLogger.logUsage("transcript_bulk_request", map[string]string{
+		"client_ip": getClientIP(r),
+		"requested": strconv.Itoa(len(req.Clips)),
+		"queued":    strconv.Itoa(len(resp.Queued)),
+	})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // getListenerConfig extracts UDP ports and multicast addresses from streamConfig.
@@ -713,18 +787,18 @@ func main() {
 	}
 
 	server := &webrtcServer{
-		api:          api,
-		logger:       logger,
-		usageLogger:  usageLog,
-		streams:      make(map[string]*station, config.totalStreams),
-		regionGroups: make([]regionGroup, 0, len(config.streamGroups)),
-		hub:          hub,
-		clips:        make(map[string]clipRecord),
-		whisperPool:  pool,
-		feedback:     feedback,
-		audioLogDir:  config.AudioLogDir,
-		iceServers:   config.webrtcICEServers(),
-		clipJobs:     make(chan func(), 256),
+		api:         api,
+		logger:      logger,
+		usageLogger: usageLog,
+		streams:     make(map[string]*station, config.totalStreams),
+		stateGroups: make([]stateGroup, 0, len(config.streamGroups)),
+		hub:         hub,
+		clips:       make(map[string]clipRecord),
+		whisperPool: pool,
+		feedback:    feedback,
+		audioLogDir: config.AudioLogDir,
+		iceServers:  config.webrtcICEServers(),
+		clipJobs:    make(chan func(), 256),
 	}
 	server.startClipWorkers(4)
 	if len(config.ICEServers) == 0 {
@@ -742,13 +816,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	for _, region := range config.streamGroups {
-		apiRegion := regionGroup{
-			RegionName: region.RegionName,
-			SubGroups:  make([]subGroup, 0, len(region.SubGroups)),
+	for _, state := range config.streamGroups {
+		apiState := stateGroup{
+			StateName: state.StateName,
+			SubGroups: make([]subGroup, 0, len(state.SubGroups)),
 		}
 
-		for _, sg := range region.SubGroups {
+		for _, sg := range state.SubGroups {
 			apiSubGroup := subGroup{
 				GroupName: sg.GroupName,
 				Streams:   make([]streamInfo, 0, len(sg.Streams)),
@@ -756,7 +830,7 @@ func main() {
 
 			for _, cfg := range sg.Streams {
 				info := streamInfo{
-					RegionName: region.RegionName,
+					StateName:  state.StateName,
 					GroupName:  sg.GroupName,
 					ForestName: sg.GroupName,
 					ID:         nextStreamID(),
@@ -848,7 +922,7 @@ func main() {
 									ClipID:      clipID,
 									StreamID:    captureInfo.ID,
 									StreamName:  captureInfo.StreamName,
-									RegionName:  captureInfo.RegionName,
+									StateName:   captureInfo.StateName,
 									GroupName:   captureInfo.GroupName,
 									AudioURL:    audioURL,
 									DurationMs:  durationMs,
@@ -864,7 +938,9 @@ func main() {
 									duration: durationMs,
 								})
 								if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
-									server.requestClipTranscription(clipID)
+									if job, _, ok := server.manualTranscriptJob(clipID, ""); ok {
+										pool.Submit(job)
+									}
 								}
 							}
 							select {
@@ -903,9 +979,9 @@ func main() {
 					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
 
 					logger.Printf(
-						"configured stream %q in region %q, forest %q on UDP ports %v, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+						"configured stream %q in state %q, forest %q on UDP ports %v, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
 						info.StreamName,
-						region.RegionName,
+						state.StateName,
 						sg.GroupName,
 						ports,
 						frameSizeBytes,
@@ -939,9 +1015,9 @@ func main() {
 					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
 
 					logger.Printf(
-						"configured stream %q in region %q, forest %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
+						"configured stream %q in state %q, forest %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
 						info.StreamName,
-						region.RegionName,
+						state.StateName,
 						sg.GroupName,
 						ports[0],
 						frameSizeBytes,
@@ -965,10 +1041,10 @@ func main() {
 				}
 			}
 
-			apiRegion.SubGroups = append(apiRegion.SubGroups, apiSubGroup)
+			apiState.SubGroups = append(apiState.SubGroups, apiSubGroup)
 		}
 
-		server.regionGroups = append(server.regionGroups, apiRegion)
+		server.stateGroups = append(server.stateGroups, apiState)
 	}
 	go hub.index.build()
 
@@ -983,6 +1059,7 @@ func main() {
 	mux.HandleFunc("/stream-status", server.handleStreamStatus)
 	mux.HandleFunc("/offer", server.handleOffer)
 	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
+	mux.HandleFunc("/transcripts/request-bulk", server.handleBulkTranscriptRequest)
 	mux.HandleFunc("/transcripts/feedback", server.handleTranscriptFeedback)
 	mux.Handle("/transcripts", hub)
 	mux.HandleFunc("/recordings/download", recordingDownloadHandler(config.AudioLogDir, logger))
@@ -1264,52 +1341,60 @@ func loadConfig(path string) (appConfig, error) {
 		return appConfig{}, fmt.Errorf("%s has invalid httpPort %d", path, config.HTTPPort)
 	}
 
-	regions, totalStreams, err := normalizeRegions(path, config.Regions)
+	if len(config.LegacyRegions) > 0 {
+		if len(config.States) > 0 {
+			return appConfig{}, fmt.Errorf("%s sets both \"states\" and the legacy \"regions\"; use only \"states\"", path)
+		}
+		config.States = config.LegacyRegions
+		config.LegacyRegions = nil
+	}
+
+	states, totalStreams, err := normalizeStates(path, config.States)
 	if err != nil {
 		return appConfig{}, err
 	}
 
-	config.streamGroups = regions
+	config.streamGroups = states
 	config.totalStreams = totalStreams
 
 	return config, nil
 }
 
-func normalizeRegions(path string, rawRegions map[string]map[string][]streamConfig) ([]configuredRegion, int, error) {
-	if len(rawRegions) == 0 {
-		return nil, 0, fmt.Errorf("%s has no regions configured", path)
+func normalizeStates(path string, rawStates map[string]map[string][]streamConfig) ([]configuredState, int, error) {
+	if len(rawStates) == 0 {
+		return nil, 0, fmt.Errorf("%s has no states configured", path)
 	}
 
-	regionNames := make([]string, 0, len(rawRegions))
-	for regionName := range rawRegions {
-		regionNames = append(regionNames, regionName)
+	stateNames := make([]string, 0, len(rawStates))
+	for stateName := range rawStates {
+		stateNames = append(stateNames, stateName)
 	}
-	sort.Strings(regionNames)
+	sort.Strings(stateNames)
 
-	seenRegionNames := make(map[string]struct{}, len(regionNames))
+	seenStateNames := make(map[string]struct{}, len(stateNames))
 	seenGroupNames := make(map[string]struct{})
 	seenPorts := make(map[int]struct{})
-	regions := make([]configuredRegion, 0, len(regionNames))
+	states := make([]configuredState, 0, len(stateNames))
 	totalStreams := 0
 
-	for _, sourceRegionName := range regionNames {
-		regionName := strings.TrimSpace(sourceRegionName)
-		if regionName == "" {
-			return nil, 0, fmt.Errorf("%s has an empty region name", path)
+	for _, sourceStateName := range stateNames {
+		stateName := strings.TrimSpace(sourceStateName)
+		if stateName == "" {
+			return nil, 0, fmt.Errorf("%s has an empty state name", path)
 		}
-		if _, exists := seenRegionNames[regionName]; exists {
-			return nil, 0, fmt.Errorf("%s has duplicate region name %q after trimming whitespace", path, regionName)
+		if _, exists := seenStateNames[stateName]; exists {
+			return nil, 0, fmt.Errorf("%s has duplicate state name %q after trimming whitespace", path, stateName)
 		}
-		seenRegionNames[regionName] = struct{}{}
+		seenStateNames[stateName] = struct{}{}
 
-		rawSubGroups := rawRegions[sourceRegionName]
+		rawSubGroups := rawStates[sourceStateName]
 		if len(rawSubGroups) == 0 {
-			return nil, 0, fmt.Errorf("%s region %q has no groups configured", path, regionName)
+			return nil, 0, fmt.Errorf("%s state %q has no groups configured", path, stateName)
 		}
 
-		region := configuredRegion{
-			RegionName: regionName,
-			SubGroups:  make([]configuredSubGroup, 0, len(rawSubGroups)),
+		state := configuredState{
+			StateName: stateName,
+			SubGroups: make([]configuredSubGroup, 0, len(rawSubGroups)),
 		}
 
 		groupNames := make([]string, 0, len(rawSubGroups))
@@ -1321,18 +1406,18 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 		for _, sourceGroupName := range groupNames {
 			groupName := strings.TrimSpace(sourceGroupName)
 			if groupName == "" {
-				return nil, 0, fmt.Errorf("%s region %q has an empty group name", path, regionName)
+				return nil, 0, fmt.Errorf("%s state %q has an empty group name", path, stateName)
 			}
 
-			compositeKey := regionName + "/" + groupName
+			compositeKey := stateName + "/" + groupName
 			if _, exists := seenGroupNames[compositeKey]; exists {
-				return nil, 0, fmt.Errorf("%s region %q has duplicate group name %q", path, regionName, groupName)
+				return nil, 0, fmt.Errorf("%s state %q has duplicate group name %q", path, stateName, groupName)
 			}
 			seenGroupNames[compositeKey] = struct{}{}
 
 			rawStreams := rawSubGroups[sourceGroupName]
 			if len(rawStreams) == 0 {
-				return nil, 0, fmt.Errorf("%s region %q group %q has no streams configured", path, regionName, groupName)
+				return nil, 0, fmt.Errorf("%s state %q group %q has no streams configured", path, stateName, groupName)
 			}
 
 			subGroup := configuredSubGroup{
@@ -1343,7 +1428,7 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 			for i, stream := range rawStreams {
 				streamName := strings.TrimSpace(stream.StreamName)
 				if streamName == "" {
-					return nil, 0, fmt.Errorf("%s region %q group %q entry %d is missing streamName", path, regionName, groupName, i)
+					return nil, 0, fmt.Errorf("%s state %q group %q entry %d is missing streamName", path, stateName, groupName, i)
 				}
 
 				// Validate ports: UDPPorts (plural) takes precedence
@@ -1353,7 +1438,7 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 				} else if stream.UDPPort > 0 {
 					portsToValidate = []int{stream.UDPPort}
 				} else {
-					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has no ports configured (udpPort or udpPorts)", path, regionName, groupName, i)
+					return nil, 0, fmt.Errorf("%s state %q group %q entry %d has no ports configured (udpPort or udpPorts)", path, stateName, groupName, i)
 				}
 
 				if stream.MulticastAddr != "" && len(stream.MulticastAddrs) == 0 {
@@ -1367,17 +1452,17 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 					}
 				}
 				if len(stream.MulticastAddrs) > 1 && len(stream.MulticastAddrs) != len(portsToValidate) {
-					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has %d multicast addrs for %d ports; provide one address or one per port", path, regionName, groupName, i, len(stream.MulticastAddrs), len(portsToValidate))
+					return nil, 0, fmt.Errorf("%s state %q group %q entry %d has %d multicast addrs for %d ports; provide one address or one per port", path, stateName, groupName, i, len(stream.MulticastAddrs), len(portsToValidate))
 				}
 
 				if len(portsToValidate) > 4 {
-					return nil, 0, fmt.Errorf("%s region %q group %q entry %d has %d ports; maximum is 4", path, regionName, groupName, i, len(portsToValidate))
+					return nil, 0, fmt.Errorf("%s state %q group %q entry %d has %d ports; maximum is 4", path, stateName, groupName, i, len(portsToValidate))
 				}
 
 				// Validate each port
 				for _, port := range portsToValidate {
 					if port < 1 || port > 65535 {
-						return nil, 0, fmt.Errorf("%s region %q group %q entry %d has invalid UDP port %d", path, regionName, groupName, i, port)
+						return nil, 0, fmt.Errorf("%s state %q group %q entry %d has invalid UDP port %d", path, stateName, groupName, i, port)
 					}
 					if _, exists := seenPorts[port]; exists {
 						return nil, 0, fmt.Errorf("%s has duplicate UDP port %d", path, port)
@@ -1388,14 +1473,14 @@ func normalizeRegions(path string, rawRegions map[string]map[string][]streamConf
 				subGroup.Streams = append(subGroup.Streams, stream)
 			}
 
-			region.SubGroups = append(region.SubGroups, subGroup)
+			state.SubGroups = append(state.SubGroups, subGroup)
 			totalStreams += len(subGroup.Streams)
 		}
 
-		regions = append(regions, region)
+		states = append(states, state)
 	}
 
-	return regions, totalStreams, nil
+	return states, totalStreams, nil
 }
 
 func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
@@ -1531,7 +1616,7 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 // audioLogDir (the primary, user-facing archive — served over HTTP and
 // referenced by clip playback). Returns the absolute file path and the
 // relative URL path for browser playback.
-// Path: <audioLogDir>/<region>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
+// Path: <audioLogDir>/<state>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
 //
 // When backupDir is non-empty, the identical WAV bytes are also written to
 // the same relative path under backupDir — a redundant copy for disaster
@@ -1542,7 +1627,7 @@ func saveAudioClip(audioLogDir, backupDir string, info streamInfo, samples []int
 	safe := func(s string) string {
 		return unsafeChars.ReplaceAllString(s, "_")
 	}
-	relDir := filepath.Join(safe(info.RegionName), safe(info.GroupName), safe(info.StreamName))
+	relDir := filepath.Join(safe(info.StateName), safe(info.GroupName), safe(info.StreamName))
 	// ISO 8601 UTC — colons replaced with underscores for Windows filename safety.
 	ts := start.UTC().Format("2006-01-02T15_04_05Z")
 	filename := fmt.Sprintf("%s_%s.wav", safe(info.StreamName), ts)
@@ -1574,7 +1659,7 @@ func saveAudioClip(audioLogDir, backupDir string, info streamInfo, samples []int
 	}
 
 	// Build a URL-style relative path using forward slashes.
-	relURL := "/audio/" + safe(info.RegionName) + "/" + safe(info.GroupName) + "/" + safe(info.StreamName) + "/" + filename
+	relURL := "/audio/" + safe(info.StateName) + "/" + safe(info.GroupName) + "/" + safe(info.StreamName) + "/" + filename
 	return absPath, relURL, nil
 }
 
@@ -2004,7 +2089,7 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(s.regionGroups); err != nil {
+	if err := json.NewEncoder(w).Encode(s.stateGroups); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}
 }

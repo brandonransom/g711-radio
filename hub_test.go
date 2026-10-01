@@ -48,7 +48,7 @@ func TestRecordingHistoryIncludesWAVFilesAndMergesTranscripts(t *testing.T) {
 	hub := newTranscriptHub(logDir, "", logger)
 	info := streamInfo{
 		ID:         "current-stream-id",
-		RegionName: "New Mexico",
+		StateName: "New Mexico",
 		GroupName:  "Cibola NF",
 		StreamName: "Capilla",
 	}
@@ -124,13 +124,13 @@ func TestRecordingHistoryUsesWAVWithoutTranscriptLog(t *testing.T) {
 	hub := newTranscriptHub(t.TempDir(), "", logger)
 	info := streamInfo{
 		ID:         "stream-1",
-		RegionName: "Region",
+		StateName: "State",
 		GroupName:  "Group",
 		StreamName: "Dispatch",
 	}
 
 	filename := "Dispatch_2026-09-25T12_00_00Z.wav"
-	wavDir := filepath.Join(audioDir, "Region", "Group", "Dispatch")
+	wavDir := filepath.Join(audioDir, "State", "Group", "Dispatch")
 	if err := os.MkdirAll(wavDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -163,12 +163,12 @@ func TestRecordingHistoryAllTimeReturnsPreBootRecordings(t *testing.T) {
 	hub := newTranscriptHub(t.TempDir(), "", logger)
 	info := streamInfo{
 		ID:         "stream-1",
-		RegionName: "Region",
+		StateName: "State",
 		GroupName:  "Group",
 		StreamName: "Dispatch",
 	}
 
-	wavDir := filepath.Join(audioDir, "Region", "Group", "Dispatch")
+	wavDir := filepath.Join(audioDir, "State", "Group", "Dispatch")
 	if err := os.MkdirAll(wavDir, 0755); err != nil {
 		t.Fatal(err)
 	}
