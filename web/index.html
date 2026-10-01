@@ -730,16 +730,16 @@
       <div id="streams" class="streams"></div>
 
       <div id="statusPanel" class="status" hidden>
-        <strong>Connection</strong>
+        <strong>Live audio</strong>
         <div id="statusNotice" class="stream-notice" style="margin-bottom:6px" hidden></div>
-        <div id="statusText">Idle.</div>
+        <div id="statusText" role="status">Not connected to live audio.</div>
         <div class="vu-meter" aria-label="Connection level meter">
           <div id="connectionVuGreen" class="vu-meter-bar vu-meter-green"></div>
           <div id="connectionVuYellow" class="vu-meter-bar vu-meter-yellow"></div>
           <div id="connectionVuRed" class="vu-meter-bar vu-meter-red"></div>
         </div>
         <div class="row">
-          <button id="disconnectBtn" class="secondary" type="button" disabled>Disconnect</button>
+          <button id="disconnectBtn" class="secondary" type="button" disabled>Disconnect audio</button>
         </div>
         <audio id="player" controls autoplay playsinline></audio>
       </div>
@@ -1852,7 +1852,17 @@
       };
 
       function setStatus(text) {
+        delete statusText.dataset.audioState;
         statusText.textContent = text;
+      }
+
+      function updateLiveAudioStatus() {
+        if (currentConnectionState !== "connected") return;
+        if (player.paused) {
+          setStatus("Live audio paused. Press Play in the audio controls to listen.");
+        } else {
+          setLiveAudioStatus(statusText, currentStreamId, true);
+        }
       }
 
       function updatePageTitle() {
@@ -2002,10 +2012,10 @@
           const btn = launchRoot.querySelector(".stream-start-toggle");
           if (btn && (currentConnectionState === "connected" || currentConnectionState === "connecting" || currentConnectionState === "reconnecting")) {
             btn.classList.add("started");
-            btn.textContent = currentConnectionState === "connected" ? "Stream Started" : currentConnectionState === "reconnecting" ? "Reconnecting..." : "Connecting...";
+            btn.textContent = currentConnectionState === "connected" ? "Live audio connected" : currentConnectionState === "reconnecting" ? "Reconnecting audio..." : "Connecting to live audio...";
           } else if (btn && currentConnectionState === "idle") {
             btn.classList.remove("started");
-            btn.textContent = "Start Stream";
+            btn.textContent = "Connect to live audio";
           }
           return;
         }
@@ -2035,7 +2045,7 @@
         titleRow.append(title, buildFavoriteToggle(sharePageStream));
 
         const description = document.createElement("p");
-        description.textContent = "Ready to connect.";
+        description.textContent = "Connect to listen live. Recordings and transcripts remain available without connecting.";
 
         const actions = document.createElement("div");
         actions.className = "row";
@@ -2043,7 +2053,7 @@
         const startStreamButton = document.createElement("button");
         startStreamButton.type = "button";
         startStreamButton.className = "stream-start-toggle";
-        startStreamButton.textContent = "Start Stream";
+        startStreamButton.textContent = "Connect to live audio";
         startStreamButton.addEventListener("click", async () => {
           if (!pc && !connectingStreamId && sharePageStream) {
             void connect(sharePageStream);
@@ -2056,7 +2066,7 @@
           }
 
           startStreamButton.classList.add("started");
-          startStreamButton.textContent = "Stream Started";
+          startStreamButton.textContent = "Connecting to live audio...";
         });
 
         const allStreamsButton = document.createElement("button");
@@ -2289,15 +2299,15 @@
           stopTranscription();
           syncURL(null);
         }
+        setConnectionState("idle");
         renderLaunchView();
         renderStreams();
-        setConnectionState("idle");
 
         if (updateStatus) {
           if (showShareLanding()) {
-            setStatus(`Ready to start ${formatStreamDisplayName(sharePageStream)}.`);
+            setLiveAudioStatus(statusText, sharePageStream.id, false);
           } else {
-            setStatus("Disconnected.");
+            setStatus("Not connected to live audio.");
           }
         }
       }
@@ -2314,7 +2324,7 @@
         const delaySecs = (delayMs / 1000).toFixed(1);
 
         setConnectionState("reconnecting");
-        setStatus(`${formatStreamDisplayName(stream)}: Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts})...`);
+        setStatus(`Live audio interrupted. Reconnecting in ${delaySecs}s (attempt ${reconnectAttempts})...`);
         renderLaunchView();
 
         if (reconnectTimeout) {
@@ -2347,7 +2357,7 @@
         renderLaunchView();
         renderStreams();
         setConnectionState("connecting");
-        setStatus(`Creating peer connection for ${formatStreamDisplayName(stream)}...`);
+        setStatus("Connecting to live audio...");
 
         const connection = new RTCPeerConnection();
         pc = connection;
@@ -2367,7 +2377,9 @@
           try {
             await player.play();
           } catch (error) {
-            setStatus(`Connected, but autoplay was blocked: ${error.message}`);
+            if (pc === connection) {
+              setStatus(`Audio could not start. Press Play in the audio controls to retry: ${error.message}`);
+            }
           }
           startConnectionMeter(event.track);
           event.track.addEventListener("unmute", () => pulseVu("connection", 0.9));
@@ -2383,8 +2395,8 @@
           }
 
           if (connection.connectionState === "connected") {
-            setStatus(`${currentStreamName}: connected`);
             setConnectionState("connected");
+            updateLiveAudioStatus();
             connectingStreamId = null;
             disconnectBtn.disabled = false;
             reconnectAttempts = 0;
@@ -2399,7 +2411,7 @@
             // doing so on every brief network hiccup is what caused audio to
             // reset during otherwise-healthy streams.
             setConnectionState("reconnecting");
-            setStatus(`${currentStreamName}: connection interrupted, attempting to recover...`);
+            setStatus("Live audio interrupted. Attempting to reconnect...");
             return;
           }
 
@@ -2419,7 +2431,7 @@
           await connection.setLocalDescription(offer);
           await waitForIceGatheringComplete(connection);
 
-          setStatus(`Sending offer for ${formatStreamDisplayName(stream)}...`);
+          setStatus("Connecting to live audio...");
           const response = await fetch("/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2439,7 +2451,11 @@
           if (connectToken === activeConnectToken && pc === connection) {
             connectingStreamId = null;
             renderStreams();
-            setStatus(`Waiting for ${formatStreamDisplayName(stream)} audio...`);
+            if (connection.connectionState === "connected") {
+              updateLiveAudioStatus();
+            } else {
+              setStatus("Connecting to live audio...");
+            }
           }
         } catch (error) {
           if (connectToken === activeConnectToken && pc === connection) {
@@ -2483,7 +2499,7 @@
           sharePageStream = requestedStream;
           renderLaunchView();
           renderStreams();
-          setStatus(`Ready to start ${formatStreamDisplayName(requestedStream)}. Click "Start Stream" to connect.`);
+          setLiveAudioStatus(statusText, requestedStream.id, false);
           startTranscription(requestedStream.id);
           return;
         }
@@ -2509,6 +2525,8 @@
       }
 
       disconnectBtn.addEventListener("click", () => disconnect(true, Boolean(sharePageStream)));
+      player.addEventListener("play", updateLiveAudioStatus);
+      player.addEventListener("pause", updateLiveAudioStatus);
 
       // Keep the favorites card in step with stars toggled in other tabs.
       window.addEventListener("storage", (event) => {

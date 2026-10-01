@@ -628,8 +628,8 @@
       <p class="subtitle" id="pageSubtitle"></p>
 
       <div class="row">
-        <button id="connectAllBtn" type="button" disabled>Connect All</button>
-        <button id="disconnectAllBtn" class="secondary" type="button" disabled>Disconnect All</button>
+        <button id="connectAllBtn" type="button" disabled>Connect all audio</button>
+        <button id="disconnectAllBtn" class="secondary" type="button" disabled>Disconnect all audio</button>
       </div>
 
       <div id="content"></div>
@@ -896,7 +896,17 @@
       }
 
       function setStatus(card, text) {
+        delete card.statusEl.dataset.audioState;
         card.statusEl.textContent = text;
+      }
+
+      function updateLiveAudioStatus(card) {
+        if (!card.pc || card.pc.connectionState !== "connected") return;
+        if (card.audioEl.paused) {
+          setStatus(card, "Live audio paused. Press Play in the audio controls to listen.");
+        } else {
+          setLiveAudioStatus(card.statusEl, card.stream.id, true);
+        }
       }
 
       function updateAllButtons() {
@@ -914,22 +924,26 @@
         card.audioEl.srcObject = null;
       }
 
-      function disconnectCard(card, statusText = "Disconnected.") {
+      function disconnectCard(card, statusText = "") {
         card.connecting = false;
         closeCard(card);
-        card.button.textContent = "Connect";
+        card.button.textContent = "Connect to live audio";
         card.button.classList.remove("connected");
         card.button.disabled = false;
-        setStatus(card, statusText);
+        if (statusText) {
+          setStatus(card, statusText);
+        } else {
+          setLiveAudioStatus(card.statusEl, card.stream.id, false);
+        }
         updateAllButtons();
       }
 
       async function connectCard(card) {
         if (card.pc || card.connecting) return;
         card.connecting = true;
-        card.button.textContent = "Connecting...";
+        card.button.textContent = "Connecting to live audio...";
         card.button.disabled = true;
-        setStatus(card, "Creating peer connection...");
+        setStatus(card, "Connecting to live audio...");
         updateAllButtons();
 
         const connectToken = ++card.connectToken;
@@ -947,7 +961,9 @@
           try {
             await card.audioEl.play();
           } catch (error) {
-            setStatus(card, `Connected, but autoplay was blocked: ${error.message}`);
+            if (card.pc === connection) {
+              setStatus(card, `Audio could not start. Press Play in the audio controls to retry: ${error.message}`);
+            }
           }
           startMeter(card, event.track);
           event.track.addEventListener("unmute", () => pulseVu(card, 0.9));
@@ -959,21 +975,21 @@
 
           if (connection.connectionState === "connected") {
             card.connecting = false;
-            card.button.textContent = "Disconnect";
+            card.button.textContent = "Disconnect audio";
             card.button.classList.add("connected");
             card.button.disabled = false;
-            setStatus(card, "Connected.");
+            updateLiveAudioStatus(card);
             updateAllButtons();
             return;
           }
 
           if (connection.connectionState === "disconnected") {
-            setStatus(card, "Connection interrupted, attempting to recover...");
+            setStatus(card, "Live audio interrupted. Attempting to reconnect...");
             return;
           }
 
           if (["failed", "closed"].includes(connection.connectionState)) {
-            disconnectCard(card, connection.connectionState === "failed" ? "Connection failed." : "Disconnected.");
+            disconnectCard(card, connection.connectionState === "failed" ? "Unable to connect to live audio. Select Connect to live audio to retry." : "");
           }
         });
 
@@ -991,7 +1007,7 @@
             connection.addEventListener("icegatheringstatechange", check);
           });
 
-          setStatus(card, "Sending offer...");
+          setStatus(card, "Connecting to live audio...");
           const response = await fetch("/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1006,7 +1022,11 @@
           await connection.setRemoteDescription(answer);
 
           if (connectToken === card.connectToken && card.pc === connection) {
-            setStatus(card, "Waiting for audio...");
+            if (connection.connectionState === "connected") {
+              updateLiveAudioStatus(card);
+            } else {
+              setStatus(card, "Connecting to live audio...");
+            }
           }
         } catch (error) {
           if (connectToken === card.connectToken && card.pc === connection) {
@@ -1028,7 +1048,8 @@
 
         const statusEl = document.createElement("div");
         statusEl.className = "stream-status";
-        statusEl.textContent = "Idle.";
+        statusEl.setAttribute("role", "status");
+        setLiveAudioStatus(statusEl, stream.id, false);
 
         const vu = document.createElement("div");
         vu.className = "vu-meter";
@@ -1043,7 +1064,7 @@
 
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = "Connect";
+        button.textContent = "Connect to live audio";
 
         const audioEl = document.createElement("audio");
         audioEl.controls = true;
@@ -1076,6 +1097,8 @@
             void connectCard(card);
           }
         });
+        audioEl.addEventListener("play", () => updateLiveAudioStatus(card));
+        audioEl.addEventListener("pause", () => updateLiveAudioStatus(card));
 
         cards.set(stream.id, card);
         return el;

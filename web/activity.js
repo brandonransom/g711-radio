@@ -65,7 +65,31 @@
       if (on) anyOnPage = true;
     }
     setTabIcon(anyOnPage);
+    for (const el of document.querySelectorAll("[data-audio-state]")) {
+      updateAudioStatus(el);
+    }
   }
+
+  function updateAudioStatus(el) {
+    const on = active.has(el.dataset.audioStreamId);
+    let text;
+    if (el.dataset.audioState === "connected") {
+      text = on
+        ? "Live audio connected. Transmission in progress."
+        : "Live audio connected. Waiting for transmissions.";
+    } else {
+      text = on
+        ? "Transmission in progress. Connect to hear live audio."
+        : "Not connected to live audio. Connect to listen for transmissions.";
+    }
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  window.setLiveAudioStatus = (el, streamId, connected) => {
+    el.dataset.audioStreamId = streamId;
+    el.dataset.audioState = connected ? "connected" : "disconnected";
+    updateAudioStatus(el);
+  };
 
   async function poll() {
     try {
