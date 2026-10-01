@@ -239,6 +239,72 @@ If local mode can't start (missing binary or model), the server logs a warning a
 | `medium` | 1.5 GB | **Recommended** for radio audio quality |
 | `large-v3` | 3 GB | Best accuracy, slowest |
 
+## Transcript Feedback & Prompt Mining
+
+Listeners can rate a transcript or type the correct wording directly in the
+Recordings & Transcripts panel, on both the individual stream page and the
+multi-stream pages. There is no automatic learning — whisper doesn't adapt from
+corrections — but a corpus of corrected transcripts paired with their WAVs is
+what makes the two tuning moves below possible.
+
+### Where corrections go
+
+Each submission `POST`s to `/transcripts/feedback` and is appended as a row to
+`transcript-feedback.csv` inside `audioLogDir`, beside `transcripts.csv` and the
+audio clips themselves. Rows are keyed by **WAV filename**, not clip ID: clip
+IDs are only unique within one process lifetime, so a correction keyed by one
+alone becomes unpairable with its audio after a restart.
+
+The CSV header is append-only — new columns are added on the end and existing
+files are never rewritten, so historical rows keep their meaning. The `original`
+transcript is stored next to the `corrected` one so word error rate can be
+computed per settings change rather than merely counting thumbs. A correction
+submitted with no explicit rating is recorded as `bad`. Submissions carrying
+neither a rating nor a correction, or no clip identity at all, are rejected —
+they would only dilute the corpus.
+
+If `audioLogDir` is unset the store is disabled and the endpoint returns 503.
+
+### Mining a better prompt
+
+`cmd/mine-prompt` reads that CSV and reports what whisper is actually getting
+wrong, then drafts a replacement `whisper.inferenceParams.prompt`:
+
+```bash
+go run ./cmd/mine-prompt -in D:\audio\transcript-feedback.csv
+go run ./cmd/mine-prompt -in D:\audio\transcript-feedback.csv -stream "Pomeroy Net"
+go run ./cmd/mine-prompt -in D:\audio\transcript-feedback.csv -json
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-in` | — | Path to `transcript-feedback.csv`. Required. |
+| `-stream` | all | Only analyze one stream, by name. Vocabulary is often net-specific. |
+| `-top` | `25` | How many missed words and confusions to list. |
+| `-min-count` | `2` | Ignore words missed fewer than this many times, which are usually one-off noise. |
+| `-max-tokens` | `224` | Prompt budget. whisper's limit is `n_text_ctx/2`, which is 224 for every current model; anything beyond it is silently truncated. |
+| `-json` | off | Emit the drafted prompt as a `config.json` snippet instead of the report. |
+
+A clip counts as ground truth when it carries a correction **or** is rated
+`good` with no correction — the latter asserts whisper got it right. Counting
+both is what keeps the error rate honest; measuring only clips someone bothered
+to fix would overstate it enormously. Casing differences are normalized away, so
+only words actually misheard are counted.
+
+The drafted prompt is assembled by greedily selecting whole corrected
+transcripts that cover the most error-weighted vocabulary, not by emitting a
+word list. The prompt is conditioning context that whisper continues from, so
+real traffic primes real traffic, whereas a comma-separated word list primes the
+model to emit comma-separated word lists.
+
+**Read the draft before using it.** Because the prompt is fake preceding context
+rather than an instruction, whisper will hallucinate phrases from it into silent
+or noisy clips if it is over-stuffed. Keep it representative rather than long,
+then re-run the tool after the change to confirm the error rate actually fell.
+
+The full loop: rate or correct in the browser → `transcript-feedback.csv` →
+`mine-prompt` → updated `inferenceParams.prompt` → re-measure.
+
 ## Remote Transcription Server
 
 To offload transcription from the WebRTC host, run whisper.cpp's `whisper-server` on a more powerful machine and point `remoteServers` at it. No code from this repo runs on the transcription host.
