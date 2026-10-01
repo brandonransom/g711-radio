@@ -265,6 +265,23 @@ they would only dilute the corpus.
 
 If `audioLogDir` is unset the store is disabled and the endpoint returns 503.
 
+### Shared corrections
+
+A correction replaces whisper's text for **every** listener, not just the one
+who typed it. It is pushed live over the transcript SSE stream (a `correction`
+event) and overlaid on `/transcripts/history`, so pages opened later see it
+too. Corrected rows carry an "edited" tag; hovering shows what whisper heard.
+
+- **Latest wins.** If several listeners correct the same recording, the most
+  recent submission is what everyone sees. Every submission stays in the CSV.
+- **Reverting.** Submitting whisper's original text as the correction removes
+  the shared correction. A bare rating never changes the displayed text.
+- **Source of truth.** The CSV is the record. On startup the server replays it
+  (keyed by recording URL) to rebuild the shown corrections. Correction events
+  are never written to the per-stream transcript logs.
+- **Trust.** Anyone who can reach the page can change what others see. Each row
+  records the client IP, so abuse can be traced and reverted.
+
 ### Mining a better prompt
 
 `cmd/mine-prompt` reads that CSV and reports what whisper is actually getting

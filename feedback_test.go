@@ -223,3 +223,149 @@ func TestFeedbackClampsOversizedText(t *testing.T) {
 		t.Error("truncation split a multi-byte rune")
 	}
 }
+
+func TestFeedbackCorrectionIsSharedAndBroadcast(t *testing.T) {
+	s, path := newFeedbackServer(t)
+	s.hub = newTranscriptHub("", "", log.New(io.Discard, "", 0))
+	s.streams = map[string]*station{
+		"pomeroy": {info: streamInfo{ID: "pomeroy", StreamName: "Pomeroy Net", RegionName: "Oregon", GroupName: "Umatilla NF"}},
+	}
+	subID, ch := s.hub.subscribe()
+	defer s.hub.unsubscribe(subID)
+
+	const url = "/audio/Oregon/Umatilla_NF/Pomeroy_Net/a.wav"
+	resp := postFeedback(t, s, map[string]string{
+		"streamId":    "pomeroy",
+		"wavFilename": "a.wav",
+		"audioUrl":    url,
+		"original":    "engine six thirty to dispatch",
+		"corrected":   "Engine 632 to dispatch",
+	})
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", resp.Code)
+	}
+
+	select {
+	case ev := <-ch:
+		if ev.Type != "correction" || ev.Corrected != "Engine 632 to dispatch" || ev.Text != "engine six thirty to dispatch" {
+			t.Errorf("event = %+v", ev)
+		}
+		// Stream pages filter SSE by stream ID, so it must be resolved.
+		if ev.StreamID != "pomeroy" {
+			t.Errorf("streamId = %q, want pomeroy", ev.StreamID)
+		}
+	default:
+		t.Fatal("no correction event was broadcast")
+	}
+
+	// The configured stream's metadata wins over the client's display name.
+	if got := readFeedbackCSV(t, path)[1]; got[3] != "Pomeroy Net" || got[4] != "Oregon" {
+		t.Errorf("stream metadata = %q/%q", got[3], got[4])
+	}
+
+	history := []transcriptEvent{{Type: "clip", AudioURL: url}, {Type: "clip", AudioURL: "/audio/other.wav"}}
+	s.feedback.ApplyToHistory(history)
+	if history[0].Corrected != "Engine 632 to dispatch" || history[1].Corrected != "" {
+		t.Errorf("history = %+v", history)
+	}
+
+	// A restart rebuilds the shared view from the CSV.
+	reloaded := newFeedbackStore(path, log.New(io.Discard, "", 0))
+	if c, ok := reloaded.Correction(url); !ok || c.Corrected != "Engine 632 to dispatch" {
+		t.Errorf("after reload = %+v, %v", c, ok)
+	}
+}
+
+func TestFeedbackLatestCorrectionWinsAndRevertRestoresWhisper(t *testing.T) {
+	s, path := newFeedbackServer(t)
+	s.hub = newTranscriptHub("", "", log.New(io.Discard, "", 0))
+	subID, ch := s.hub.subscribe()
+	defer s.hub.unsubscribe(subID)
+
+	const url = "/audio/r/g/s/a.wav"
+	post := func(corrected, rating string) {
+		t.Helper()
+		resp := postFeedback(t, s, map[string]string{
+			"audioUrl": url, "original": "whisper text", "corrected": corrected, "rating": rating,
+		})
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("status = %d", resp.Code)
+		}
+	}
+	drain := func() []transcriptEvent {
+		var evs []transcriptEvent
+		for {
+			select {
+			case ev := <-ch:
+				evs = append(evs, ev)
+			default:
+				return evs
+			}
+		}
+	}
+
+	post("first fix", "")
+	post("second fix", "")
+	if c, _ := s.feedback.Correction(url); c.Corrected != "second fix" {
+		t.Errorf("latest = %q, want second fix", c.Corrected)
+	}
+	drain()
+
+	// Resubmitting the same text, or a bare rating, changes nothing anyone
+	// sees, so nothing is broadcast.
+	post("second fix", "")
+	post("", "good")
+	if evs := drain(); len(evs) != 0 {
+		t.Errorf("unchanged display broadcast %+v", evs)
+	}
+
+	// Submitting whisper's own text reverts the recording.
+	post("whisper text", "good")
+	if _, ok := s.feedback.Correction(url); ok {
+		t.Error("correction still shown after revert")
+	}
+	evs := drain()
+	if len(evs) != 1 || evs[0].Type != "correction" || evs[0].Corrected != "" {
+		t.Errorf("revert events = %+v", evs)
+	}
+
+	if _, ok := newFeedbackStore(path, log.New(io.Discard, "", 0)).Correction(url); ok {
+		t.Error("revert was not preserved across a reload")
+	}
+}
+
+func TestFeedbackIgnoresCorrectionsWithoutRecordingURL(t *testing.T) {
+	s, _ := newFeedbackServer(t)
+	resp := postFeedback(t, s, map[string]string{
+		"wavFilename": "a.wav", "audioUrl": "https://elsewhere/x.wav", "corrected": "text",
+	})
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", resp.Code)
+	}
+	if len(s.feedback.corrections) != 0 {
+		t.Errorf("non-archive URL was shared: %+v", s.feedback.corrections)
+	}
+}
+
+func TestStreamForAudioURLMatchesRecordingHistoryPaths(t *testing.T) {
+	s := &webrtcServer{streams: map[string]*station{
+		"pomeroy": {info: streamInfo{ID: "pomeroy", StreamName: "Pomeroy Net", RegionName: "Oregon", GroupName: "Umatilla NF"}},
+		"capilla": {info: streamInfo{ID: "capilla", StreamName: "Capilla", RegionName: "New Mexico", GroupName: "Cibola NF"}},
+	}}
+	tests := []struct {
+		url    string
+		wantID string
+	}{
+		{"/audio/Oregon/Umatilla_NF/Pomeroy_Net/2026-09-30T12_00_00Z.wav", "pomeroy"},
+		{"/audio/New_Mexico/Cibola_NF/Capilla/a.wav", "capilla"},
+		{"/audio/Oregon/Umatilla_NF/Unknown/a.wav", ""},
+		{"/audio/Oregon/Umatilla_NF/Pomeroy_Net/../../x.wav", ""},
+		{"/audio/Oregon/Umatilla_NF/Pomeroy_Net/", ""},
+	}
+	for _, tt := range tests {
+		info, ok := s.streamForAudioURL(tt.url)
+		if ok != (tt.wantID != "") || info.ID != tt.wantID {
+			t.Errorf("streamForAudioURL(%q) = %q, %v; want %q", tt.url, info.ID, ok, tt.wantID)
+		}
+	}
+}

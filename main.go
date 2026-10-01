@@ -406,6 +406,24 @@ func (s *webrtcServer) requestClipTranscription(clipID string) bool {
 	return true
 }
 
+// streamForAudioURL finds the configured stream whose recording directory an
+// /audio/<region>/<group>/<stream>/<file>.wav URL points into, using the same
+// sanitized names RecordingHistory builds those URLs from. Matching against
+// configured streams also confines the fallback to real recording folders.
+func (s *webrtcServer) streamForAudioURL(audioURL string) (streamInfo, bool) {
+	parts := strings.Split(strings.TrimPrefix(audioURL, "/audio/"), "/")
+	if len(parts) != 4 || parts[3] == "" || parts[3] == ".." {
+		return streamInfo{}, false
+	}
+	safe := func(v string) string { return unsafeChars.ReplaceAllString(v, "_") }
+	for _, st := range s.streams {
+		if safe(st.info.RegionName) == parts[0] && safe(st.info.GroupName) == parts[1] && safe(st.info.StreamName) == parts[2] {
+			return st.info, true
+		}
+	}
+	return streamInfo{}, false
+}
+
 func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -438,13 +456,25 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 		// Strip the leading /audio/ prefix and convert to a local path.
 		rel := strings.TrimPrefix(req.AudioURL, "/audio/")
 		wavPath := filepath.Join(s.audioLogDir, filepath.FromSlash(rel))
-		if _, err := os.Stat(wavPath); err == nil {
-			s.logger.Printf("transcribe: clip %q not in registry, using audioUrl fallback wav=%s", req.ClipID, wavPath)
+		info, known := s.streamForAudioURL(req.AudioURL)
+		if !known || !strings.HasPrefix(req.AudioURL, "/audio/") {
+			s.logger.Printf("transcribe: clip %q audioUrl %q does not belong to a configured stream", req.ClipID, req.AudioURL)
+		} else if _, err := os.Stat(wavPath); err == nil {
+			// The stream identity and recording time must match what the
+			// history endpoint served for this row: the stream page filters
+			// SSE by stream ID, the multi-stream page keys rows by it, and
+			// the per-stream log is chosen by stream name.
+			start, ok := recordingTimestamp(filepath.Base(filepath.FromSlash(req.AudioURL)))
+			if !ok {
+				start = time.Now()
+			}
+			s.logger.Printf("transcribe: clip %q not in registry, using audioUrl fallback wav=%s stream=%s", req.ClipID, wavPath, info.StreamName)
 			s.whisperPool.Submit(transcriptJob{
+				info:     info,
 				clipID:   req.ClipID,
 				wavPath:  wavPath,
 				audioURL: req.AudioURL,
-				start:    time.Now(),
+				start:    start,
 				manual:   true,
 			})
 			s.usageLogger.logUsage("transcript_request", map[string]string{
@@ -960,6 +990,7 @@ func main() {
 		if events == nil {
 			events = []transcriptEvent{}
 		}
+		feedback.ApplyToHistory(events)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(events)
 	})

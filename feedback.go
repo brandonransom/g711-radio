@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -74,21 +75,136 @@ type feedbackStore struct {
 	mu     sync.Mutex
 	path   string
 	logger *log.Logger
+
+	// corrections is the latest listener correction for each recording,
+	// keyed by audio URL — unlike a bare WAV filename, that is unique across
+	// streams. It is what every browser is shown in place of whisper's text,
+	// and is rebuilt from the CSV at startup so it survives restarts.
+	corrections map[string]sharedCorrection
+}
+
+// sharedCorrection is the correction currently displayed for one recording.
+type sharedCorrection struct {
+	Original  string // what whisper produced
+	Corrected string
 }
 
 func newFeedbackStore(path string, logger *log.Logger) *feedbackStore {
+	s := &feedbackStore{path: path, logger: logger, corrections: make(map[string]sharedCorrection)}
 	if path != "" {
 		_ = os.MkdirAll(filepath.Dir(path), 0755)
+		if err := s.loadCorrections(); err != nil && !os.IsNotExist(err) {
+			logger.Printf("transcript feedback: load corrections from %s: %v", path, err)
+		}
 	}
-	return &feedbackStore{path: path, logger: logger}
+	return s
 }
 
 func (s *feedbackStore) enabled() bool { return s != nil && s.path != "" }
 
-// Append writes one feedback row, creating the file and header if needed.
-func (s *feedbackStore) Append(rec feedbackRecord) error {
+// loadCorrections replays the CSV in order so the latest row for each
+// recording wins, exactly as it did while the server was running. Columns
+// are located by header name since the header only ever grows.
+func (s *feedbackStore) loadCorrections() error {
+	f, err := os.Open(s.path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+	header, err := r.Read()
+	if err != nil {
+		if err == io.EOF {
+			return nil
+		}
+		return err
+	}
+	col := make(map[string]int, len(header))
+	for i, name := range header {
+		col[strings.TrimSpace(name)] = i
+	}
+	urlCol, okURL := col["audioUrl"]
+	origCol, okOrig := col["original"]
+	corrCol, okCorr := col["corrected"]
+	if !okURL || !okOrig || !okCorr {
+		return fmt.Errorf("missing audioUrl/original/corrected columns")
+	}
+	field := func(row []string, i int) string {
+		if i < len(row) {
+			return row[i]
+		}
+		return ""
+	}
+	for {
+		row, err := r.Read()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		s.applyCorrection(field(row, urlCol), field(row, origCol), field(row, corrCol))
+	}
+}
+
+// applyCorrection updates the shared correction for one recording and
+// reports whether what listeners see changed. Callers hold s.mu, or are
+// loading before the store is shared.
+//
+// A correction identical to whisper's output reverts the recording to
+// whisper's text, so a bad edit can be undone by anyone — latest wins. A
+// row with no correction (a bare rating) leaves the display alone.
+func (s *feedbackStore) applyCorrection(audioURL, original, corrected string) bool {
+	if !strings.HasPrefix(audioURL, "/audio/") || corrected == "" {
+		return false
+	}
+	original, corrected = collapseSpace(original), collapseSpace(corrected)
+	prev, had := s.corrections[audioURL]
+	if corrected == original {
+		delete(s.corrections, audioURL)
+		return had
+	}
+	next := sharedCorrection{Original: original, Corrected: corrected}
+	s.corrections[audioURL] = next
+	return !had || prev != next
+}
+
+// Correction returns the correction currently shown for a recording.
+func (s *feedbackStore) Correction(audioURL string) (sharedCorrection, bool) {
 	if !s.enabled() {
-		return nil
+		return sharedCorrection{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.corrections[audioURL]
+	return c, ok
+}
+
+// ApplyToHistory attaches the current correction to every history event for
+// a corrected recording, so a page load shows what live listeners see.
+func (s *feedbackStore) ApplyToHistory(events []transcriptEvent) {
+	if !s.enabled() {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.corrections) == 0 {
+		return
+	}
+	for i := range events {
+		if c, ok := s.corrections[events[i].AudioURL]; ok {
+			events[i].Corrected = c.Corrected
+		}
+	}
+}
+
+// Append writes one feedback row, creating the file and header if needed,
+// and reports whether the recording's shared correction changed as a result.
+func (s *feedbackStore) Append(rec feedbackRecord) (bool, error) {
+	if !s.enabled() {
+		return false, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -100,14 +216,14 @@ func (s *feedbackStore) Append(rec feedbackRecord) error {
 
 	f, err := os.OpenFile(s.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("open %s: %w", s.path, err)
+		return false, fmt.Errorf("open %s: %w", s.path, err)
 	}
 	defer f.Close()
 
 	w := csv.NewWriter(f)
 	if writeHeader {
 		if err := w.Write(feedbackHeader); err != nil {
-			return fmt.Errorf("write header %s: %w", s.path, err)
+			return false, fmt.Errorf("write header %s: %w", s.path, err)
 		}
 	}
 	row := []string{
@@ -124,13 +240,15 @@ func (s *feedbackStore) Append(rec feedbackRecord) error {
 		rec.ClientIP,
 	}
 	if err := w.Write(row); err != nil {
-		return fmt.Errorf("write %s: %w", s.path, err)
+		return false, fmt.Errorf("write %s: %w", s.path, err)
 	}
 	w.Flush()
 	if err := w.Error(); err != nil {
-		return fmt.Errorf("flush %s: %w", s.path, err)
+		return false, fmt.Errorf("flush %s: %w", s.path, err)
 	}
-	return nil
+	// Only once the row is durable, so the display never shows a correction
+	// that a restart would forget.
+	return s.applyCorrection(rec.AudioURL, rec.Original, rec.Corrected), nil
 }
 
 // collapseSpace folds newlines and runs of whitespace into single spaces so
@@ -176,6 +294,7 @@ func (s *webrtcServer) handleTranscriptFeedback(w http.ResponseWriter, r *http.R
 
 	var req struct {
 		ClipID      string `json:"clipId"`
+		StreamID    string `json:"streamId"`
 		WAVFilename string `json:"wavFilename"`
 		AudioURL    string `json:"audioUrl"`
 		StreamName  string `json:"streamName"`
@@ -231,29 +350,62 @@ func (s *webrtcServer) handleTranscriptFeedback(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Prefer server-side stream metadata where the clip is still in the
-	// registry; the client only knows the display name.
+	// Prefer server-side stream metadata: the clip registry while the clip
+	// is still in it, otherwise the configured stream the page names. The
+	// client's display name is the last resort.
+	var info streamInfo
+	if st, ok := s.streams[strings.TrimSpace(req.StreamID)]; ok && st != nil {
+		info = st.info
+	}
 	if rec.ClipID != "" {
 		s.clipMu.RLock()
 		clip, ok := s.clips[rec.ClipID]
 		s.clipMu.RUnlock()
 		if ok {
-			rec.StreamName = clip.info.StreamName
-			rec.RegionName = clip.info.RegionName
-			rec.GroupName = clip.info.GroupName
+			info = clip.info
 			if rec.WAVFilename == "" {
 				rec.WAVFilename = wavBaseName(clip.wavPath)
 			}
-			if rec.AudioURL == "" {
+			if clip.audioURL != "" {
+				// The recording's real URL, so the shared correction is
+				// keyed to the row every browser actually renders.
 				rec.AudioURL = clip.audioURL
 			}
 		}
 	}
+	if info.StreamName != "" {
+		rec.StreamName = info.StreamName
+		rec.RegionName = info.RegionName
+		rec.GroupName = info.GroupName
+	}
 
-	if err := s.feedback.Append(rec); err != nil {
+	changed, err := s.feedback.Append(rec)
+	if err != nil {
 		s.logger.Printf("transcript feedback: %v", err)
 		http.Error(w, "could not record feedback", http.StatusInternalServerError)
 		return
+	}
+
+	// Push the new text to every open page. Without a stream ID the stream
+	// pages' filtered SSE connections would never see it, though it still
+	// reaches them on their next history load.
+	if changed && s.hub != nil {
+		ev := transcriptEvent{
+			Type:        "correction",
+			ClipID:      rec.ClipID,
+			StreamID:    info.ID,
+			StreamName:  rec.StreamName,
+			RegionName:  rec.RegionName,
+			GroupName:   rec.GroupName,
+			Text:        collapseSpace(rec.Original),
+			AudioURL:    rec.AudioURL,
+			Timestamp:   rec.Timestamp,
+			WAVFilename: rec.WAVFilename,
+		}
+		if c, ok := s.feedback.Correction(rec.AudioURL); ok {
+			ev.Corrected = c.Corrected
+		}
+		s.hub.Publish(ev)
 	}
 
 	label := rec.WAVFilename

@@ -613,17 +613,35 @@
         display: none;
       }
 
+      /* Full row width on its own line; height follows the content (see
+         autoGrow) up to a cap, after which it scrolls. */
       .transcript-feedback textarea {
-        flex: 1 1 18rem;
+        flex: 1 1 100%;
+        box-sizing: border-box;
         min-height: 2.2rem;
+        max-height: 40vh;
+        overflow-y: auto;
         font: inherit;
         font-size: 0.85rem;
+        line-height: 1.4;
         color: var(--ink);
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 4px;
         padding: 4px 6px;
         resize: vertical;
+      }
+
+      .transcript-corrected::after {
+        content: "edited";
+        margin-left: 6px;
+        padding: 0 4px;
+        font-size: 0.7em;
+        font-style: normal;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        vertical-align: middle;
       }
 
       .transcript-feedback-status {
@@ -1199,6 +1217,8 @@
           content.className = "transcript-text transcript-pending";
           content.textContent = audioUrl ? "Recording received." : "";
         }
+        const fix = lookupCorrection([clipId, wavFilename]);
+        if (fix) showCorrection(content, text || fix.original, fix.corrected);
 
         if (audioUrl) {
           const playBtn = document.createElement("button");
@@ -1240,6 +1260,73 @@
         entry.appendChild(buildFeedbackControls(entry, clipId, audioUrl, wavFilename));
 
         return entry;
+      }
+
+      // Corrections currently shown for each clip — from history, live
+      // broadcasts and this page's own saves — keyed by every identity of the
+      // clip, so a history re-render (date or length filter change) rebuilds
+      // the row with the corrected text instead of reverting to whisper's.
+      const savedCorrections = new Map();
+
+      function rememberCorrection(ids, original, corrected) {
+        for (const id of ids) if (id) savedCorrections.set(id, { original, corrected });
+      }
+
+      function forgetCorrection(ids) {
+        for (const id of ids) if (id) savedCorrections.delete(id);
+      }
+
+      function lookupCorrection(ids) {
+        for (const id of ids) if (id && savedCorrections.has(id)) return savedCorrections.get(id);
+        return null;
+      }
+
+      // Shows a listener's correction in place of whisper's text. Whisper's
+      // output is kept in data-original so a second submission still reports
+      // what the model heard, and is surfaced as a tooltip for comparison.
+      function showCorrection(textEl, original, corrected) {
+        textEl.dataset.original = original || "";
+        textEl.textContent = corrected;
+        textEl.classList.remove("transcript-pending");
+        textEl.classList.add("transcript-corrected");
+        textEl.title = original
+          ? `Corrected by a listener. Whisper heard: "${original}"`
+          : "Corrected by a listener.";
+      }
+
+      // What whisper produced for a row, regardless of any correction shown.
+      function whisperText(textEl) {
+        if (!textEl) return "";
+        if (textEl.dataset.original !== undefined) return textEl.dataset.original;
+        return textEl.classList.contains("transcript-pending") ? "" : textEl.textContent;
+      }
+
+      // Puts whisper's text back after a correction is reverted.
+      function clearCorrection(textEl) {
+        if (!textEl || !textEl.classList.contains("transcript-corrected")) return;
+        const original = textEl.dataset.original || "";
+        delete textEl.dataset.original;
+        textEl.classList.remove("transcript-corrected");
+        textEl.removeAttribute("title");
+        textEl.textContent = original;
+        if (!original) textEl.classList.add("transcript-pending");
+      }
+
+      // Applies a correction (or a revert, when corrected is empty) from any
+      // listener to the cache and to the row if it is on screen.
+      function applySharedCorrection(textEl, ids, original, corrected) {
+        if (corrected) {
+          rememberCorrection(ids, original, corrected);
+          if (textEl) showCorrection(textEl, whisperText(textEl) || original, corrected);
+        } else {
+          forgetCorrection(ids);
+          clearCorrection(textEl);
+        }
+      }
+
+      function autoGrow(box) {
+        box.style.height = "auto";
+        box.style.height = `${box.scrollHeight}px`;
       }
 
       // Builds the "was this transcript right?" controls for one row.
@@ -1292,23 +1379,24 @@
         bad.addEventListener("click", () => select(rating === "bad" ? "" : "bad"));
 
         const send = async () => {
-          const corrected = box.value.trim();
+          // Collapsed the same way the server stores it, so what the row
+          // shows is exactly what was recorded.
+          const corrected = box.value.replace(/\s+/g, " ").trim();
           if (!rating && !corrected) {
             status.textContent = "Rate it or type a correction.";
             return;
           }
           save.disabled = true;
           status.textContent = "Saving...";
+          const textEl = entry.querySelector(".transcript-text");
+          const original = whisperText(textEl);
           try {
-            const textEl = entry.querySelector(".transcript-text");
-            const original = textEl && !textEl.classList.contains("transcript-pending")
-              ? textEl.textContent
-              : "";
             const res = await fetch("/transcripts/feedback", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 clipId,
+                streamId: currentStreamId || "",
                 wavFilename: wavFilename || entry.dataset.wav || "",
                 audioUrl: audioUrl || "",
                 streamName: currentStreamName,
@@ -1318,8 +1406,17 @@
               }),
             });
             if (!res.ok) throw new Error("request failed");
+            // Mirrors the server: a real change is shown to everyone, and
+            // submitting whisper's own text reverts an earlier correction.
+            // The server's broadcast does the same thing moments later; this
+            // just avoids waiting for it.
+            if (corrected && textEl) {
+              const ids = [clipId, wavFilename || entry.dataset.wav];
+              applySharedCorrection(textEl, ids, original, corrected !== original ? corrected : "");
+            }
             status.textContent = "Thanks — recorded.";
-            box.disabled = true;
+            box.style.display = "none";
+            save.style.display = "none";
             good.disabled = true;
             bad.disabled = true;
           } catch (_) {
@@ -1328,6 +1425,7 @@
           }
         };
         save.addEventListener("click", send);
+        box.addEventListener("input", () => autoGrow(box));
         // Enter submits, Shift+Enter inserts a newline, matching the usual
         // single-line-comment convention.
         box.addEventListener("keydown", (e) => {
@@ -1337,7 +1435,7 @@
           }
         });
 
-        wrap.append(good, bad, box, save, status);
+        wrap.append(box, good, bad, save, status);
 
         const toggle = document.createElement("button");
         toggle.type = "button";
@@ -1351,6 +1449,8 @@
             if (!box.value && textEl && !textEl.classList.contains("transcript-pending")) {
               box.value = textEl.textContent;
             }
+            // scrollHeight is 0 while hidden, so size only once visible.
+            autoGrow(box);
             box.focus();
           }
         });
@@ -1422,7 +1522,11 @@
         const entry = findTranscriptEntry(clipId, wavFilename);
         if (entry) {
           const content = entry.querySelector(".transcript-text");
-          if (content) {
+          if (content && content.classList.contains("transcript-corrected")) {
+            // Keep the listener's correction on screen; just record what
+            // whisper eventually produced.
+            showCorrection(content, text, content.textContent);
+          } else if (content) {
             content.textContent = text;
             content.classList.remove("transcript-pending");
           }
@@ -1449,6 +1553,10 @@
               markTranscribing(payload.clipId, payload.wavFilename);
             } else if (payload.type === "transcript") {
               updateTranscript(payload.clipId, payload.text, payload.wavFilename);
+            } else if (payload.type === "correction") {
+              const entry = findTranscriptEntry(payload.clipId, payload.wavFilename);
+              const textEl = entry ? entry.querySelector(".transcript-text") : null;
+              applySharedCorrection(textEl, [payload.clipId, payload.wavFilename], payload.text || "", payload.corrected || "");
             }
           } catch (_) {}
         };
@@ -1476,8 +1584,18 @@
             if (ev.text) entry.text = ev.text;
             if (!entry.timestamp) entry.timestamp = ev.timestamp;
           }
+          if (ev.corrected) entry.corrected = ev.corrected;
         });
-        return Array.from(merged.values());
+        // History is the server's current view of every correction, so it
+        // replaces whatever this page had cached, including reverts missed
+        // while the live connection was down.
+        const rows = Array.from(merged.values());
+        for (const row of rows) {
+          const ids = [row.clipId, row.wavFilename];
+          if (row.corrected) rememberCorrection(ids, row.text || "", row.corrected);
+          else forgetCorrection(ids);
+        }
+        return rows;
       }
 
       // Re-renders transcriptLog from historyEntries (already fetched for

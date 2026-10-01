@@ -25,8 +25,11 @@ var recordingTimestampPattern = regexp.MustCompile(`_(\d{4}-\d{2}-\d{2}T\d{2}_\d
 // When Type == "clip", the audio is ready but text may be empty (pending transcription).
 // When Type == "transcribing", a whisper server has started on a prior clip.
 // When Type == "transcript", the text has been filled in for a prior clip (matched by ClipID).
+// When Type == "correction", a listener changed what everyone is shown for a
+// recording: Text is whisper's output and Corrected the listener's version,
+// or empty when the recording has been reverted to whisper's text.
 type transcriptEvent struct {
-	Type       string    `json:"type"` // "clip", "transcribing" or "transcript"
+	Type       string    `json:"type"` // "clip", "transcribing", "transcript" or "correction"
 	ClipID     string    `json:"clipId"`
 	StreamID   string    `json:"streamId"`
 	StreamName string    `json:"streamName"`
@@ -41,6 +44,10 @@ type transcriptEvent struct {
 	// per-process "clip-N" ClipID, while recording history keys rows by
 	// filename, so the browser matches on either (see web/index.html).
 	WAVFilename string `json:"wavFilename,omitempty"`
+	// Corrected is the listener-supplied text shown in place of Text. It is
+	// never persisted to the transcript logs; transcript-feedback.csv is its
+	// source of truth (see feedbackStore).
+	Corrected string `json:"corrected,omitempty"`
 }
 
 // wavBaseName returns the filename portion of a clip's WAV path, or "" when
@@ -111,7 +118,9 @@ func (h *transcriptHub) Publish(event transcriptEvent) {
 	// superseded by the "transcript" event moments later — so it is fanned
 	// out to subscribers but never persisted to the per-stream log or the
 	// archive, which would otherwise fill with contentless rows.
-	status := event.Type == "transcribing"
+	// "correction" is persisted by feedbackStore instead, and replaying it
+	// from here as well would let the two sources disagree.
+	status := event.Type == "transcribing" || event.Type == "correction"
 
 	// Write to per-stream log file.
 	if h.logDir != "" && !status {
