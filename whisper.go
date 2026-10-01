@@ -5,13 +5,17 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,18 +29,66 @@ type transcriptJob struct {
 	audioURL string // relative URL served to browsers (e.g. /audio/...)
 	start    time.Time
 	manual   bool
+	// retries counts how many times this job was handed back to the queue
+	// because its server was unreachable (see maxJobRetries).
+	retries int
 }
 
-// whisperConfig holds runtime configuration for the Whisper worker pool and
-// the presence-based recorder (see recorder.go).
+// maxJobRetries bounds how often one clip is requeued after a connection
+// failure, so a clip that crashes a whisper-server can't crash-loop it.
+const maxJobRetries = 2
+
+const (
+	defaultWhisperWorkers = 2
+	defaultLocalBasePort  = 18910
+	defaultServerBinary   = "whisper-server"
+)
+
+// whisperConfig is the "whisper" block of config.json — the only place
+// transcription is configured. loadConfig (main.go) decodes it into
+// appConfig.Whisper and calls validate(); main() then calls setDefaults()
+// and passes it to newWhisperPool.
+//
+// Transcription always goes through whisper.cpp's own HTTP server
+// (whisper-server), which keeps the model loaded between clips instead of
+// reloading it for every clip as whisper-cli did. Each whisper-server
+// instance transcribes one clip at a time, so parallelism comes from
+// running several instances — one pool worker is bound to each.
+//
+//   - Remote mode (RemoteServers set): POST to whisper-server instances that
+//     you run yourself on another host.
+//   - Local mode (ModelPath set): this process launches Workers instances of
+//     ServerBinaryPath on 127.0.0.1 and restarts them if they exit.
 type whisperConfig struct {
-	BinaryPath string `json:"binaryPath"`
-	ModelPath  string `json:"modelPath"`
-	RemoteHost string `json:"remoteHost"`
-	Workers    int    `json:"workers"`
-	GapMs      int    `json:"gapMs"`
-	MaxClipMs  int    `json:"maxClipMs"`
-	TimeoutMs  int    `json:"timeoutMs"`
+	// RemoteServers lists base URLs of whisper.cpp whisper-server instances,
+	// e.g. "http://gpu-box:8080". Setting it selects remote mode.
+	RemoteServers []string `json:"remoteServers"`
+
+	// ServerBinaryPath is the whisper.cpp whisper-server executable (local mode).
+	ServerBinaryPath string `json:"serverBinaryPath"`
+	// ModelPath is the GGML model file loaded by each local instance.
+	ModelPath string `json:"modelPath"`
+	// Workers is the number of local whisper-server instances to launch.
+	// In remote mode concurrency is len(RemoteServers) and this is ignored.
+	Workers int `json:"workers"`
+	// LocalBasePort is the loopback port of the first local instance; the
+	// rest use the following consecutive ports.
+	LocalBasePort int `json:"localBasePort"`
+	// ServerArgs are extra command-line flags appended when launching each
+	// local instance (load-time settings such as "-t", "-fa", "-ng", "-p").
+	ServerArgs []string `json:"serverArgs"`
+
+	// InferenceParams are extra form fields sent with every /inference
+	// request in both modes (per-request decoding settings such as
+	// "beam_size", "best_of", "temperature", "prompt", "no_speech_thold").
+	// Values may be JSON strings, numbers, or booleans.
+	InferenceParams map[string]any `json:"inferenceParams"`
+	// TimeoutMs bounds a single /inference request.
+	TimeoutMs int `json:"timeoutMs"`
+
+	// GapMs and MaxClipMs drive the presence-based recorder (see recorder.go).
+	GapMs     int `json:"gapMs"`
+	MaxClipMs int `json:"maxClipMs"`
 	// AutoTranscribeMinClipMs and AutoTranscribeMaxClipMs bound which clips
 	// are queued for transcription automatically. A clip shorter than the
 	// minimum is usually a key-up blip with no speech; one longer than the
@@ -46,11 +98,82 @@ type whisperConfig struct {
 	// web UI (see requestClipTranscription).
 	AutoTranscribeMinClipMs int `json:"autoTranscribeMinClipMs"`
 	AutoTranscribeMaxClipMs int `json:"autoTranscribeMaxClipMs"`
+
+	// Removed settings. They are still decoded so validate() can explain
+	// how to migrate instead of failing with a bare "unknown field" error.
+	LegacyBinaryPath string `json:"binaryPath"`
+	LegacyRemoteHost string `json:"remoteHost"`
+}
+
+// reservedServerArgs are flags g711-radio sets itself when launching a local
+// whisper-server; overriding them would break how it reaches the instance.
+var reservedServerArgs = map[string]bool{
+	"-m": true, "--model": true,
+	"--host": true, "--port": true,
+	"--request-path": true, "--inference-path": true,
+}
+
+// reservedInferenceParams are form fields g711-radio sets itself.
+var reservedInferenceParams = map[string]bool{
+	"file":            true, // the clip itself
+	"response_format": true, // responses are parsed as JSON
+}
+
+// enabled reports whether transcription is configured at all.
+func (c *whisperConfig) enabled() bool {
+	return c != nil && (len(c.RemoteServers) > 0 || c.ModelPath != "")
+}
+
+func (c *whisperConfig) isRemote() bool {
+	return len(c.RemoteServers) > 0
+}
+
+// validate rejects settings that cannot work. It is called by loadConfig so
+// mistakes surface as config errors at startup.
+func (c *whisperConfig) validate() error {
+	if c.LegacyBinaryPath != "" {
+		return errors.New(`"binaryPath" (whisper-cli) is no longer supported: set "serverBinaryPath" to whisper.cpp's whisper-server executable, which is built next to whisper-cli`)
+	}
+	if c.LegacyRemoteHost != "" {
+		return errors.New(`"remoteHost" (cmd/whisper-server) is no longer supported: run whisper.cpp's whisper-server on the remote host and list its URL(s) in "remoteServers"`)
+	}
+	for _, raw := range c.RemoteServers {
+		if _, err := whisperServerURL(raw); err != nil {
+			return fmt.Errorf("remoteServers: %w", err)
+		}
+	}
+	for _, arg := range c.ServerArgs {
+		flagName, _, _ := strings.Cut(arg, "=")
+		if reservedServerArgs[flagName] {
+			return fmt.Errorf("serverArgs: %q is set by g711-radio and cannot be overridden", flagName)
+		}
+	}
+	for key, value := range c.InferenceParams {
+		if reservedInferenceParams[key] {
+			return fmt.Errorf("inferenceParams: %q is set by g711-radio and cannot be overridden", key)
+		}
+		if _, err := formatInferenceParam(value); err != nil {
+			return fmt.Errorf("inferenceParams.%s: %w", key, err)
+		}
+	}
+	if c.LocalBasePort < 0 || c.LocalBasePort > 65535 {
+		return fmt.Errorf("localBasePort %d is not a valid port", c.LocalBasePort)
+	}
+	if c.LocalBasePort > 0 && c.Workers > 0 && c.LocalBasePort+c.Workers-1 > 65535 {
+		return fmt.Errorf("localBasePort %d + workers %d runs past port 65535", c.LocalBasePort, c.Workers)
+	}
+	return nil
 }
 
 func (c *whisperConfig) setDefaults() {
 	if c.Workers <= 0 {
-		c.Workers = 2
+		c.Workers = defaultWhisperWorkers
+	}
+	if c.LocalBasePort <= 0 {
+		c.LocalBasePort = defaultLocalBasePort
+	}
+	if c.ServerBinaryPath == "" {
+		c.ServerBinaryPath = defaultServerBinary
 	}
 	if c.GapMs <= 0 {
 		c.GapMs = 4000
@@ -69,10 +192,117 @@ func (c *whisperConfig) setDefaults() {
 	}
 }
 
-// whisperPool is defined below with its unbounded queue fields.
+// ignoredLocalFields names local-mode settings that remote mode ignores, so
+// startup can say so instead of silently dropping them.
+func (c *whisperConfig) ignoredLocalFields() []string {
+	var fields []string
+	if c.ModelPath != "" {
+		fields = append(fields, "modelPath")
+	}
+	if c.ServerBinaryPath != "" && c.ServerBinaryPath != defaultServerBinary {
+		fields = append(fields, "serverBinaryPath")
+	}
+	if len(c.ServerArgs) > 0 {
+		fields = append(fields, "serverArgs")
+	}
+	if c.LocalBasePort != 0 && c.LocalBasePort != defaultLocalBasePort {
+		fields = append(fields, "localBasePort")
+	}
+	return fields
+}
 
-// whisperPool manages an unbounded FIFO job queue and a fixed number of worker
-// goroutines that each call whisper.cpp to transcribe audio clips.
+// formatInferenceParam converts a JSON config value to a form field value.
+func formatInferenceParam(value any) (string, error) {
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	case bool:
+		return strconv.FormatBool(v), nil
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	case int:
+		return strconv.Itoa(v), nil
+	default:
+		return "", fmt.Errorf("value must be a string, number, or boolean, got %T", value)
+	}
+}
+
+// whisperServerURL normalizes a whisper-server base URL: it defaults to
+// http:// and strips any trailing slash so "/inference" and "/health" can be
+// appended. A path is kept, which matches whisper-server's --request-path.
+func whisperServerURL(raw string) (string, error) {
+	base := strings.TrimSpace(raw)
+	if base == "" {
+		return "", errors.New("empty server URL")
+	}
+	if !strings.Contains(base, "://") {
+		base = "http://" + base
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", fmt.Errorf("invalid server URL %q: %w", raw, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("server URL %q must use http or https", raw)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("server URL %q has no host", raw)
+	}
+	return strings.TrimRight(base, "/"), nil
+}
+
+// whisperEndpoint is one whisper-server instance. Exactly one pool worker is
+// bound to each endpoint, because whisper-server handles one request at a
+// time and sending it more would only queue them server-side.
+type whisperEndpoint struct {
+	label   string
+	baseURL string
+	// managed endpoints are local instances whose readiness is driven by
+	// superviseLocal; unmanaged (remote) endpoints are probed by their worker.
+	managed bool
+
+	mu      sync.Mutex
+	ready   bool
+	readyCh chan struct{} // closed while ready
+}
+
+func newWhisperEndpoint(label, baseURL string, managed bool) *whisperEndpoint {
+	e := &whisperEndpoint{label: label, baseURL: baseURL, managed: managed, readyCh: make(chan struct{})}
+	if !managed {
+		// Remote servers are assumed up until a request proves otherwise.
+		e.setReady(true)
+	}
+	return e
+}
+
+func (e *whisperEndpoint) setReady(ready bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if ready == e.ready {
+		return
+	}
+	e.ready = ready
+	if ready {
+		close(e.readyCh)
+	} else {
+		e.readyCh = make(chan struct{})
+	}
+}
+
+func (e *whisperEndpoint) isReady() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.ready
+}
+
+func (e *whisperEndpoint) readyChan() <-chan struct{} {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.readyCh
+}
+
+// whisperPool manages an unbounded FIFO job queue and one worker goroutine
+// per whisper-server endpoint.
 type whisperPool struct {
 	cfg        whisperConfig
 	mu         sync.Mutex
@@ -81,66 +311,110 @@ type whisperPool struct {
 	hub        *transcriptHub
 	logger     *log.Logger
 	done       chan struct{}
+	closeOnce  sync.Once
+	ctx        context.Context // cancelled by Close; kills local instances
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup // local instance supervisors
 	httpClient *http.Client
+	endpoints  []*whisperEndpoint
+	formFields map[string]string
 }
 
 func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *whisperPool {
-	return &whisperPool{
-		cfg:    cfg,
-		ready:  make(chan struct{}, 1),
-		hub:    hub,
-		logger: logger,
-		done:   make(chan struct{}),
-		httpClient: &http.Client{
-			// Safety margin above the per-request context timeout used in
-			// transcribeRemote, so the context (not the client) is what
-			// normally cancels a slow request.
-			Timeout: time.Duration(cfg.TimeoutMs+5000) * time.Millisecond,
-		},
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &whisperPool{
+		cfg:        cfg,
+		ready:      make(chan struct{}, 1),
+		hub:        hub,
+		logger:     logger,
+		done:       make(chan struct{}),
+		ctx:        ctx,
+		cancel:     cancel,
+		httpClient: &http.Client{}, // per-request deadlines come from TimeoutMs contexts
+		formFields: inferenceFormFields(cfg.InferenceParams),
 	}
+	return p
 }
 
-// Start launches worker goroutines. If a remote whisper server is configured,
-// it first performs a one-time, non-fatal reachability check so operators get
-// early feedback in the logs without blocking or crashing startup.
-func (p *whisperPool) Start() {
-	if p.cfg.RemoteHost != "" {
+// inferenceFormFields builds the form fields sent with every request:
+// defaults matching the old whisper-cli invocation ("-nt --language en",
+// plus whisper-cli's beam search defaults, which whisper-server does not
+// share — it defaults to greedy decoding with best_of=2), then the user's
+// inferenceParams, then the fields the response parser relies on.
+func inferenceFormFields(params map[string]any) map[string]string {
+	fields := map[string]string{
+		"language":      "en",
+		"no_timestamps": "true",
+		"beam_size":     "5",
+		"best_of":       "5",
+	}
+	for key, value := range params {
+		if s, err := formatInferenceParam(value); err == nil {
+			fields[key] = s
+		}
+	}
+	fields["response_format"] = "json"
+	return fields
+}
+
+// Start resolves the configured endpoints and launches the workers. In local
+// mode it also launches and supervises the whisper-server instances. An
+// error means transcription cannot work with this config.
+func (p *whisperPool) Start() error {
+	if p.cfg.isRemote() {
+		if ignored := p.cfg.ignoredLocalFields(); len(ignored) > 0 {
+			p.logger.Printf("whisper: remote mode — ignoring local-mode settings: %s", strings.Join(ignored, ", "))
+		}
+		for _, raw := range p.cfg.RemoteServers {
+			base, err := whisperServerURL(raw)
+			if err != nil {
+				return err
+			}
+			p.endpoints = append(p.endpoints, newWhisperEndpoint(base, base, false))
+		}
 		p.checkRemoteReachability()
+	} else {
+		if err := p.startLocalInstances(); err != nil {
+			return err
+		}
 	}
-	for i := 0; i < p.cfg.Workers; i++ {
-		go p.worker(i)
+	for _, ep := range p.endpoints {
+		go p.worker(ep)
+	}
+	return nil
+}
+
+// checkRemoteReachability logs whether each remote server answers /health.
+// It is diagnostic only and never blocks startup for long.
+func (p *whisperPool) checkRemoteReachability() {
+	for _, ep := range p.endpoints {
+		if err := checkWhisperHealth(p.ctx, ep.baseURL, 5*time.Second); err != nil {
+			p.logger.Printf("WARNING: whisper server %s is not ready: %v", ep.baseURL, err)
+			continue
+		}
+		p.logger.Printf("whisper server %s is ready", ep.baseURL)
 	}
 }
 
-// checkRemoteReachability performs a best-effort GET against the remote
-// whisper server's /healthz endpoint purely for diagnostic logging at
-// startup. It never returns an error and never blocks startup for long —
-// failures are logged as warnings only.
-func (p *whisperPool) checkRemoteReachability() {
-	base := remoteBaseURL(p.cfg.RemoteHost)
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(base + "/healthz")
+// checkWhisperHealth calls whisper-server's GET /health, which returns 200
+// once the model is loaded (503 while still loading).
+func checkWhisperHealth(ctx context.Context, baseURL string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/health", nil)
 	if err != nil {
-		p.logger.Printf("WARNING: remote whisper server at %s unreachable: %v", base, err)
-		return
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		p.logger.Printf("WARNING: remote whisper server at %s unreachable: status %s", base, resp.Status)
-		return
+		return fmt.Errorf("status %s", resp.Status)
 	}
-	p.logger.Printf("remote whisper server at %s is reachable", base)
-}
-
-// remoteBaseURL normalizes a configured RemoteHost into a base URL: it
-// defaults to the http:// scheme when none is given and strips any trailing
-// slash so callers can safely append a path like "/transcribe".
-func remoteBaseURL(remoteHost string) string {
-	base := remoteHost
-	if !strings.Contains(base, "://") {
-		base = "http://" + base
-	}
-	return strings.TrimRight(base, "/")
+	return nil
 }
 
 // Submit enqueues a clip for transcription. Never drops — unbounded FIFO.
@@ -149,216 +423,245 @@ func (p *whisperPool) Submit(job transcriptJob) {
 	p.queue = append(p.queue, job)
 	qlen := len(p.queue)
 	p.mu.Unlock()
-	if qlen == 1 {
-		select {
-		case p.ready <- struct{}{}:
-		default:
-		}
-	}
+	p.signal()
 	p.logger.Printf("whisper pool: queued clip from %s (queue depth: %d)", job.info.StreamName, qlen)
 }
 
-func (p *whisperPool) dequeue() (transcriptJob, bool) {
+// requeueFront puts a job back at the head of the queue so another endpoint
+// can pick it up without losing its place in line.
+func (p *whisperPool) requeueFront(job transcriptJob) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.queue) == 0 {
-		return transcriptJob{}, false
+	p.queue = append([]transcriptJob{job}, p.queue...)
+	p.mu.Unlock()
+	p.signal()
+}
+
+func (p *whisperPool) signal() {
+	select {
+	case p.ready <- struct{}{}:
+	default:
 	}
-	job := p.queue[0]
-	p.queue = p.queue[1:]
-	return job, true
 }
 
-// Close signals workers to stop.
-func (p *whisperPool) Close() {
-	close(p.done)
-}
-
-func (p *whisperPool) worker(id int) {
+// nextJob blocks until a job is available or the pool is closed.
+func (p *whisperPool) nextJob() (transcriptJob, bool) {
 	for {
+		p.mu.Lock()
+		if len(p.queue) > 0 {
+			job := p.queue[0]
+			p.queue = p.queue[1:]
+			remaining := len(p.queue)
+			p.mu.Unlock()
+			if remaining > 0 {
+				// Wake another worker for the rest.
+				p.signal()
+			}
+			return job, true
+		}
+		p.mu.Unlock()
 		select {
 		case <-p.done:
-			return
+			return transcriptJob{}, false
 		case <-p.ready:
 		}
-		for {
-			job, ok := p.dequeue()
-			if !ok {
-				break
-			}
-			text, err := p.transcribe(job.wavPath, job.info.StreamName)
-			if err != nil {
-				p.logger.Printf("whisper worker %d: transcribe %s (clip %s): %v", id, job.info.StreamName, job.clipID, err)
-				// Publish a visible failure marker instead of silently
-				// dropping the job: without this, a clip whose
-				// transcription errors out (timeout, crash, oversized
-				// input, etc.) stays stuck showing "Recording received."
-				// forever in the UI, which is indistinguishable from a
-				// transcription that's merely still queued/in-progress —
-				// exactly the "doesn't show them on the webpage" symptom.
-				// The full error itself is server-log-only (see above);
-				// this is a generic, user-safe message.
-				p.hub.Publish(transcriptEvent{
-					Type:        "transcript",
-					ClipID:      job.clipID,
-					StreamID:    job.info.ID,
-					StreamName:  job.info.StreamName,
-					RegionName:  job.info.RegionName,
-					GroupName:   job.info.GroupName,
-					Text:        "[transcription failed]",
-					AudioURL:    job.audioURL,
-					Timestamp:   job.start,
-					WAVFilename: filepath.Base(job.wavPath),
-				})
-				continue
-			}
-			text = strings.TrimSpace(text)
-			if text == "" {
-				// No speech detected — publish a distinct marker so the UI
-				// doesn't leave this clip stuck as "pending" either; this
-				// is a normal/expected outcome (e.g. a keyed-up but silent
-				// transmission), not a failure.
-				p.hub.Publish(transcriptEvent{
-					Type:        "transcript",
-					ClipID:      job.clipID,
-					StreamID:    job.info.ID,
-					StreamName:  job.info.StreamName,
-					RegionName:  job.info.RegionName,
-					GroupName:   job.info.GroupName,
-					Text:        "[no speech detected]",
-					AudioURL:    job.audioURL,
-					Timestamp:   job.start,
-					WAVFilename: filepath.Base(job.wavPath),
-				})
-				continue
-			}
-			p.hub.Publish(transcriptEvent{
-				Type:        "transcript",
-				ClipID:      job.clipID,
-				StreamID:    job.info.ID,
-				StreamName:  job.info.StreamName,
-				RegionName:  job.info.RegionName,
-				GroupName:   job.info.GroupName,
-				Text:        text,
-				AudioURL:    job.audioURL,
-				Timestamp:   job.start,
-				WAVFilename: filepath.Base(job.wavPath),
-			})
-			p.logger.Printf("whisper worker %d: [%s] %s", id, job.info.StreamName, text)
-		}
-		// Signal other workers there may still be items.
-		p.mu.Lock()
-		remaining := len(p.queue)
-		p.mu.Unlock()
-		if remaining > 0 {
-			select {
-			case p.ready <- struct{}{}:
-			default:
-			}
-		}
 	}
 }
 
-// transcribeLocal passes the saved WAV file directly to whisper-cli, which
-// decodes WAV (and several other formats) natively and resamples internally
-// as needed — no external ffmpeg/"--convert" step is required. An earlier
-// version of this code passed "--convert", which this whisper-cli build
-// (and possibly others) rejects outright with "error: unknown argument:
-// --convert", causing every single transcription attempt to fail
-// immediately with a nonzero exit before ever loading the model.
-func (p *whisperPool) transcribeLocal(wavPath string) (string, error) {
-	binary := p.cfg.BinaryPath
-	if binary == "" {
-		binary = "WhisperCLI.exe"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.cfg.TimeoutMs)*time.Millisecond)
-	defer cancel()
-	cmd := exec.CommandContext(
-		ctx,
-		binary,
-		"-m", p.cfg.ModelPath,
-		"-f", wavPath,
-		"-nt",
-		"-np",
-		"--language", "en",
-	)
-
-	var out bytes.Buffer
-	var errBuf bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &errBuf
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("whisper-cli: %w\nstderr: %s", err, errBuf.String())
-	}
-
-	return cleanWhisperOutput(out.String()), nil
+// Close stops the workers and shuts down any local whisper-server instances.
+func (p *whisperPool) Close() {
+	p.closeOnce.Do(func() {
+		close(p.done)
+		p.cancel()
+		stopped := make(chan struct{})
+		go func() {
+			p.wg.Wait()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-time.After(5 * time.Second):
+			p.logger.Printf("whisper: timed out waiting for local whisper-server instances to stop")
+		}
+	})
 }
 
-// transcribeRemote sends the saved WAV file to a remote whisper-server
-// instance (see cmd/whisper-server) over HTTP instead of running whisper-cli
-// locally. The remote host has no authentication and is expected to run on a
-// trusted private network.
-func (p *whisperPool) transcribeRemote(wavPath, streamName string) (string, error) {
+// awaitEndpoint blocks until ep can take a request. Local instances become
+// ready when their supervisor sees /health succeed; a remote server that
+// failed is polled with backoff until it answers /health again.
+func (p *whisperPool) awaitEndpoint(ep *whisperEndpoint) bool {
+	if ep.managed {
+		select {
+		case <-p.done:
+			return false
+		case <-ep.readyChan():
+			return true
+		}
+	}
+	backoff := time.Second
+	for !ep.isReady() {
+		select {
+		case <-p.done:
+			return false
+		case <-time.After(backoff):
+		}
+		if err := checkWhisperHealth(p.ctx, ep.baseURL, 5*time.Second); err == nil {
+			p.logger.Printf("whisper server %s is reachable again", ep.baseURL)
+			ep.setReady(true)
+			break
+		}
+		backoff = min(backoff*2, 30*time.Second)
+	}
+	return true
+}
+
+func (p *whisperPool) worker(ep *whisperEndpoint) {
+	for {
+		if !p.awaitEndpoint(ep) {
+			return
+		}
+		job, ok := p.nextJob()
+		if !ok {
+			return
+		}
+		started := time.Now()
+		text, err := p.transcribe(ep, job.wavPath, job.info.StreamName)
+		if err != nil {
+			var unreachable *endpointUnreachableError
+			if errors.As(err, &unreachable) && job.retries < maxJobRetries {
+				// The server itself is down, not the clip: take this
+				// endpoint out of rotation and let another (or this one,
+				// once healthy again) retry the clip.
+				p.logger.Printf("whisper %s: unreachable, requeueing clip %s: %v", ep.label, job.clipID, err)
+				job.retries++
+				p.requeueFront(job)
+				if ep.managed {
+					// The supervisor owns local readiness; give it a moment
+					// to notice the instance exited before taking more work.
+					select {
+					case <-p.done:
+						return
+					case <-time.After(time.Second):
+					}
+				} else {
+					ep.setReady(false)
+				}
+				continue
+			}
+			p.logger.Printf("whisper %s: transcribe %s (clip %s): %v", ep.label, job.info.StreamName, job.clipID, err)
+			// Publish a visible failure marker instead of silently dropping
+			// the job: otherwise the clip stays stuck showing "Recording
+			// received." in the UI, indistinguishable from one still in
+			// progress. The full error is server-log-only (see above).
+			p.publish(job, "[transcription failed]")
+			continue
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			// No speech detected — a normal outcome (e.g. a keyed-up but
+			// silent transmission), published so the clip isn't left pending.
+			p.publish(job, "[no speech detected]")
+			continue
+		}
+		p.publish(job, text)
+		p.logger.Printf("whisper %s (%s): [%s] %s", ep.label, time.Since(started).Round(time.Millisecond), job.info.StreamName, text)
+	}
+}
+
+func (p *whisperPool) publish(job transcriptJob, text string) {
+	p.hub.Publish(transcriptEvent{
+		Type:        "transcript",
+		ClipID:      job.clipID,
+		StreamID:    job.info.ID,
+		StreamName:  job.info.StreamName,
+		RegionName:  job.info.RegionName,
+		GroupName:   job.info.GroupName,
+		Text:        text,
+		AudioURL:    job.audioURL,
+		Timestamp:   job.start,
+		WAVFilename: filepath.Base(job.wavPath),
+	})
+}
+
+// endpointUnreachableError marks a failure to reach the server at all (as
+// opposed to the server rejecting or failing on this particular clip).
+type endpointUnreachableError struct{ err error }
+
+func (e *endpointUnreachableError) Error() string { return e.err.Error() }
+func (e *endpointUnreachableError) Unwrap() error { return e.err }
+
+// transcribe POSTs the WAV file to the endpoint's /inference as
+// multipart/form-data. whisper-server decodes WAV at any sample rate and
+// resamples it internally, so the 8kHz clips are sent unmodified.
+func (p *whisperPool) transcribe(ep *whisperEndpoint, wavPath, streamName string) (string, error) {
 	data, err := os.ReadFile(wavPath)
 	if err != nil {
-		return "", fmt.Errorf("remote whisper: read %s: %w", wavPath, err)
+		return "", fmt.Errorf("read %s: %w", wavPath, err)
 	}
 
-	url := remoteBaseURL(p.cfg.RemoteHost) + "/transcribe"
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.cfg.TimeoutMs)*time.Millisecond)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	keys := make([]string, 0, len(p.formFields))
+	for key := range p.formFields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if err := form.WriteField(key, p.formFields[key]); err != nil {
+			return "", fmt.Errorf("build request: %w", err)
+		}
+	}
+	part, err := form.CreateFormFile("file", filepath.Base(wavPath))
 	if err != nil {
-		return "", fmt.Errorf("remote whisper %s: build request: %w", url, err)
+		return "", fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("Content-Type", "audio/wav")
+	if _, err := part.Write(data); err != nil {
+		return "", fmt.Errorf("build request: %w", err)
+	}
+	if err := form.Close(); err != nil {
+		return "", fmt.Errorf("build request: %w", err)
+	}
+
+	endpointURL := ep.baseURL + "/inference"
+	ctx, cancel := context.WithTimeout(p.ctx, time.Duration(p.cfg.TimeoutMs)*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, &body)
+	if err != nil {
+		return "", fmt.Errorf("%s: build request: %w", endpointURL, err)
+	}
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	// Ignored by whisper-server; useful in proxy/access logs.
 	req.Header.Set("X-Stream-Name", streamName)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("remote whisper %s: %w", url, err)
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("%s: timed out after %dms: %w", endpointURL, p.cfg.TimeoutMs, err)
+		}
+		return "", &endpointUnreachableError{fmt.Errorf("%s: %w", endpointURL, err)}
 	}
 	defer resp.Body.Close()
 
-	body, readErr := io.ReadAll(resp.Body)
-
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("%s: read response: %w", endpointURL, err)
+	}
+	// whisper-server reports some errors as {"error": "..."} with a 200
+	// status, so the body is checked for an error regardless of status.
+	var result struct {
+		Text  string `json:"text"`
+		Error string `json:"error"`
+	}
+	decodeErr := json.Unmarshal(respBody, &result)
+	if result.Error != "" {
+		return "", fmt.Errorf("%s: %s", endpointURL, result.Error)
+	}
 	if resp.StatusCode != http.StatusOK {
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		if readErr == nil && json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
-			return "", fmt.Errorf("remote whisper %s: %s", url, errResp.Error)
-		}
-		return "", fmt.Errorf("remote whisper %s: unexpected status %s", url, resp.Status)
+		return "", fmt.Errorf("%s: unexpected status %s", endpointURL, resp.Status)
 	}
-	if readErr != nil {
-		return "", fmt.Errorf("remote whisper %s: read response: %w", url, readErr)
+	if decodeErr != nil {
+		return "", fmt.Errorf("%s: decode response: %w", endpointURL, decodeErr)
 	}
-
-	var okResp struct {
-		Text string `json:"text"`
-	}
-	if err := json.Unmarshal(body, &okResp); err != nil {
-		return "", fmt.Errorf("remote whisper %s: decode response: %w", url, err)
-	}
-
-	return okResp.Text, nil
-}
-
-// transcribe dispatches to a remote whisper-server instance when RemoteHost
-// is configured, otherwise it runs whisper-cli locally as a subprocess.
-// streamName is only used by the remote path (see transcribeRemote) — the
-// remote server's /transcribe logs identify requests by an X-Stream-Name
-// header, since it has no other way to know which of possibly many g711-radio
-// instances/streams a given upload came from.
-func (p *whisperPool) transcribe(wavPath, streamName string) (string, error) {
-	if p.cfg.RemoteHost != "" {
-		return p.transcribeRemote(wavPath, streamName)
-	}
-	return p.transcribeLocal(wavPath)
+	return cleanWhisperOutput(result.Text), nil
 }
 
 // encodePCM16WAV encodes int16 samples into a standard WAV byte slice.
@@ -399,7 +702,7 @@ func encodePCM16WAV(samples []int16, sampleRate int) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// cleanWhisperOutput strips bracketed timestamps and whitespace from whisper output.
+// cleanWhisperOutput strips bracketed timestamps and joins segment lines.
 func cleanWhisperOutput(raw string) string {
 	var lines []string
 	for _, line := range strings.Split(raw, "\n") {

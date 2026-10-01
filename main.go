@@ -132,7 +132,7 @@ type appConfig struct {
 	EnableHTTP       bool                                 `json:"enableHttp"`
 	DebugMulticast   bool                                 `json:"debugMulticast"`
 	Regions          map[string]map[string][]streamConfig `json:"regions"`
-	Whisper          *whisperConfig                       `json:"whisper"`
+	Whisper          *whisperConfig                       `json:"whisper"` // all transcription settings (local and remote); see whisperConfig in whisper.go
 
 	// AudioLogDir is the primary, user-facing audio archive: every
 	// recorded clip is written here (see saveAudioClip), served over HTTP
@@ -625,17 +625,23 @@ func main() {
 	hub := newTranscriptHub("transcripts", transcriptArchivePath, logger)
 
 	var pool *whisperPool
-	if config.Whisper != nil && (config.Whisper.ModelPath != "" || config.Whisper.RemoteHost != "") {
+	if config.Whisper.enabled() {
 		config.Whisper.setDefaults()
-		if config.Whisper.RemoteHost == "" && config.Whisper.BinaryPath == "" {
-			config.Whisper.BinaryPath = "WhisperCLI.exe"
-		}
 		pool = newWhisperPool(*config.Whisper, hub, logger)
-		pool.Start()
-		if config.Whisper.RemoteHost != "" {
-			logger.Printf("whisper transcription enabled: remote host=%s workers=%d", config.Whisper.RemoteHost, config.Whisper.Workers)
+		if err := pool.Start(); err != nil {
+			// Transcription is optional: keep streaming and recording.
+			logger.Printf("WARNING: whisper transcription disabled: %v", err)
+			pool.Close()
+			pool = nil
+		} else if config.Whisper.isRemote() {
+			logger.Printf("whisper transcription enabled (remote): servers=%v timeoutMs=%d", config.Whisper.RemoteServers, config.Whisper.TimeoutMs)
 		} else {
-			logger.Printf("whisper transcription enabled: model=%s workers=%d", config.Whisper.ModelPath, config.Whisper.Workers)
+			logger.Printf("whisper transcription enabled (local): model=%s instances=%d timeoutMs=%d", config.Whisper.ModelPath, config.Whisper.Workers, config.Whisper.TimeoutMs)
+		}
+	}
+	if pool != nil {
+		if len(config.Whisper.InferenceParams) > 0 {
+			logger.Printf("whisper inference params: %v", pool.formFields)
 		}
 		switch {
 		case config.Whisper.AutoTranscribeMinClipMs <= 0:
@@ -1129,6 +1135,11 @@ func loadConfig(path string) (appConfig, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&config); err != nil {
 		return appConfig{}, fmt.Errorf("decode %s: %w", path, err)
+	}
+	if config.Whisper != nil {
+		if err := config.Whisper.validate(); err != nil {
+			return appConfig{}, fmt.Errorf("%s: whisper: %w", path, err)
+		}
 	}
 
 	// Overlay config.secrets.json if present (passwords and other sensitive values).

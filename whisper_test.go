@@ -1,6 +1,21 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+)
 
 func TestShouldAutoTranscribeClipLengthWindow(t *testing.T) {
 	tests := []struct {
@@ -92,5 +107,301 @@ func TestSetDefaultsNormalizesNegativeAutoTranscribeBounds(t *testing.T) {
 	withMin.setDefaults()
 	if !shouldAutoTranscribe(withMin, 10*60*1000) {
 		t.Fatal("a negative maximum should behave as no upper bound")
+	}
+}
+
+// --- whisper-server integration ---------------------------------------------
+
+const fakeWhisperServerEnv = "G711_FAKE_WHISPER_SERVER"
+
+// TestMain lets the test binary double as a fake whisper.cpp whisper-server,
+// so local mode's process supervision can be tested without whisper.cpp.
+func TestMain(m *testing.M) {
+	if os.Getenv(fakeWhisperServerEnv) == "1" {
+		runFakeWhisperServer()
+		return
+	}
+	os.Exit(m.Run())
+}
+
+func runFakeWhisperServer() {
+	args := os.Args[1:]
+	var host, port string
+	for i := 0; i+1 < len(args); i++ {
+		switch args[i] {
+		case "--host":
+			host = args[i+1]
+		case "--port":
+			port = args[i+1]
+		}
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	mux.HandleFunc("/inference", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"text": "args=" + strings.Join(args, " ") + " beam_size=" + r.FormValue("beam_size"),
+		})
+	})
+	_ = http.ListenAndServe(net.JoinHostPort(host, port), mux)
+}
+
+func writeTestWAV(t *testing.T) string {
+	t.Helper()
+	wav, err := encodePCM16WAV(make([]int16, recSampleRate/4), recSampleRate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "clip.wav")
+	if err := os.WriteFile(path, wav, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func newTestPool(t *testing.T, cfg whisperConfig) (*whisperPool, chan transcriptEvent) {
+	t.Helper()
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	cfg.setDefaults()
+	hub := newTranscriptHub("", "", log.New(io.Discard, "", 0))
+	_, events := hub.subscribe()
+	pool := newWhisperPool(cfg, hub, log.New(io.Discard, "", 0))
+	t.Cleanup(pool.Close)
+	if err := pool.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	return pool, events
+}
+
+func awaitTranscript(t *testing.T, events chan transcriptEvent, timeout time.Duration) transcriptEvent {
+	t.Helper()
+	select {
+	case ev := <-events:
+		return ev
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for a transcript")
+		return transcriptEvent{}
+	}
+}
+
+func TestWhisperConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     whisperConfig
+		wantErr string
+	}{
+		{name: "local mode", cfg: whisperConfig{ModelPath: "m.bin", ServerArgs: []string{"-t", "4", "-fa"}}},
+		{name: "remote mode", cfg: whisperConfig{RemoteServers: []string{"gpu:8080", "https://gpu:8081/"}}},
+		{name: "typed inference params", cfg: whisperConfig{InferenceParams: map[string]any{"beam_size": 5.0, "prompt": "x", "suppress_nst": true}}},
+		{name: "legacy binaryPath", cfg: whisperConfig{LegacyBinaryPath: "whisper-cli"}, wantErr: "serverBinaryPath"},
+		{name: "legacy remoteHost", cfg: whisperConfig{LegacyRemoteHost: "gpu:8090"}, wantErr: "remoteServers"},
+		{name: "reserved server arg", cfg: whisperConfig{ServerArgs: []string{"--port", "1"}}, wantErr: "--port"},
+		{name: "reserved server arg with =", cfg: whisperConfig{ServerArgs: []string{"--model=x"}}, wantErr: "--model"},
+		{name: "reserved inference param", cfg: whisperConfig{InferenceParams: map[string]any{"response_format": "text"}}, wantErr: "response_format"},
+		{name: "unsupported param type", cfg: whisperConfig{InferenceParams: map[string]any{"x": []any{1.0}}}, wantErr: "inferenceParams.x"},
+		{name: "bad remote URL scheme", cfg: whisperConfig{RemoteServers: []string{"ftp://gpu"}}, wantErr: "http"},
+		{name: "empty remote URL", cfg: whisperConfig{RemoteServers: []string{" "}}, wantErr: "empty"},
+		{name: "ports overflow", cfg: whisperConfig{LocalBasePort: 65535, Workers: 2}, wantErr: "65535"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("validate() = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("validate() = %v, want error containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestInferenceFormFields(t *testing.T) {
+	fields := inferenceFormFields(map[string]any{
+		"beam_size":    5.0,
+		"temperature":  0.2,
+		"language":     "es",
+		"suppress_nst": true,
+	})
+	want := map[string]string{
+		"beam_size":       "5",
+		"temperature":     "0.2",
+		"language":        "es", // user value overrides the default
+		"suppress_nst":    "true",
+		"best_of":         "5", // whisper-cli default kept
+		"no_timestamps":   "true",
+		"response_format": "json",
+	}
+	for key, value := range want {
+		if fields[key] != value {
+			t.Errorf("field %s = %q, want %q", key, fields[key], value)
+		}
+	}
+}
+
+func TestRemoteTranscriptionSendsInferenceRequest(t *testing.T) {
+	type received struct {
+		form    map[string]string
+		fileLen int
+	}
+	got := make(chan received, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		case "/inference":
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Errorf("parse form: %v", err)
+			}
+			form := map[string]string{}
+			for k, v := range r.MultipartForm.Value {
+				form[k] = v[0]
+			}
+			file, _, err := r.FormFile("file")
+			n := 0
+			if err == nil {
+				data, _ := io.ReadAll(file)
+				n = len(data)
+			}
+			got <- received{form: form, fileLen: n}
+			_, _ = w.Write([]byte(`{"text":" Engine 4 responding.\n"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	pool, events := newTestPool(t, whisperConfig{
+		RemoteServers:   []string{srv.URL},
+		InferenceParams: map[string]any{"beam_size": 5.0, "prompt": "Forest Service radio"},
+	})
+	wavPath := writeTestWAV(t)
+	pool.Submit(transcriptJob{info: streamInfo{StreamName: "Admin Net"}, clipID: "c1", wavPath: wavPath})
+
+	ev := awaitTranscript(t, events, 5*time.Second)
+	if ev.Text != "Engine 4 responding." || ev.ClipID != "c1" {
+		t.Fatalf("event = %+v", ev)
+	}
+	req := <-got
+	wav, _ := os.ReadFile(wavPath)
+	if req.fileLen != len(wav) {
+		t.Errorf("uploaded %d bytes, want %d", req.fileLen, len(wav))
+	}
+	for key, value := range map[string]string{
+		"beam_size": "5", "prompt": "Forest Service radio",
+		"language": "en", "no_timestamps": "true", "response_format": "json",
+	} {
+		if req.form[key] != value {
+			t.Errorf("form %s = %q, want %q", key, req.form[key], value)
+		}
+	}
+}
+
+func TestRemoteTranscriptionReportsServerError(t *testing.T) {
+	// whisper-server reports some failures as a 200 with an error body.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"error":"failed to read audio data"}`))
+	}))
+	defer srv.Close()
+
+	pool, events := newTestPool(t, whisperConfig{RemoteServers: []string{srv.URL}})
+	pool.Submit(transcriptJob{clipID: "c1", wavPath: writeTestWAV(t)})
+	if ev := awaitTranscript(t, events, 5*time.Second); ev.Text != "[transcription failed]" {
+		t.Fatalf("text = %q, want failure marker", ev.Text)
+	}
+}
+
+func TestRemoteTranscriptionFailsOverToHealthyServer(t *testing.T) {
+	// A listener that is closed immediately gives a URL that refuses connections.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadURL := "http://" + ln.Addr().String()
+	ln.Close()
+
+	var served atomic.Int32
+	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/inference" {
+			served.Add(1)
+		}
+		_, _ = w.Write([]byte(`{"text":"ok"}`))
+	}))
+	defer healthy.Close()
+
+	pool, events := newTestPool(t, whisperConfig{RemoteServers: []string{deadURL, healthy.URL}})
+	wavPath := writeTestWAV(t)
+	for i := 0; i < 4; i++ {
+		pool.Submit(transcriptJob{clipID: fmt.Sprintf("c%d", i), wavPath: wavPath})
+	}
+	for i := 0; i < 4; i++ {
+		if ev := awaitTranscript(t, events, 5*time.Second); ev.Text != "ok" {
+			t.Fatalf("clip %s text = %q, want ok", ev.ClipID, ev.Text)
+		}
+	}
+	if served.Load() != 4 {
+		t.Fatalf("healthy server handled %d clips, want 4", served.Load())
+	}
+}
+
+func TestLocalModeLaunchesSupervisedWhisperServers(t *testing.T) {
+	t.Setenv(fakeWhisperServerEnv, "1")
+	model := filepath.Join(t.TempDir(), "ggml-test.bin")
+	if err := os.WriteFile(model, []byte("model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	basePort := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	pool, events := newTestPool(t, whisperConfig{
+		ServerBinaryPath: os.Args[0],
+		ModelPath:        model,
+		Workers:          2,
+		LocalBasePort:    basePort,
+		ServerArgs:       []string{"-t", "3", "-fa"},
+		InferenceParams:  map[string]any{"beam_size": 4.0},
+	})
+	wavPath := writeTestWAV(t)
+	pool.Submit(transcriptJob{clipID: "c1", wavPath: wavPath})
+	pool.Submit(transcriptJob{clipID: "c2", wavPath: wavPath})
+
+	for i := 0; i < 2; i++ {
+		ev := awaitTranscript(t, events, 20*time.Second)
+		for _, want := range []string{"-m " + model, "--host 127.0.0.1", "-t 3 -fa", "beam_size=4"} {
+			if !strings.Contains(ev.Text, want) {
+				t.Fatalf("transcript %q missing %q", ev.Text, want)
+			}
+		}
+	}
+
+	pool.Close()
+	for _, ep := range pool.endpoints {
+		if err := checkWhisperHealth(context.Background(), ep.baseURL, time.Second); err == nil {
+			t.Errorf("%s still serving after Close", ep.baseURL)
+		}
+	}
+}
+
+func TestConfigExampleLoads(t *testing.T) {
+	cfg, err := loadConfig("config.example.json")
+	if err != nil {
+		t.Fatalf("loadConfig(config.example.json): %v", err)
+	}
+	if !cfg.Whisper.enabled() || cfg.Whisper.isRemote() {
+		t.Fatalf("example whisper block should configure local mode: %+v", cfg.Whisper)
 	}
 }
