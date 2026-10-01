@@ -316,6 +316,7 @@
       }
 
       .transcript-panel {
+        container: transcripts / inline-size;
         margin-top: 28px;
         padding: 18px 20px;
         border-radius: 18px;
@@ -355,18 +356,40 @@
         border-bottom: none;
       }
 
-      @media (max-width: 640px) {
+      /* Sized against the panel rather than the window, because on wide
+         screens the panel is a side column much narrower than the page.
+         Compact row: time, stream and play on one line, the transcript
+         beneath, then the transcribe and feedback controls. */
+      @container transcripts (max-width: 640px) {
         .transcript-entry {
-          grid-template-columns: 1fr auto;
+          grid-template-columns: auto minmax(0, 1fr) auto;
           row-gap: 4px;
         }
 
-        .transcript-stream {
-          grid-column: 1 / -1;
+        .transcript-entry > .transcript-time {
+          grid-area: 1 / 1;
         }
 
-        .transcript-text {
+        .transcript-entry > .transcript-stream {
+          grid-area: 1 / 2;
+        }
+
+        .transcript-entry > .transcript-play[data-clip-key] {
+          grid-area: 1 / 3;
+        }
+
+        .transcript-entry > .transcript-text {
           grid-column: 1 / -1;
+          grid-row: 2;
+        }
+
+        .transcript-entry > .transcript-transcribe {
+          grid-area: 3 / 1;
+        }
+
+        .transcript-entry > .transcript-feedback + .transcript-play {
+          grid-area: 3 / 2;
+          justify-self: start;
         }
       }
 
@@ -619,6 +642,47 @@
         margin-top: 28px;
         font-size: 0.9rem;
       }
+
+      /* Wide screens: streams on the left, recordings and transcripts in a
+         column on the right that stays in view while the streams scroll, so
+         both panes are visible however many streams the page holds. */
+      @media (min-width: 1100px) {
+        main {
+          width: min(1680px, 100%);
+        }
+
+        .page-layout:has(> .transcript-panel:not([hidden])) {
+          display: grid;
+          grid-template-columns: minmax(0, 3fr) minmax(420px, 2fr);
+          gap: 24px;
+          align-items: start;
+        }
+
+        .page-layout > .transcript-panel {
+          position: sticky;
+          top: 24px;
+          display: flex;
+          flex-direction: column;
+          max-height: calc(100vh - 48px);
+          box-sizing: border-box;
+        }
+
+        .page-layout > .transcript-panel .transcript-log {
+          flex: 1 1 auto;
+          min-height: 0;
+          max-height: none;
+        }
+
+        .page-layout {
+          margin-top: 24px;
+        }
+
+        .streams-pane > :first-child,
+        .streams-pane > .forest-group:first-child > h2,
+        .page-layout > .transcript-panel {
+          margin-top: 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -632,7 +696,8 @@
         <button id="disconnectAllBtn" class="secondary" type="button" disabled>Disconnect all audio</button>
       </div>
 
-      <div id="content"></div>
+      <div class="page-layout">
+      <div id="content" class="streams-pane"></div>
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
         <strong class="transcript-label">Recordings &amp; Transcripts</strong>
@@ -665,6 +730,7 @@
           </div>
         </div>
         <div id="transcriptLog" class="transcript-log"></div>
+      </div>
       </div>
 
       <p class="note">
