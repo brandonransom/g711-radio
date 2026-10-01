@@ -175,6 +175,8 @@
       }
 
       .stream h3 {
+        flex: 1 1 auto;
+        min-width: 0;
         margin: 0;
         font-size: 1.18rem;
         font-weight: 700;
@@ -204,19 +206,40 @@
         text-decoration: underline;
       }
 
-      .favorite-toggle {
+      /* Doubled class outranks the card's full-width ".stream button" rule. */
+      .favorite-toggle.favorite-toggle {
         flex: none;
-        padding: 0 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        min-height: 0;
+        margin: -4px -6px 0 0;
+        padding: 0;
         border: 0;
+        border-radius: 50%;
         background: transparent;
         box-shadow: none;
         color: var(--secondary1-2);
-        font-size: 1.4rem;
-        line-height: 1;
       }
 
-      .favorite-toggle:hover:not(:disabled) {
-        background: transparent;
+      .favorite-toggle svg {
+        width: 26px;
+        height: 26px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linejoin: round;
+      }
+
+      .favorite-toggle.is-favorite svg {
+        fill: currentColor;
+      }
+
+      .favorite-toggle.favorite-toggle:hover:not(:disabled) {
+        transform: none;
+        background: rgba(212, 139, 28, 0.14);
         color: var(--secondary1-0);
       }
 
@@ -771,13 +794,16 @@
         saveFavorites(list);
       }
 
+      const STAR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.84 5.76 6.36.92-4.6 4.48 1.09 6.33L12 17.3l-5.69 2.99 1.09-6.33-4.6-4.48 6.36-.92z"/></svg>';
+
       function buildFavoriteToggle(stream) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "favorite-toggle";
         const render = () => {
           const on = isFavorite(stream);
-          button.textContent = on ? "★" : "☆";
+          button.innerHTML = STAR_ICON;
+          button.classList.toggle("is-favorite", on);
           button.title = on ? "Remove from my favorites" : "Add to my favorites";
           button.setAttribute("aria-label", button.title);
           button.setAttribute("aria-pressed", String(on));
