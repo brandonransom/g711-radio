@@ -243,6 +243,17 @@
         color: var(--secondary1-0);
       }
 
+      .favorites-tip {
+        margin: -8px 0 4px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .favorites-tip a {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
       .favorites-empty {
         display: grid;
         gap: 8px;
@@ -682,8 +693,87 @@
         .page-layout > .transcript-panel {
           margin-top: 0;
         }
+
+        /* With only one or two streams per row, size the streams column to
+           the cards so the transcripts sit beside them instead of leaving an
+           empty gap. */
+        .page-layout[data-stream-cols="1"]:has(> .transcript-panel:not([hidden])) {
+          grid-template-columns: minmax(280px, 340px) minmax(420px, 1fr);
+        }
+
+        .page-layout[data-stream-cols="2"]:has(> .transcript-panel:not([hidden])) {
+          grid-template-columns: minmax(574px, 680px) minmax(420px, 1fr);
+        }
+      }
+
+      /* Embedded on the home page (?favorites=1&embed=1): only the
+         recordings and transcripts panel, filling the frame. */
+      html.embedded body {
+        display: block;
+        min-height: 0;
+        padding: 0;
+        background: transparent;
+      }
+
+      html.embedded main {
+        width: 100%;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      html.embedded .breadcrumb,
+      html.embedded #pageTitle,
+      html.embedded #pageSubtitle,
+      html.embedded main > .row,
+      html.embedded .favorites-tip,
+      html.embedded .streams-pane > .streams,
+      html.embedded .note {
+        display: none;
+      }
+
+      html.embedded .page-layout.page-layout {
+        display: block;
+        margin: 0;
+      }
+
+      html.embedded .transcript-panel.transcript-panel {
+        position: static;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        max-height: none;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+      }
+
+      html.embedded .transcript-panel .transcript-log {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+      }
+
+      .transcript-label a {
+        margin-left: 8px;
+        color: var(--accent);
+        letter-spacing: normal;
+        text-transform: none;
       }
     </style>
+    <script>
+      if (new URLSearchParams(window.location.search).get("embed") === "1") {
+        document.documentElement.classList.add("embedded");
+        // Links and downloads open in the host page, not inside the frame.
+        const base = document.createElement("base");
+        base.target = "_top";
+        document.head.append(base);
+      }
+    </script>
   </head>
   <body>
     <main>
@@ -695,8 +785,9 @@
         <button id="connectAllBtn" type="button" disabled>Connect all audio</button>
         <button id="disconnectAllBtn" class="secondary" type="button" disabled>Disconnect all audio</button>
       </div>
+      <p id="favoritesTip" class="favorites-tip" hidden></p>
 
-      <div class="page-layout">
+      <div class="page-layout" id="pageLayout">
       <div id="content" class="streams-pane"></div>
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
@@ -871,16 +962,37 @@
           const on = isFavorite(stream);
           button.innerHTML = STAR_ICON;
           button.classList.toggle("is-favorite", on);
-          button.title = on ? "Remove from my favorites" : "Add to my favorites";
+          button.title = on ? "Remove from my favorites" : "Add to my favorites (listed first on the home page)";
           button.setAttribute("aria-label", button.title);
           button.setAttribute("aria-pressed", String(on));
         };
         button.addEventListener("click", () => {
           toggleFavorite(stream);
           render();
+          updateFavoritesTip();
         });
         render();
         return button;
+      }
+
+      const favoritesTip = document.getElementById("favoritesTip");
+      let favoritesTipEnabled = false;
+
+      // Encourages starring streams on state, forest, and all-streams pages,
+      // and links to the favorites page once there are some.
+      function updateFavoritesTip() {
+        if (!favoritesTipEnabled) return;
+        const count = loadFavorites().length;
+        favoritesTip.textContent = "";
+        if (count === 0) {
+          favoritesTip.textContent = "Tip: tap ☆ on any stream to add it to your favorites. Favorites are listed first on the home page with their latest recordings and transcripts, and share one combined page for live audio.";
+        } else {
+          favoritesTip.append(
+            `★ ${count} favorite ${count === 1 ? "stream" : "streams"} saved in this browser. Tap ☆ to add more. `,
+            buildLink("/section.html?favorites=1", "Open my favorites →"),
+          );
+        }
+        favoritesTip.hidden = false;
       }
 
       function setVuSegments(card, level) {
@@ -2143,6 +2255,13 @@
         const forestParam = params.get("forest") || "";
         const allStreams = params.get("all") === "1";
         const favoritesPage = params.get("favorites") === "1";
+        const embedded = document.documentElement.classList.contains("embedded");
+        if (embedded) {
+          // The home page frames this view; follow star changes made there.
+          window.addEventListener("storage", (event) => {
+            if (event.key === FAVORITES_KEY) window.location.reload();
+          });
+        }
 
         let stateGroups;
         try {
@@ -2156,7 +2275,7 @@
 
         if (favoritesPage) {
           pageTitle.textContent = "My favorites";
-          pageSubtitle.textContent = "Your starred streams. This list is saved in this browser only.";
+          pageSubtitle.textContent = "Your starred streams in one place, with their recordings and transcripts. Tap ☆ on any stream to add it here, or ★ to remove it. Favorites are saved in this browser only.";
           document.title = "My favorites - USDA FS Radio Streams";
 
           const favorites = loadFavorites();
@@ -2174,8 +2293,8 @@
             empty.className = "favorites-empty";
             const message = document.createElement("div");
             message.textContent = favorites.length
-              ? "None of your favorite streams are configured on this server any more."
-              : "You have no favorite streams yet. Tap the ☆ next to any stream to add it here.";
+              ? "None of your favorite streams are configured on this server any more. Tap the ☆ next to any stream to choose new favorites."
+              : "You have no favorite streams yet. Tap the ☆ next to any stream to add it here. Favorites are listed first on the home page, show their recordings and transcripts there, and share this page for live audio.";
             const back = document.createElement("div");
             back.append(buildLink("/", "Browse states and forests →"));
             empty.append(message, back);
@@ -2260,6 +2379,22 @@
 
         populateStreamFilterOptions(Array.from(cards.values()), allStreams || favoritesPage);
         updateAllButtons();
+
+        const grids = Array.from(content.querySelectorAll(".streams"));
+        const widestRow = Math.max(0, ...grids.map((grid) => grid.childElementCount));
+        document.getElementById("pageLayout").dataset.streamCols = String(Math.min(widestRow, 3));
+
+        if (!favoritesPage) {
+          favoritesTipEnabled = true;
+          updateFavoritesTip();
+        }
+
+        if (embedded) {
+          const label = transcriptPanel.querySelector(".transcript-label");
+          label.textContent = "Favorites: recordings & transcripts";
+          label.append(buildLink("/section.html?favorites=1", "Open favorites page →"));
+        }
+
         transcriptPanel.hidden = false;
         void loadTranscriptHistory();
       }
