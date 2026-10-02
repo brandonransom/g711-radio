@@ -152,10 +152,15 @@ type appConfig struct {
 	// written, byte-for-byte, to this second directory (same relative
 	// state/group/stream path, same filename) — a redundant copy for
 	// disaster recovery, not served over HTTP or referenced anywhere in
-	// the UI. A write failure here (e.g. a temporarily unreachable network
-	// mount) is logged but never blocks the primary write, clip
+	// the UI. The copy is made at the moment each clip is saved, not by a
+	// periodic sync. A write failure here (e.g. a temporarily unreachable
+	// network mount) is logged but never blocks the primary write, clip
 	// finalization, or transcription. Leave empty to disable.
 	AudioBackupDir string `json:"audioBackupDir"`
+
+	// AudioBackupDir2 is an optional third archive that works exactly like
+	// AudioBackupDir. Either backup may be set without the other.
+	AudioBackupDir2 string `json:"audioBackupDir2"`
 
 	// RecordingIndex controls how the Recordings & Transcripts history is
 	// served; see recordingIndexConfig in recording_index.go. Omit for the
@@ -821,6 +826,22 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if analytics != nil {
+		// Before any recorder starts, so archive and live counts can't overlap.
+		var inventory []streamInfo
+		for _, state := range config.streamGroups {
+			for _, sg := range state.SubGroups {
+				for _, cfg := range sg.Streams {
+					inventory = append(inventory, streamInfo{StateName: state.StateName, GroupName: sg.GroupName, StreamName: cfg.StreamName})
+				}
+			}
+		}
+		analytics.BackfillRadio(config.AudioLogDir, inventory, nil)
+	}
+	for _, dir := range audioBackupDirs(&config) {
+		logger.Printf("audio backup directory: %s (every clip is copied here when saved)", dir)
+	}
+
 	for _, state := range config.streamGroups {
 		apiState := stateGroup{
 			StateName: state.StateName,
@@ -868,7 +889,7 @@ func main() {
 					}
 					captureInfo := info
 					captureAudioLogDir := config.AudioLogDir
-					captureAudioBackupDir := config.AudioBackupDir
+					captureAudioBackupDirs := audioBackupDirs(&config)
 					autoTranscribe := !cfg.DisableAutoTranscribe
 					if pool != nil && !autoTranscribe {
 						logger.Printf("%s: automatic transcription disabled by config (disableAutoTranscribe)", info.displayName())
@@ -895,7 +916,7 @@ func main() {
 								if captureAudioLogDir != "" {
 									var err error
 
-									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureAudioBackupDir, captureInfo, samples, start, logger)
+									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureAudioBackupDirs, captureInfo, samples, start, logger)
 									if err != nil {
 										logger.Printf("audio log: %v", err)
 									}
@@ -1639,18 +1660,29 @@ func (s *station) ingest(ctx context.Context, conn net.PacketConn) error {
 	}
 }
 
+// audioBackupDirs lists the configured backup archives, in order.
+func audioBackupDirs(config *appConfig) []string {
+	var dirs []string
+	for _, d := range []string{config.AudioBackupDir, config.AudioBackupDir2} {
+		if d != "" {
+			dirs = append(dirs, d)
+		}
+	}
+	return dirs
+}
+
 // saveAudioClip writes a recorded clip as an 8kHz mono WAV file under
 // audioLogDir (the primary, user-facing archive — served over HTTP and
 // referenced by clip playback). Returns the absolute file path and the
 // relative URL path for browser playback.
 // Path: <audioLogDir>/<state>/<group>/<streamName>/<streamName>_<ISO8601Z>.wav
 //
-// When backupDir is non-empty, the identical WAV bytes are also written to
-// the same relative path under backupDir — a redundant copy for disaster
-// recovery. It's never served over HTTP or referenced by the returned path
-// or URL, and a failure writing it (e.g. an unreachable network mount) is
-// logged but does not fail this call or affect the primary copy.
-func saveAudioClip(audioLogDir, backupDir string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) (string, string, error) {
+// When backupDirs are given, the identical WAV bytes are also written to
+// the same relative path under each one — redundant copies for disaster
+// recovery. They're never served over HTTP or referenced by the returned
+// path or URL, and a failure writing one (e.g. an unreachable network
+// mount) is logged but does not fail this call or affect the other copies.
+func saveAudioClip(audioLogDir string, backupDirs []string, info streamInfo, samples []int16, start time.Time, logger *log.Logger) (string, string, error) {
 	safe := func(s string) string {
 		return unsafeChars.ReplaceAllString(s, "_")
 	}
@@ -1673,15 +1705,18 @@ func saveAudioClip(audioLogDir, backupDir string, info streamInfo, samples []int
 		return "", "", fmt.Errorf("write %s: %w", absPath, err)
 	}
 
-	if backupDir != "" {
+	for _, backupDir := range backupDirs {
+		if backupDir == "" {
+			continue
+		}
 		backupAbsDir := filepath.Join(backupDir, relDir)
 		if err := os.MkdirAll(backupAbsDir, 0755); err != nil {
 			logger.Printf("audio backup: mkdir %s: %v", backupAbsDir, err)
-		} else {
-			backupAbsPath := filepath.Join(backupAbsDir, filename)
-			if err := os.WriteFile(backupAbsPath, wav, 0644); err != nil {
-				logger.Printf("audio backup: write %s: %v", backupAbsPath, err)
-			}
+			continue
+		}
+		backupAbsPath := filepath.Join(backupAbsDir, filename)
+		if err := os.WriteFile(backupAbsPath, wav, 0644); err != nil {
+			logger.Printf("audio backup: write %s: %v", backupAbsPath, err)
 		}
 	}
 

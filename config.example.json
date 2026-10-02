@@ -4,6 +4,7 @@
   "pfxFile": "C:\\Certs\\your-cert.pfx",
   "audioLogDir": "audio",
   "audioBackupDir": "",
+  "audioBackupDir2": "",
   "recordingIndex": { "mode": "full", "windowDays": 30 },
   "analytics": {
     "dashboardPath": "",

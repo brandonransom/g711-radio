@@ -256,6 +256,11 @@ type analyticsStore struct {
 	concurrent int
 	peers      map[string]*peerTrack
 
+	// archive holds radio totals read from the audio archive for the time
+	// before live transmission counting began (see radio_archive.go).
+	archive     map[string]*dayAgg
+	archiveNote string
+
 	geo *geoLocator
 }
 
@@ -594,19 +599,7 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 			n.Plays++
 		}
 	case evTransmission:
-		t := d.Radio[ev.Stream]
-		if t == nil {
-			t = &txAgg{State: ev.State, Group: ev.Group, Name: ev.Name}
-			d.Radio[ev.Stream] = t
-		}
-		t.Count++
-		t.Ms += ev.DurationMs
-		if end := ev.Time.Add(time.Duration(ev.DurationMs) * time.Millisecond).Format(time.RFC3339); end > t.Last {
-			t.Last = end
-		}
-		d.TxHour[hour]++
-		d.TxLengths[txLengthBucket(ev.DurationMs)]++
-		spreadByHour(&d.TxHourMs, ev.Time, ev.DurationMs)
+		d.addTransmission(ev)
 	case evDownload:
 		d.Downloads++
 	case evTranscriptReq:
@@ -622,6 +615,23 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 		}
 		d.Corrections += ev.Count
 	}
+}
+
+// addTransmission folds one transmission into the day's radio totals.
+func (d *dayAgg) addTransmission(ev analyticsEvent) {
+	t := d.Radio[ev.Stream]
+	if t == nil {
+		t = &txAgg{State: ev.State, Group: ev.Group, Name: ev.Name}
+		d.Radio[ev.Stream] = t
+	}
+	t.Count++
+	t.Ms += ev.DurationMs
+	if end := ev.Time.Add(time.Duration(ev.DurationMs) * time.Millisecond).Format(time.RFC3339); end > t.Last {
+		t.Last = end
+	}
+	d.TxHour[ev.Time.Hour()]++
+	d.TxLengths[txLengthBucket(ev.DurationMs)]++
+	spreadByHour(&d.TxHourMs, ev.Time, ev.DurationMs)
 }
 
 // spreadByHour adds a span's milliseconds to the hours it covers, stopping at

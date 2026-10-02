@@ -57,6 +57,7 @@ type radioData struct {
 	Lengths                  []kv
 	HeatCount                []heatRow
 	HeatAir                  []heatRow
+	ArchiveNote              string // where pre-deployment history came from
 }
 
 type kv struct {
@@ -284,10 +285,11 @@ func mergeNetworks(days []dayAgg) map[string]*netAgg {
 
 func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory inventoryFunc) dashData {
 	agg := a.daysInRange(days)
+	all := a.withRadioArchive(agg, days)
 	data := dashData{Days: days, Generated: a.now().Format("2006-01-02 15:04:05 MST"), GeoSource: a.geo.Source()}
 	data.From, data.To = a.rangeDates(days)
-	if data.From == "" && len(agg) > 0 {
-		data.From = agg[0].Date
+	if data.From == "" && len(all) > 0 {
+		data.From = all[0].Date
 	}
 	for _, r := range dashRanges {
 		r.Active = r.Days == days
@@ -316,7 +318,9 @@ func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory in
 	var durations []int64
 	var heatL, heatV [7][24]int
 	maxDaily := 0
-	for _, d := range agg {
+	// all includes radio-only days from the audio archive; their site
+	// totals are zero, so they add nothing except radio and daily rows.
+	for _, d := range all {
 		data.Visitors += d.Visitors
 		data.Pageviews += d.Pageviews
 		data.BotHits += d.BotHits
@@ -457,7 +461,7 @@ func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory in
 	}
 	data.Locations = rank(mapToKV(locs), 30)
 	data.Countries = rank(mapToKV(countries), 0)
-	data.Radio = a.radioStats(agg, days, inventory)
+	data.Radio = a.radioStats(all, days, inventory)
 	return data
 }
 
@@ -526,6 +530,9 @@ func weekdayIndex(date string) (int, bool) {
 // configured stream inventory (streams with no traffic still appear).
 func (a *analyticsStore) radioStats(agg []dayAgg, days int, inventory inventoryFunc) radioData {
 	var rd radioData
+	a.mu.Lock()
+	rd.ArchiveNote = a.archiveNote
+	a.mu.Unlock()
 	streams := map[string]*radioRow{}
 	configured := map[string]bool{}
 	if inventory != nil {
@@ -724,7 +731,7 @@ func maxIndex(v []int64) int {
 // exportRadio writes per-stream transmission totals for the range.
 func (a *analyticsStore) exportRadio(w http.ResponseWriter, days int, inventory inventoryFunc) {
 	from, to := a.rangeDates(days)
-	rd := a.radioStats(a.daysInRange(days), days, inventory)
+	rd := a.radioStats(a.withRadioArchive(a.daysInRange(days), days), days, inventory)
 	rows := rd.ByStream
 	sort.Slice(rows, func(i, j int) bool { return rows[i].sortName < rows[j].sortName })
 	cw := csvAttachment(w, "radio-"+strings.TrimSpace(from+"_"+to)+".csv")

@@ -70,7 +70,7 @@
   <div class="card">Duty cycle<b>{{.Radio.DutyPct}}</b><span class="muted">airtime ÷ stream-time</span></div>
   <div class="card">Busiest hour<b style="font-size:18px">{{.Radio.BusiestHour}}</b><span class="muted">by airtime</span></div>
 </div>
-<p class="muted">A transmission is one recording: activity with gaps shorter than the recorder's <code>gapMs</code> counts as one, and very long activity is split at <code>maxClipMs</code>. Counted only while recording or transcription is enabled. Per-stream totals: <a href="{{.BasePath}}/radio.csv?days={{.Days}}">radio.csv</a>.</p>
+<p class="muted">A transmission is one recording: activity with gaps shorter than the recorder's <code>gapMs</code> counts as one, and very long activity is split at <code>maxClipMs</code>. Counted only while recording or transcription is enabled.{{with .Radio.ArchiveNote}} {{.}}{{end}} Per-stream totals: <a href="{{.BasePath}}/radio.csv?days={{.Days}}">radio.csv</a>.</p>
 
 <p class="muted">Transmissions started, by weekday and hour (server time).</p>
 <table class="heat">
