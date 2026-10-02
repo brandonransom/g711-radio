@@ -20,7 +20,6 @@ func newFeedbackServer(t *testing.T) (*webrtcServer, string) {
 	path := filepath.Join(t.TempDir(), "transcript-feedback.csv")
 	return &webrtcServer{
 		logger:      log.New(io.Discard, "", 0),
-		usageLogger: &usageLogger{},
 		clips:       make(map[string]clipRecord),
 		feedback:    newFeedbackStore(path, log.New(io.Discard, "", 0)),
 	}, path
@@ -196,7 +195,6 @@ func TestFeedbackRejectsNonPost(t *testing.T) {
 func TestFeedbackDisabledWithoutArchive(t *testing.T) {
 	s := &webrtcServer{
 		logger:      log.New(io.Discard, "", 0),
-		usageLogger: &usageLogger{},
 		clips:       make(map[string]clipRecord),
 		feedback:    newFeedbackStore("", log.New(io.Discard, "", 0)),
 	}

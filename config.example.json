@@ -5,7 +5,13 @@
   "audioLogDir": "audio",
   "audioBackupDir": "",
   "recordingIndex": { "mode": "full", "windowDays": 30 },
-  "usageLogFile": "usage.csv",
+  "analytics": {
+    "dashboardPath": "",
+    "dir": "analytics",
+    "retentionDays": 90,
+    "geoipDatabase": "",
+    "locationOverridesFile": ""
+  },
   "whisper": {
     "remoteServers": [],
     "serverBinaryPath": "C:\\path\\to\\whisper.cpp\\build\\bin\\Release\\whisper-server.exe",

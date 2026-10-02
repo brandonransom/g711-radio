@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Site statistics</title>
+<style>
+  :root { color-scheme: light dark; --bar: #3b82f6; --muted: #6b7280; --line: rgba(127,127,127,.25); }
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 1200px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .muted { color: var(--muted); }
+  nav a { margin-right: 10px; }
+  nav a.active { font-weight: bold; text-decoration: none; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .card b { display: block; font-size: 22px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 0 24px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bar { position: relative; }
+  .bar span { position: absolute; left: 0; top: 2px; bottom: 2px; background: var(--bar); opacity: .25; border-radius: 3px; }
+  .heat td { padding: 0; width: 3.6%; height: 20px; text-align: center; font-size: 10px; border: 1px solid var(--line); }
+  .heat th { font-weight: normal; font-size: 11px; padding: 0 4px; }
+  .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Site statistics</h1>
+<div class="muted">{{if .From}}{{.From}} to {{end}}{{.To}} · generated {{.Generated}}</div>
+<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}</nav>
+
+<div class="cards">
+  <div class="card">Listening now<b>{{.LiveTotal}}</b></div>
+  <div class="card">Visitors<b>{{.Visitors}}</b><span class="muted">{{if .AvgVisitors}}{{.AvgVisitors}}/day avg{{end}}</span></div>
+  <div class="card">Page views<b>{{.Pageviews}}</b></div>
+  <div class="card">Listening sessions<b>{{.Listens}}</b></div>
+  <div class="card">Total listening<b>{{.ListenTotal}}</b><span class="muted">median {{.MedianListen}}</span></div>
+  <div class="card">Peak listeners<b>{{.PeakListeners}}</b><span class="muted">{{.PeakAt}}</span></div>
+  <div class="card">Networks (/24)<b>{{.NetworkCount}}</b></div>
+  <div class="card">Bot requests<b>{{.BotHits}}</b><span class="muted">excluded</span></div>
+</div>
+<p class="muted">Visitors are counted once per day per address+browser using a hash that changes daily, so multi-day totals are the sum of daily visitors. Addresses are stored only as /24 (IPv4) or /48 (IPv6) networks.</p>
+
+{{if .Live}}
+<h2>Listening now</h2>
+<table>{{range .Live}}<tr><td>{{.Key}}</td><td class="n">{{.Value}}</td></tr>{{end}}</table>
+{{end}}
+
+<h2>Daily</h2>
+<table>
+  <tr><th>Date</th><th></th><th class="n">Visitors</th><th class="n">Page views</th><th class="n">Listens</th></tr>
+  {{range .Daily}}<tr><td>{{.Date}}</td><td class="bar" style="width:45%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Visitors}}</td><td class="n">{{.Pageviews}}</td><td class="n">{{.Listens}}</td></tr>
+  {{else}}<tr><td colspan="5" class="muted">No data yet.</td></tr>{{end}}
+</table>
+
+<h2>Locations</h2>
+<p class="muted">Location source: {{.GeoSource}}. Raw networks: <a href="{{.BasePath}}/networks.csv?days={{.Days}}">networks.csv</a>.</p>
+<div class="grid2">
+  <div>
+    <table><tr><th>Location</th><th></th><th class="n">Visitors</th></tr>
+    {{range .Locations}}<tr><td>{{.Key}}</td><td class="bar" style="width:35%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Value}}</td></tr>{{end}}
+    </table>
+  </div>
+  <div>
+    <table><tr><th>Country</th><th></th><th class="n">Visitors</th></tr>
+    {{range .Countries}}<tr><td>{{.Key}}</td><td class="bar" style="width:35%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Value}}</td></tr>{{end}}
+    </table>
+  </div>
+</div>
+
+<h2>Networks</h2>
+<table>
+  <tr><th>Network</th><th>Location</th><th class="n">Visitors</th><th class="n">Views</th><th class="n">Listens</th><th class="n">Listening</th><th class="n">Plays</th><th>First seen</th><th>Last seen</th></tr>
+  {{range .Networks}}<tr><td><code>{{.Network}}</code></td><td>{{.Location}}{{if .Override}} <span class="tag">override</span>{{end}}</td><td class="n">{{.Visitors}}</td><td class="n">{{.Pageviews}}</td><td class="n">{{.Listens}}</td><td class="n">{{.Listen}}</td><td class="n">{{.Plays}}</td><td class="muted">{{.FirstSeen}}</td><td class="muted">{{.LastSeen}}</td></tr>
+  {{else}}<tr><td colspan="9" class="muted">No data yet.</td></tr>{{end}}
+</table>
+{{if .NetworksMore}}<p class="muted">{{.NetworksMore}} more in networks.csv.</p>{{end}}
+
+<h2>Streams</h2>
+<table>
+  <tr><th>Stream</th><th class="n">Attempts</th><th class="n">Connected</th><th class="n">Success</th><th class="n">Total listening</th><th class="n">Median</th><th class="n">Average</th></tr>
+  {{range .Streams}}<tr><td>{{.Name}}</td><td class="n">{{.Attempts}}</td><td class="n">{{.Connected}}</td><td class="n">{{.SuccessPct}}</td><td class="n">{{.Total}}</td><td class="n">{{.Median}}</td><td class="n">{{.Average}}</td></tr>
+  {{else}}<tr><td colspan="7" class="muted">No data yet.</td></tr>{{end}}
+</table>
+
+<h2>Connection health</h2>
+<table>
+  <tr><td>Attempts</td><td class="n">{{.Health.Attempts}}</td></tr>
+  <tr><td>Connected</td><td class="n">{{.Health.Connected}} ({{.Health.SuccessPct}})</td></tr>
+  <tr><td>Never connected (ICE/NAT failure or abandoned)</td><td class="n">{{.Health.NeverConnected}}</td></tr>
+  <tr><td>Ended by close (normal)</td><td class="n">{{.Health.EndedClosed}}</td></tr>
+  <tr><td>Ended by failure/timeout (dropped, or tab closed without a clean close)</td><td class="n">{{.Health.EndedFailed}}</td></tr>
+</table>
+
+<h2>When people listen</h2>
+<p class="muted">Listening sessions started, by weekday and hour (server time).</p>
+<table class="heat">
+  <tr><th></th>{{range $h, $_ := (index .HeatListens 0).Cells}}<th>{{$h}}</th>{{end}}</tr>
+  {{range .HeatListens}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(59,130,246,{{printf "%.2f" .Alpha}})">{{if .Value}}{{.Value}}{{end}}</td>{{end}}</tr>{{end}}
+</table>
+<p class="muted">Page views, by weekday and hour.</p>
+<table class="heat">
+  <tr><th></th>{{range $h, $_ := (index .HeatViews 0).Cells}}<th>{{$h}}</th>{{end}}</tr>
+  {{range .HeatViews}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(16,185,129,{{printf "%.2f" .Alpha}})">{{if .Value}}{{.Value}}{{end}}</td>{{end}}</tr>{{end}}
+</table>
+
+<h2>Engagement</h2>
+<div class="cards">
+  <div class="card">Recording plays<b>{{.Plays}}</b></div>
+  <div class="card">Recording downloads<b>{{.Downloads}}</b></div>
+  <div class="card">Transcript requests<b>{{.Transcripts}}</b></div>
+  <div class="card">Bulk transcript requests<b>{{.BulkRequests}}</b><span class="muted">{{.BulkClips}} clips</span></div>
+  <div class="card">Ratings<b>{{.FeedbackGood}} / {{.FeedbackBad}}</b><span class="muted">good / bad</span></div>
+  <div class="card">Corrections<b>{{.Corrections}}</b></div>
+</div>
+{{if .PlaysByStream}}
+<table style="margin-top:10px"><tr><th>Recordings played from</th><th></th><th class="n">Plays</th></tr>
+{{range .PlaysByStream}}<tr><td>{{.Key}}</td><td class="bar" style="width:35%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Value}}</td></tr>{{end}}
+</table>
+{{end}}
+
+<div class="grid2">
+  <div>
+    <h2>Top pages</h2>
+    <table>{{range .Pages}}<tr><td>{{.Key}}</td><td class="bar" style="width:30%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Value}}</td></tr>{{else}}<tr><td class="muted">No data yet.</td></tr>{{end}}</table>
+  </div>
+  <div>
+    <h2>Referrers</h2>
+    <table>{{range .Referrers}}<tr><td>{{.Key}}</td><td class="bar" style="width:30%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Value}}</td></tr>{{else}}<tr><td class="muted">None (direct visits only).</td></tr>{{end}}</table>
+  </div>
+</div>
+
+<h2>Devices</h2>
+<div class="grid2">
+  <table><tr><th>Browser</th><th class="n">Visitors</th></tr>{{range .Browsers}}<tr><td>{{.Key}}</td><td class="n">{{.Value}}</td></tr>{{end}}</table>
+  <table><tr><th>Operating system</th><th class="n">Visitors</th></tr>{{range .OSes}}<tr><td>{{.Key}}</td><td class="n">{{.Value}}</td></tr>{{end}}</table>
+  <table><tr><th>Device</th><th class="n">Visitors</th></tr>{{range .Devices}}<tr><td>{{.Key}}</td><td class="n">{{.Value}}</td></tr>{{end}}</table>
+</div>
+
+<h2>Raw data</h2>
+<p>
+  <a href="{{.BasePath}}/events.csv?days={{.Days}}">events.csv</a> — every event in this range (network, daily visitor hash, page, stream, durations).
+  Raw events are {{.Retention}}{{if .RawFrom}}; available from {{.RawFrom}}{{end}}. Older days keep daily totals and per-network totals only.<br>
+  <a href="{{.BasePath}}/networks.csv?days={{.Days}}">networks.csv</a> — per-network totals with any location data, for geolocating with other sources.
+</p>
+</body>
+</html>

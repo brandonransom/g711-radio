@@ -18,7 +18,7 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 
 ## Config
 
-`config.json` contains the HTTP port, an optional whisper block, usage logging options, and a hierarchical `states` map (state → forest/group → streams; the older `regions` key is still accepted as an alias). It is read once at startup by `loadConfig` in `main.go`. Every setting in this README, including all transcription settings for both local and remote mode, lives in this one file. The only other file read is the optional `config.secrets.json` (see `config.secrets.json.example`), which overlays `pfxPassword`, `pfxKeyPassword`, `certFile`, `keyFile`, and `iceServers`. Changes take effect on restart.
+`config.json` contains the HTTP port, an optional whisper block, optional analytics, and a hierarchical `states` map (state → forest/group → streams; the older `regions` key is still accepted as an alias). It is read once at startup by `loadConfig` in `main.go`. Every setting in this README, including all transcription settings for both local and remote mode, lives in this one file. The only other file read is the optional `config.secrets.json` (see `config.secrets.json.example`), which overlays `pfxPassword`, `pfxKeyPassword`, `certFile`, `keyFile`, and `iceServers`. Changes take effect on restart.
 
 It is **not tracked in git** — each deployment keeps its own ports, certificate paths, and stream list. Copy the template to create one:
 
@@ -26,13 +26,12 @@ It is **not tracked in git** — each deployment keeps its own ports, certificat
 cp config.example.json config.json
 ```
 
-Runtime output (`config.json`, `config.secrets.json`, `usage.csv`, `g711-radio.log`, `audio/`, `transcripts/`, and certificate files) is ignored for the same reason: the running server rewrites those files continuously, and tracking them makes every `git pull` on a live server fail with "local changes would be overwritten".
+Runtime output (`config.json`, `config.secrets.json`, `g711-radio.log`, `analytics/`, `audio/`, `transcripts/`, and certificate files) is ignored for the same reason: the running server rewrites those files continuously, and tracking them makes every `git pull` on a live server fail with "local changes would be overwritten".
 
 ```json
 {
   "httpPort": 80,
   "audioLogDir": "audio",
-  "usageLogFile": "usage.csv",
   "whisper": {
     "modelPath": "C:\\path\\to\\ggml-medium.bin",
     "serverBinaryPath": "C:\\path\\to\\whisper-server.exe",
@@ -66,8 +65,39 @@ Runtime output (`config.json`, `config.secrets.json`, `usage.csv`, `g711-radio.l
 - `audioLogDir`: Directory for the primary, user-facing audio archive — recorded clips are written here, served over HTTP at `/audio/` for in-browser playback, and referenced by the clip/transcript history. Optional; recording is disabled without it (unless whisper is otherwise configured, in which case clips are still transcribed from a temp file but not persisted). Audio and transcripts are kept **indefinitely** — nothing in this codebase deletes them.
 - `audioBackupDir`: Optional. When set, every recorded clip is also written, byte-for-byte, to this second directory (mirroring the same state/group/stream folder structure) — a redundant copy for disaster recovery. It's never served over HTTP or shown in the UI, and a write failure here (e.g. a temporarily unreachable network mount) is logged but never blocks the primary recording. Any path that behaves like a normal filesystem works, including a mapped network drive.
 - `recordingIndex`: Optional. How the Recordings & Transcripts history is served. Each mode is rebuilt from the WAV files and transcript logs in the background at startup (history scans the folders until then); WAV files stay the source of truth. `"mode"`: `"full"` (default — every recording and its transcript text in memory, fastest), `"lean"` (recordings in memory, transcript text read from the log on demand — less memory), `"window"` (like lean, but only the last `"windowDays"` days, default 30; older ranges scan the folders), or `"off"` (scan the audio folders on every request). Example: `"recordingIndex": { "mode": "lean" }`.
-- `usageLogFile`: CSV file to log visitor usage (connect, disconnect, audio download, transcription requests). Useful for spreadsheets and reporting (optional; if omitted, logs are not persisted)
+- `usageLogFile`: Obsolete and ignored. Still accepted so older configs keep loading; safe to delete.
+- `analytics` block: Optional anonymized visitor statistics and a private dashboard — see [Analytics](#analytics).
 - `whisper` block: Optional transcription configuration — see [Transcription settings](#transcription-settings). Omit it entirely to run without transcription.
+
+## Analytics
+
+Optional, self-hosted visitor statistics. No cookies, no JavaScript, no third-party services: the server records events as requests arrive and shows them on a private dashboard it serves itself. Add an `analytics` block to `config.json`:
+
+```json
+"analytics": {
+  "dashboardPath": "/k3v9q2m7xw4t8bnr5hza",
+  "dir": "analytics",
+  "retentionDays": 90,
+  "geoipDatabase": "",
+  "locationOverridesFile": ""
+}
+```
+
+- `dashboardPath`: URL of the dashboard — `/` followed by 12–64 letters, digits, `-` or `_`. Nothing links to it, and responses are marked `noindex`/`no-store`/`no-referrer`, so the path itself is the only key: use a random value. If the block is present but this is empty, events are still recorded and the startup log suggests a random path. Anyone who has the URL can see the dashboard; it has no password.
+- `dir`: Where data is kept (default `analytics`). `events/YYYY-MM-DD.jsonl` holds raw events, `daily/YYYY-MM-DD.json` holds each finished day's totals, and `salt.json` holds today's visitor-hash salt.
+- `retentionDays`: How long raw events are kept (default 90; negative keeps them forever). Older days keep only their daily and per-network totals.
+- `geoipDatabase`: Optional MaxMind-format city database (`.mmdb`) used to label networks with city/region/country — for example DB-IP [IP to City Lite](https://db-ip.com/db/download/ip-to-city-lite) (free, CC BY 4.0, attribution to DB-IP required) or MaxMind [GeoLite2-City](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) (free account). Update the file monthly; restart to load a new one.
+- `locationOverridesFile`: Optional CSV of `cidr,label` lines (`#` comments allowed) that name networks yourself, e.g. `10.20.30.0/24,Building 7` or `203.0.113.0/24,"Reno, NV office"`. The most specific match wins and takes precedence over the GeoIP database. The file is re-read automatically when it changes.
+
+Omit the block entirely to disable analytics.
+
+**What is recorded.** Page views (with external referrer host only), WebRTC listening sessions (stream, whether the connection came up, how it ended, duration), recording plays and downloads, transcript requests, and transcript ratings/corrections. Each event stores the client's **network, not its address** — IPv4 truncated to the first three octets (`/24`), IPv6 to `/48` — plus coarse browser/OS/device categories (never the raw User-Agent). Unique visitors are counted with a hash of address + User-Agent and a random salt that changes every day, so a visitor can't be followed from one day to the next and old hashes can't be reversed. Bots and crawlers are counted separately and excluded from the stats.
+
+**Dashboard.** Visitors, page views, listening now, listening sessions and time, peak concurrent listeners, daily trend, locations and countries, top networks, per-stream listening and connection success rates, connection health (never connected / closed / failed), weekday × hour heatmaps of listening and page views, engagement, pages, referrers, and browser/OS/device mix. Choose a range with `?days=` (1, 7, 30, 90, 365, or 0 for all time).
+
+**Raw data for your own geolocation.** `<dashboardPath>/networks.csv?days=N` lists every network with its totals, first/last seen, and any GeoIP/override location; `<dashboardPath>/events.csv?days=N` lists every raw event in the range (within the retention period). Both are linked at the bottom of the dashboard.
+
+**Caveat.** The client address comes from `X-Forwarded-For` when present (as elsewhere in this server), so clients can spoof the network they appear to come from unless a trusted proxy overwrites that header.
 
 ## Multicast Audio Streaming
 
@@ -108,21 +138,6 @@ Example:
 Existing configs with single `udpPort` continue to work unchanged. Multicast is purely opt-in.
 
 See the section below for detailed multicast configuration examples.
-
-## Usage Logging
-
-When `usageLogFile` is configured, the server writes visitor activity to a CSV file with the following columns:
-- **timestamp**: ISO 8601 timestamp of the event
-- **action**: Event type (connect, disconnect, audio_download, transcript_request)
-- **client_ip**: IP address of the visitor
-- **stream**: Stream name
-- **peer_id**: Unique peer ID for WebRTC connections
-- **clip_id**: Clip ID for transcription requests
-- **source**: Where the clip came from (registry or audiourl_fallback)
-- **duration_ms**: Connection duration in milliseconds
-- **path**: URL path for audio downloads
-
-This CSV is spreadsheet-friendly and can be imported into Excel, Google Sheets, or used for analytics dashboards.
 
 ## Transcription
 

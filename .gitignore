@@ -9,6 +9,7 @@ g711-radio.exe
 # Runtime output and local credentials
 audio/
 transcripts/
+analytics/
 usage.csv
 g711-radio.log
 *.pem

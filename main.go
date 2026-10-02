@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
-	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -25,7 +24,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -164,7 +162,15 @@ type appConfig struct {
 	// default ("full").
 	RecordingIndex recordingIndexConfig `json:"recordingIndex"`
 
-	UsageLogFile   string            `json:"usageLogFile"`
+	// UsageLogFile is obsolete (the usage CSV was removed). It is still
+	// accepted so existing configs keep loading under DisallowUnknownFields,
+	// but it is ignored.
+	UsageLogFile string `json:"usageLogFile"`
+
+	// Analytics enables anonymized visitor statistics and the unlinked
+	// dashboard; see analyticsConfig in analytics.go. Omit to disable.
+	Analytics *analyticsConfig `json:"analytics"`
+
 	CertFile       string            `json:"certFile"`
 	KeyFile        string            `json:"keyFile"`
 	PFXFile        string            `json:"pfxFile"`
@@ -279,7 +285,6 @@ type station struct {
 	frameDuration  time.Duration
 	logger         *log.Logger
 	debugMulticast bool
-	usageLogger    *usageLogger
 	audioLogDir    string
 
 	// whisperPool is non-nil when transcription is enabled.
@@ -332,10 +337,8 @@ type clipRecord struct {
 }
 
 type subscriber struct {
-	pc           *webrtc.PeerConnection
-	track        *webrtc.TrackLocalStaticSample
-	clientIP     string
-	connectionAt time.Time
+	pc    *webrtc.PeerConnection
+	track *webrtc.TrackLocalStaticSample
 
 	// ready is false until the underlying PeerConnection reports it has
 	// actually connected (ICE + DTLS complete). Broadcasting audio to a
@@ -346,13 +349,6 @@ type subscriber struct {
 	ready atomic.Bool
 }
 
-type usageLogger struct {
-	mu     sync.Mutex
-	file   *os.File
-	writer *csv.Writer
-	close  chan struct{}
-}
-
 type offerRequest struct {
 	StreamID string                    `json:"streamId"`
 	Offer    webrtc.SessionDescription `json:"offer"`
@@ -361,7 +357,7 @@ type offerRequest struct {
 type webrtcServer struct {
 	api         *webrtc.API
 	logger      *log.Logger
-	usageLogger *usageLogger
+	analytics   *analyticsStore
 	streams     map[string]*station
 	stateGroups []stateGroup
 	hub         *transcriptHub
@@ -496,11 +492,7 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 	// A clip already waiting in the queue is not added twice; its pending
 	// transcript is published to every listener, this one included.
 	s.whisperPool.Submit(job)
-	s.usageLogger.logUsage("transcript_request", map[string]string{
-		"client_ip": getClientIP(r),
-		"clip_id":   req.ClipID,
-		"source":    source,
-	})
+	s.analytics.Record(r, analyticsEvent{Type: evTranscriptReq, Stream: job.info.StreamName})
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -564,11 +556,7 @@ func (s *webrtcServer) handleBulkTranscriptRequest(w http.ResponseWriter, r *htt
 	}
 	s.logger.Printf("transcribe: bulk request from %s: %d queued, %d already queued, %d not found, %d over capacity (queue depth: %d)",
 		getClientIP(r), len(resp.Queued), len(resp.AlreadyQueued), resp.NotFound, resp.QueueFull, s.whisperPool.queueDepth())
-	s.usageLogger.logUsage("transcript_bulk_request", map[string]string{
-		"client_ip": getClientIP(r),
-		"requested": strconv.Itoa(len(req.Clips)),
-		"queued":    strconv.Itoa(len(resp.Queued)),
-	})
+	s.analytics.Record(r, analyticsEvent{Type: evTranscriptBulk, Count: len(req.Clips)})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(resp)
@@ -696,14 +684,20 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	usageLog, err := newUsageLogger(config.UsageLogFile)
-	if err != nil {
-		logger.Printf("WARNING: could not open usage log file: %v", err)
-		usageLog, _ = newUsageLogger("")
-	}
 	if config.UsageLogFile != "" {
-		logger.Printf("usage log file: %s", config.UsageLogFile)
-		defer usageLog.Close()
+		logger.Printf("NOTE: usageLogFile is obsolete and ignored; remove it from %s", configPath)
+	}
+
+	var analytics *analyticsStore
+	if config.Analytics != nil {
+		analytics, err = openAnalyticsStore(*config.Analytics, logger)
+		if err != nil {
+			logger.Printf("WARNING: analytics disabled: %v", err)
+			analytics = nil
+		} else {
+			logger.Printf("analytics: recording to %s (raw events kept %d days; negative = forever)", config.Analytics.Dir, config.Analytics.RetentionDays)
+			defer analytics.Close()
+		}
 	}
 
 	codec := webrtc.RTPCodecCapability{
@@ -794,7 +788,7 @@ func main() {
 	server := &webrtcServer{
 		api:         api,
 		logger:      logger,
-		usageLogger: usageLog,
+		analytics:   analytics,
 		streams:     make(map[string]*station, config.totalStreams),
 		stateGroups: make([]stateGroup, 0, len(config.streamGroups)),
 		hub:         hub,
@@ -849,7 +843,6 @@ func main() {
 					frameDuration:  frameDuration,
 					logger:         logger,
 					debugMulticast: cfg.DebugMulticast,
-					usageLogger:    server.usageLogger,
 					audioLogDir:    config.AudioLogDir,
 					audioDumpDir:   config.AudioDumpDir,
 					subscribers:    make(map[string]*subscriber),
@@ -1063,7 +1056,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.FS(staticFS)))
+	mux.Handle("/", analytics.PageviewMiddleware(http.FileServer(http.FS(staticFS))))
 	mux.HandleFunc("/streams", server.handleStreams)
 	mux.HandleFunc("/stream-status", server.handleStreamStatus)
 	mux.HandleFunc("/stream-activity", server.handleStreamActivity)
@@ -1072,7 +1065,7 @@ func main() {
 	mux.HandleFunc("/transcripts/request-bulk", server.handleBulkTranscriptRequest)
 	mux.HandleFunc("/transcripts/feedback", server.handleTranscriptFeedback)
 	mux.Handle("/transcripts", hub)
-	mux.HandleFunc("/recordings/download", recordingDownloadHandler(config.AudioLogDir, logger))
+	mux.Handle("/recordings/download", analytics.EventMiddleware(http.MethodPost, evDownload, recordingDownloadHandler(config.AudioLogDir, logger)))
 	mux.HandleFunc("/transcripts/history", func(w http.ResponseWriter, r *http.Request) {
 		streamID := r.URL.Query().Get("streamId")
 		if streamID == "" {
@@ -1104,8 +1097,17 @@ func main() {
 	})
 	if config.AudioLogDir != "" {
 		audioHandler := http.StripPrefix("/audio/", http.FileServer(http.Dir(config.AudioLogDir)))
-		mux.Handle("/audio/", audioLoggingMiddleware(audioHandler, usageLog))
+		mux.Handle("/audio/", analytics.AudioMiddleware(audioHandler))
 		logger.Printf("audio log directory: %s (served at /audio/)", config.AudioLogDir)
+	}
+	if analytics != nil {
+		go analytics.Run(ctx)
+		if p := config.Analytics.DashboardPath; p != "" {
+			analytics.RegisterDashboard(mux, p, server.liveListenerCounts)
+			logger.Printf("analytics: dashboard enabled at the dashboardPath set in %s", configPath)
+		} else {
+			logger.Printf("analytics: dashboard disabled; set analytics.dashboardPath in %s, e.g. \"/%s\"", configPath, randomToken())
+		}
 	}
 
 	httpServer := &http.Server{
@@ -1298,6 +1300,11 @@ func loadConfig(path string) (appConfig, error) {
 	}
 	if err := config.RecordingIndex.normalize(); err != nil {
 		return appConfig{}, fmt.Errorf("%s: recordingIndex: %w", path, err)
+	}
+	if config.Analytics != nil {
+		if err := config.Analytics.normalize(); err != nil {
+			return appConfig{}, fmt.Errorf("%s: analytics: %w", path, err)
+		}
 	}
 
 	// Overlay config.secrets.json if present (passwords and other sensitive values).
@@ -1801,20 +1808,6 @@ func resolveRecordingDownloadFiles(audioLogDir string, audioURLs []string) ([]re
 	return files, nil
 }
 
-// audioLoggingMiddleware wraps an http.Handler to log audio file downloads
-func audioLoggingMiddleware(handler http.Handler, usageLogger *usageLogger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clientIP := getClientIP(r)
-		filePath := r.URL.Path
-		// Log audio download requests
-		usageLogger.logUsage("audio_download", map[string]string{
-			"client_ip": clientIP,
-			"path":      filePath,
-		})
-		handler.ServeHTTP(w, r)
-	})
-}
-
 // parseHistoryRange parses the optional "since" and "until" RFC3339 query
 // parameters accepted by /transcripts/history. Both are optional and, left
 // unset, impose no bound in that direction: History treats a zero since as
@@ -1854,62 +1847,6 @@ func getClientIP(r *http.Request) string {
 		return host
 	}
 	return r.RemoteAddr
-}
-
-// newUsageLogger creates a CSV logger for usage events. If path is empty, no logging occurs.
-func newUsageLogger(path string) (*usageLogger, error) {
-	if path == "" {
-		return &usageLogger{}, nil
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	ul := &usageLogger{file: f, writer: csv.NewWriter(f), close: make(chan struct{})}
-	// Write header if file is empty
-	info, _ := f.Stat()
-	if info.Size() == 0 {
-		_ = ul.writer.Write([]string{"timestamp", "action", "client_ip", "stream", "peer_id", "clip_id", "source", "duration_ms", "path"})
-		ul.writer.Flush()
-	}
-	return ul, nil
-}
-
-// logUsage writes a usage event to the CSV file with flexible fields.
-func (ul *usageLogger) logUsage(action string, fields map[string]string) {
-	if ul.file == nil {
-		return
-	}
-	ul.mu.Lock()
-	defer ul.mu.Unlock()
-
-	timestamp := time.Now().Format(time.RFC3339)
-	row := []string{
-		timestamp,
-		action,
-		fields["client_ip"],
-		fields["stream"],
-		fields["peer_id"],
-		fields["clip_id"],
-		fields["source"],
-		fields["duration_ms"],
-		fields["path"],
-	}
-	_ = ul.writer.Write(row)
-	ul.writer.Flush()
-}
-
-// Close closes the usage logger file.
-func (ul *usageLogger) Close() error {
-	if ul.file != nil {
-		ul.mu.Lock()
-		if ul.writer != nil {
-			ul.writer.Flush()
-		}
-		ul.mu.Unlock()
-		return ul.file.Close()
-	}
-	return nil
 }
 
 // resolveLogFilePath returns the path to the server log file (g711-radio.log)
@@ -1957,7 +1894,7 @@ func pruneLogFile(path string, maxAge time.Duration, logger *log.Logger) {
 	}
 }
 
-func (s *station) addSubscriber(pc *webrtc.PeerConnection, clientIP string) (string, error) {
+func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
 	track, err := webrtc.NewTrackLocalStaticSample(s.codec, "audio", s.info.ID)
 	if err != nil {
 		return "", err
@@ -1974,14 +1911,32 @@ func (s *station) addSubscriber(pc *webrtc.PeerConnection, clientIP string) (str
 
 	s.mu.Lock()
 	s.subscribers[id] = &subscriber{
-		pc:           pc,
-		track:        track,
-		clientIP:     clientIP,
-		connectionAt: time.Now(),
+		pc:    pc,
+		track: track,
 	}
 	s.mu.Unlock()
 
 	return id, nil
+}
+
+// liveListenerCounts reports connected listeners per stream for the
+// analytics dashboard.
+func (s *webrtcServer) liveListenerCounts() map[string]int {
+	out := map[string]int{}
+	for _, st := range s.streams {
+		st.mu.RLock()
+		n := 0
+		for _, sub := range st.subscribers {
+			if sub.ready.Load() {
+				n++
+			}
+		}
+		st.mu.RUnlock()
+		if n > 0 {
+			out[st.info.displayName()] = n
+		}
+	}
+	return out
 }
 
 func (s *station) removeSubscriber(id string) {
@@ -1994,17 +1949,6 @@ func (s *station) removeSubscriber(id string) {
 
 	if ok && sub.pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
 		_ = sub.pc.Close()
-	}
-
-	// Log connection duration
-	if ok && !sub.connectionAt.IsZero() {
-		duration := time.Since(sub.connectionAt)
-		s.usageLogger.logUsage("disconnect", map[string]string{
-			"stream":      s.info.StreamName,
-			"peer_id":     id,
-			"client_ip":   sub.clientIP,
-			"duration_ms": fmt.Sprintf("%d", duration.Milliseconds()),
-		})
 	}
 }
 
@@ -2200,8 +2144,6 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	clientIP := getClientIP(r)
-
 	var request offerRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "invalid offer body", http.StatusBadRequest)
@@ -2231,25 +2173,21 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	peerID, err := station.addSubscriber(pc, clientIP)
+	peerID, err := station.addSubscriber(pc)
 	if err != nil {
 		_ = pc.Close()
 		http.Error(w, "failed to add audio track", http.StatusInternalServerError)
 		return
 	}
 
-	// Log new connection
-	s.usageLogger.logUsage("connect", map[string]string{
-		"stream":    station.info.StreamName,
-		"peer_id":   peerID,
-		"client_ip": clientIP,
-	})
+	s.analytics.ListenStart(r, station.info.displayName(), peerID)
 
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		s.logger.Printf("%s %s state: %s", station.info.StreamName, peerID, state.String())
 		switch state {
 		case webrtc.PeerConnectionStateConnected:
 			station.markSubscriberReady(peerID)
+			s.analytics.ListenConnected(peerID)
 		case webrtc.PeerConnectionStateDisconnected:
 			// Stop broadcasting the instant the connection leaves the
 			// Connected state — symmetric with markSubscriberReady, so a
@@ -2262,6 +2200,7 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
 			station.markSubscriberNotReady(peerID)
 			station.removeSubscriber(peerID)
+			s.analytics.ListenEnded(peerID, state == webrtc.PeerConnectionStateFailed)
 		}
 	})
 

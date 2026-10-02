@@ -417,12 +417,11 @@ func (s *webrtcServer) handleTranscriptFeedback(w http.ResponseWriter, r *http.R
 	} else {
 		s.logger.Printf("transcript feedback: %s rated %s for %s", rec.ClientIP, rec.Rating, label)
 	}
-	s.usageLogger.logUsage("transcript_feedback", map[string]string{
-		"client_ip": rec.ClientIP,
-		"clip_id":   rec.ClipID,
-		"stream":    rec.StreamName,
-		"source":    string(rec.Rating),
-	})
+	corrections := 0
+	if rec.Corrected != "" {
+		corrections = 1
+	}
+	s.analytics.Record(r, analyticsEvent{Type: evFeedback, Stream: rec.StreamName, Detail: string(rec.Rating), Count: corrections})
 
 	w.WriteHeader(http.StatusNoContent)
 }
