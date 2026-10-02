@@ -157,9 +157,9 @@ func TestAnalyticsStoreLifecycle(t *testing.T) {
 	partial.Header.Set("Range", "bytes=1000-")
 	serveOK(audio, partial)
 
-	a.ListenStart(testRequest(http.MethodPost, "/offer", "203.0.113.77"), "StreamA", "p1")
-	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "p2")
-	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "p3")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "203.0.113.77"), "StreamA", "", "p1")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "", "p2")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "", "p3")
 	a.ListenConnected("p1")
 	a.ListenConnected("p2")
 	clock.t = clock.t.Add(90 * time.Second)
@@ -168,8 +168,8 @@ func TestAnalyticsStoreLifecycle(t *testing.T) {
 	a.ListenEnded("p2", true)
 	a.ListenEnded("p3", false)
 
-	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "p4")
-	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "p5")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "", "p4")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "", "p5")
 	a.ListenConnected("p4")
 	a.ListenConnected("p5")
 	clock.t = clock.t.Add(30 * time.Second)
@@ -256,7 +256,7 @@ func TestAnalyticsNilStoreIsSafe(t *testing.T) {
 	var a *analyticsStore
 	r := testRequest(http.MethodGet, "/", "203.0.113.1")
 	a.Record(r, analyticsEvent{Type: evPageview})
-	a.ListenStart(r, "s", "p")
+	a.ListenStart(r, "s", "", "p")
 	a.ListenConnected("p")
 	a.ListenEnded("p", false)
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
@@ -292,7 +292,7 @@ func TestDashboardAndExports(t *testing.T) {
 	a := newTestStore(t, dir, clock)
 	serveOK(a.PageviewMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
 		testRequest(http.MethodGet, "/", "203.0.113.77"))
-	a.ListenStart(testRequest(http.MethodPost, "/offer", "203.0.113.77"), "Stream <A>", "p1")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "203.0.113.77"), "Stream <A>", "", "p1")
 	a.ListenConnected("p1")
 
 	path := "/" + randomToken()

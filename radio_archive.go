@@ -23,15 +23,22 @@ import (
 
 const radioArchiveFileName = "radio_archive.json"
 
+// radioArchiveVersion 2 added stream-local weekday/hour totals; older files
+// are rescanned.
+const radioArchiveVersion = 2
+
 // radioDay is the radio part of a dayAgg, as saved in radio_archive.json.
 type radioDay struct {
 	Radio     map[string]*txAgg    `json:"radio"`
 	TxHour    [24]int              `json:"txHour"`
 	TxHourMs  [24]int64            `json:"txHourMs"`
 	TxLengths [txLengthBuckets]int `json:"txLengths"`
+	TxLocal   [7][24]int           `json:"txLocal"`
+	TxLocalMs [7][24]int64         `json:"txLocalMs"`
 }
 
 type radioArchiveFile struct {
+	Version    int                 `json:"version"`
 	Cutoff     time.Time           `json:"cutoff"`
 	ScannedAt  time.Time           `json:"scannedAt"`
 	Recordings int                 `json:"recordings"`
@@ -93,9 +100,9 @@ func (a *analyticsStore) scanAndSaveRadioArchive(audioLogDir string, inventory [
 		a.mu.Unlock()
 		return
 	}
-	f := &radioArchiveFile{Cutoff: cutoff, ScannedAt: a.now(), Recordings: n, Days: map[string]radioDay{}}
+	f := &radioArchiveFile{Version: radioArchiveVersion, Cutoff: cutoff, ScannedAt: a.now(), Recordings: n, Days: map[string]radioDay{}}
 	for date, d := range days {
-		f.Days[date] = radioDay{Radio: d.Radio, TxHour: d.TxHour, TxHourMs: d.TxHourMs, TxLengths: d.TxLengths}
+		f.Days[date] = radioDay{Radio: d.Radio, TxHour: d.TxHour, TxHourMs: d.TxHourMs, TxLengths: d.TxLengths, TxLocal: d.TxLocal, TxLocalMs: d.TxLocalMs}
 	}
 	if err := a.writeRadioArchive(f); err != nil {
 		a.logger.Printf("analytics: save %s: %v (the archive will be rescanned next start)", radioArchiveFileName, err)
@@ -117,6 +124,9 @@ func (a *analyticsStore) readRadioArchive() (*radioArchiveFile, error) {
 	if f.Cutoff.IsZero() {
 		return nil, fmt.Errorf("missing cutoff")
 	}
+	if f.Version < radioArchiveVersion {
+		return nil, fmt.Errorf("written by an older version (no stream-local times)")
+	}
 	return &f, nil
 }
 
@@ -135,7 +145,7 @@ func (a *analyticsStore) writeRadioArchive(f *radioArchiveFile) error {
 func (a *analyticsStore) setRadioArchive(f *radioArchiveFile) {
 	days := make(map[string]*dayAgg, len(f.Days))
 	for date, rd := range f.Days {
-		d := &dayAgg{Date: date, Radio: rd.Radio, TxHour: rd.TxHour, TxHourMs: rd.TxHourMs, TxLengths: rd.TxLengths}
+		d := &dayAgg{Date: date, Radio: rd.Radio, TxHour: rd.TxHour, TxHourMs: rd.TxHourMs, TxLengths: rd.TxLengths, TxLocal: rd.TxLocal, TxLocalMs: rd.TxLocalMs}
 		if d.Radio == nil {
 			d.Radio = map[string]*txAgg{}
 		}
@@ -257,7 +267,7 @@ func scanRadioArchive(root string, inventory []streamInfo, cutoff time.Time, loc
 					d.addTransmission(analyticsEvent{
 						Time: t, Type: evTransmission, Stream: info.displayName(),
 						State: info.StateName, Group: info.GroupName, Name: info.StreamName,
-						DurationMs: int64(ms),
+						DurationMs: int64(ms), TZ: info.TimeZone,
 					})
 					n++
 					if progress != nil && n%50000 == 0 {
@@ -330,5 +340,11 @@ func mergeRadio(dst, src *dayAgg) {
 	}
 	for i := range dst.TxLengths {
 		dst.TxLengths[i] += src.TxLengths[i]
+	}
+	for wd := 0; wd < 7; wd++ {
+		for h := 0; h < 24; h++ {
+			dst.TxLocal[wd][h] += src.TxLocal[wd][h]
+			dst.TxLocalMs[wd][h] += src.TxLocalMs[wd][h]
+		}
 	}
 }

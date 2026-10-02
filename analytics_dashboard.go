@@ -363,9 +363,19 @@ func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory in
 		data.Listens += dayListens
 		if t, err := time.Parse(dateLayout, d.Date); err == nil {
 			wd := (int(t.Weekday()) + 6) % 7 // Monday first
+			legacy := isZero(&d.ListenLocal)
 			for h := 0; h < 24; h++ {
-				heatL[wd][h] += d.HourListens[h]
+				if legacy {
+					heatL[wd][h] += d.HourListens[h]
+				}
 				heatV[wd][h] += d.HourViews[h]
+			}
+		}
+		if !isZero(&d.ListenLocal) {
+			for wd := range d.ListenLocal {
+				for h, n := range d.ListenLocal[wd] {
+					heatL[wd][h] += n
+				}
 			}
 		}
 		row := dailyRow{Date: d.Date, Visitors: d.Visitors, Pageviews: d.Pageviews, Listens: dayListens}
@@ -518,6 +528,17 @@ func heatRowsFmt(h [7][24]int64, label func(int64) (string, string)) []heatRow {
 	return rows
 }
 
+func isZero[T int | int64](cells *[7][24]T) bool {
+	for _, row := range cells {
+		for _, v := range row {
+			if v != 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func weekdayIndex(date string) (int, bool) {
 	t, err := time.Parse(dateLayout, date)
 	if err != nil {
@@ -548,7 +569,6 @@ func (a *analyticsStore) radioStats(agg []dayAgg, days int, inventory inventoryF
 	}
 
 	var heatCount, heatAir [7][24]int64
-	var hourAir [24]int64
 	var lengths [txLengthBuckets]int
 	var totalMs int64
 	firstDate := ""
@@ -576,13 +596,25 @@ func (a *analyticsStore) radioStats(agg []dayAgg, days int, inventory inventoryF
 		for i, n := range d.TxLengths {
 			lengths[i] += n
 		}
-		wd, ok := weekdayIndex(d.Date)
-		for h := 0; h < 24; h++ {
-			hourAir[h] += d.TxHourMs[h]
-			if ok {
+		if !isZero(&d.TxLocal) {
+			for wd := 0; wd < 7; wd++ {
+				for h := 0; h < 24; h++ {
+					heatCount[wd][h] += int64(d.TxLocal[wd][h])
+					heatAir[wd][h] += d.TxLocalMs[wd][h]
+				}
+			}
+		} else if wd, ok := weekdayIndex(d.Date); ok {
+			// Rolled up before stream-local times were kept: server time.
+			for h := 0; h < 24; h++ {
 				heatCount[wd][h] += int64(d.TxHour[h])
 				heatAir[wd][h] += d.TxHourMs[h]
 			}
+		}
+	}
+	var hourAir [24]int64
+	for wd := 0; wd < 7; wd++ {
+		for h := 0; h < 24; h++ {
+			hourAir[h] += heatAir[wd][h]
 		}
 	}
 	if inventory == nil {

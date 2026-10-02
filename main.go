@@ -242,6 +242,10 @@ type streamConfig struct {
 	// another stream that is already transcribed. Clips are still recorded
 	// and can be transcribed on demand from the web UI.
 	DisableAutoTranscribe bool `json:"disableAutoTranscribe"`
+	// TimeZone is the IANA zone the stream's radios are in (e.g.
+	// "America/Anchorage"), used for the analytics time-of-day stats.
+	// Empty means the server's local time zone.
+	TimeZone string `json:"timeZone"`
 }
 
 type streamInfo struct {
@@ -251,6 +255,7 @@ type streamInfo struct {
 	ID         string `json:"id"`
 	StreamName string `json:"streamName"`
 	UDPPort    int    `json:"udpPort"`
+	TimeZone   string `json:"timeZone,omitempty"`
 }
 
 func (s streamInfo) displayName() string {
@@ -832,7 +837,7 @@ func main() {
 		for _, state := range config.streamGroups {
 			for _, sg := range state.SubGroups {
 				for _, cfg := range sg.Streams {
-					inventory = append(inventory, streamInfo{StateName: state.StateName, GroupName: sg.GroupName, StreamName: cfg.StreamName})
+					inventory = append(inventory, streamInfo{StateName: state.StateName, GroupName: sg.GroupName, StreamName: cfg.StreamName, TimeZone: cfg.TimeZone})
 				}
 			}
 		}
@@ -862,6 +867,7 @@ func main() {
 					ID:         nextStreamID(),
 					StreamName: cfg.StreamName,
 					UDPPort:    cfg.UDPPort,
+					TimeZone:   cfg.TimeZone,
 				}
 
 				st := &station{
@@ -1480,6 +1486,13 @@ func normalizeStates(path string, rawStates map[string]map[string][]streamConfig
 				}
 
 				// Validate ports: UDPPorts (plural) takes precedence
+				stream.TimeZone = strings.TrimSpace(stream.TimeZone)
+				if stream.TimeZone != "" {
+					if _, err := time.LoadLocation(stream.TimeZone); err != nil {
+						return nil, 0, fmt.Errorf("%s state %q group %q entry %d has unknown timeZone %q (use an IANA name such as \"America/Denver\")", path, stateName, groupName, i, stream.TimeZone)
+					}
+				}
+
 				var portsToValidate []int
 				if len(stream.UDPPorts) > 0 {
 					portsToValidate = stream.UDPPorts
@@ -2237,7 +2250,7 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.analytics.ListenStart(r, station.info.displayName(), peerID)
+	s.analytics.ListenStart(r, station.info.displayName(), station.info.TimeZone, peerID)
 	leaveToken := randomToken()
 
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {

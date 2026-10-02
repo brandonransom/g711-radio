@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata" // stream time zones must resolve on hosts without zoneinfo (e.g. Windows)
 )
 
 // analyticsConfig is the optional "analytics" block in config.json.
@@ -116,6 +117,9 @@ type analyticsEvent struct {
 	State string `json:"state,omitempty"`
 	Group string `json:"group,omitempty"`
 	Name  string `json:"name,omitempty"`
+	// TZ is the stream's time zone (empty = server local), so time-of-day
+	// stats are filed in the stream's local time even when replayed later.
+	TZ string `json:"tz,omitempty"`
 }
 
 // txAgg is one radio stream's transmissions for a day.
@@ -200,6 +204,13 @@ type dayAgg struct {
 	TxHour    [24]int              `json:"txHour"`
 	TxHourMs  [24]int64            `json:"txHourMs"`
 	TxLengths [txLengthBuckets]int `json:"txLengths"`
+
+	// Weekday (Monday first) × hour in each stream's own time zone. Days
+	// rolled up before these existed only have the server-time HourListens,
+	// TxHour and TxHourMs; the dashboard falls back to those for them.
+	ListenLocal [7][24]int   `json:"listenLocal"`
+	TxLocal     [7][24]int   `json:"txLocal"`
+	TxLocalMs   [7][24]int64 `json:"txLocalMs"`
 
 	visitors map[string]struct{}
 }
@@ -559,6 +570,8 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 	case evListenConnected:
 		stream().Connected++
 		d.HourListens[hour]++
+		wd, h := localWeekHour(ev.Time, ev.TZ)
+		d.ListenLocal[wd][h]++
 		if n != nil {
 			n.Listens++
 		}
@@ -632,6 +645,53 @@ func (d *dayAgg) addTransmission(ev analyticsEvent) {
 	d.TxHour[ev.Time.Hour()]++
 	d.TxLengths[txLengthBucket(ev.DurationMs)]++
 	spreadByHour(&d.TxHourMs, ev.Time, ev.DurationMs)
+	local := ev.Time.In(zoneFor(ev.TZ))
+	wd, h := weekHour(local)
+	d.TxLocal[wd][h]++
+	spreadByWeekHour(&d.TxLocalMs, local, ev.DurationMs)
+}
+
+var zones sync.Map // name -> *time.Location
+
+// zoneFor returns the named time zone, or the server's local zone for ""
+// or a name that no longer loads (names are validated at config load).
+func zoneFor(name string) *time.Location {
+	if name == "" {
+		return time.Local
+	}
+	if loc, ok := zones.Load(name); ok {
+		return loc.(*time.Location)
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		loc = time.Local
+	}
+	zones.Store(name, loc)
+	return loc
+}
+
+// weekHour returns t's weekday (Monday = 0) and hour in t's own zone.
+func weekHour(t time.Time) (int, int) {
+	return (int(t.Weekday()) + 6) % 7, t.Hour()
+}
+
+func localWeekHour(t time.Time, tz string) (int, int) {
+	return weekHour(t.In(zoneFor(tz)))
+}
+
+// spreadByWeekHour adds a span's milliseconds to the weekday/hour cells it
+// covers, in start's zone.
+func spreadByWeekHour(cells *[7][24]int64, start time.Time, ms int64) {
+	end := start.Add(time.Duration(ms) * time.Millisecond)
+	for t := start; t.Before(end); {
+		next := t.Truncate(time.Hour).Add(time.Hour)
+		if next.After(end) {
+			next = end
+		}
+		wd, h := weekHour(t)
+		cells[wd][h] += next.Sub(t).Milliseconds()
+		t = next
+	}
 }
 
 // spreadByHour adds a span's milliseconds to the hours it covers, stopping at
@@ -659,7 +719,7 @@ func (a *analyticsStore) Transmission(info streamInfo, start time.Time, duration
 	ev := analyticsEvent{
 		Time: start, Type: evTransmission, Stream: info.displayName(),
 		State: info.StateName, Group: info.GroupName, Name: info.StreamName,
-		DurationMs: int64(durationMs),
+		DurationMs: int64(durationMs), TZ: info.TimeZone,
 	}
 	// A recording that began before midnight is filed under today; earlier
 	// days are already rolled up.
@@ -682,15 +742,16 @@ func (a *analyticsStore) Record(r *http.Request, ev analyticsEvent) {
 	a.appendLocked(base)
 }
 
-// ListenStart records a WebRTC offer for a stream.
-func (a *analyticsStore) ListenStart(r *http.Request, stream, peerID string) {
+// ListenStart records a WebRTC offer for a stream; tz is the stream's time
+// zone ("" = server local).
+func (a *analyticsStore) ListenStart(r *http.Request, stream, tz, peerID string) {
 	if a == nil {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	ev := a.baseEventLocked(r, evListenOffer)
-	ev.Stream = stream
+	ev.Stream, ev.TZ = stream, tz
 	a.peers[peerID] = &peerTrack{base: ev}
 	a.appendLocked(ev)
 }
