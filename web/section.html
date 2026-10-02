@@ -899,6 +899,7 @@
     </main>
 
     <script src="/activity.js"></script>
+    <script src="/nav-guard.js"></script>
     <script>
       const pageTitle = document.getElementById("pageTitle");
       const pageSubtitle = document.getElementById("pageSubtitle");
@@ -2598,9 +2599,20 @@
         }
       });
 
-      window.addEventListener("beforeunload", () => {
+      window.addEventListener("pagehide", () => {
         for (const card of cards.values()) closeCard(card);
         if (transcriptSSE) transcriptSSE.close();
+      });
+      // Connections were closed on pagehide, so a page restored from the
+      // back/forward cache would show stale state; load it fresh instead.
+      window.addEventListener("pageshow", (event) => {
+        if (event.persisted) window.location.reload();
+      });
+
+      // Read by nav-guard.js to keep navigation from cutting off audio.
+      window.g711AudioState = () => ({
+        live: Array.from(cards.values()).some((card) => card.pc || card.connecting),
+        playing: !clipAudio.paused,
       });
 
       init();

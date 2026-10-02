@@ -958,6 +958,7 @@
     </main>
 
     <script src="/activity.js"></script>
+    <script src="/nav-guard.js"></script>
     <script>
       // Stream connection logic
       const disconnectBtn = document.getElementById("disconnectBtn");
@@ -998,6 +999,12 @@
       let baseReconnectDelay = 1000;
       let activeConnectToken = 0;
       let currentConnectionState = "idle";
+
+      // Read by nav-guard.js to keep navigation from cutting off audio.
+      window.g711AudioState = () => ({
+        live: !!pc || connectingStreamId !== null || reconnectTimeout !== null,
+        playing: !clipAudio.paused,
+      });
       let pollTimer = null;
       let pollIntervalMs = 30000;
       let clipPlaybackQueue = [];
