@@ -2097,10 +2097,19 @@
         }
       }
 
+      // Most specific first so the stream name survives tab-width truncation.
+      function streamTabTitle(stream) {
+        return [stream.streamName, stream.groupName, stream.stateName].filter(Boolean).join(" / ");
+      }
+
+      // A stream's page shows its name with the connection indicator whether
+      // or not live audio is connected.
       function updatePageTitle() {
         const indicator = connectionIndicators[currentConnectionState] || "⚪";
-        if (currentStreamTitle) {
-          document.title = `${indicator} ${currentStreamTitle}`;
+        const streamTitle = currentStreamTitle ||
+          (sharePageStream && isDedicatedStreamPage() ? streamTabTitle(sharePageStream) : "");
+        if (streamTitle) {
+          document.title = `${indicator} ${streamTitle}`;
         } else {
           document.title = basePageTitle;
         }
@@ -2232,6 +2241,7 @@
       let launchViewStreamId = null;
 
       function renderLaunchView() {
+        updatePageTitle();
         launchRoot.hidden = !showShareLanding();
         if (launchRoot.hidden) {
           launchRoot.innerHTML = "";
@@ -2676,7 +2686,7 @@
 
         currentStreamId = stream.id;
         currentStreamName = formatStreamDisplayName(stream);
-        currentStreamTitle = [stream.streamName, stream.groupName, stream.stateName].filter(Boolean).join(" / ");
+        currentStreamTitle = streamTabTitle(stream);
         connectingStreamId = stream.id;
         syncURL(stream);
         renderLaunchView();
