@@ -33,7 +33,8 @@
     "California": {
       "Plumas NF": [
         { "streamName": "Admin Net", "udpPort": 51110 },
-        { "streamName": "Forest Net", "udpPort": 51160 }
+        { "streamName": "Forest Net", "udpPort": 51160 },
+        { "streamName": "Forest Net (Repeater)", "udpPort": 51161, "disableAutoTranscribe": true }
       ],
       "Tahoe NF": [
         { "streamName": "Redundant Ports", "udpPorts": [51740, 51741] },

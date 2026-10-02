@@ -226,6 +226,11 @@ type streamConfig struct {
 	MulticastAddr  string   `json:"multicastAddr"`  // single multicast group (if any) — deprecated
 	MulticastAddrs []string `json:"multicastAddrs"` // list of multicast group addresses
 	DebugMulticast bool     `json:"debugMulticast"`
+	// DisableAutoTranscribe stops this stream's clips from being queued for
+	// transcription automatically — e.g. when it carries the same audio as
+	// another stream that is already transcribed. Clips are still recorded
+	// and can be transcribed on demand from the web UI.
+	DisableAutoTranscribe bool `json:"disableAutoTranscribe"`
 }
 
 type streamInfo struct {
@@ -865,6 +870,10 @@ func main() {
 					captureInfo := info
 					captureAudioLogDir := config.AudioLogDir
 					captureAudioBackupDir := config.AudioBackupDir
+					autoTranscribe := !cfg.DisableAutoTranscribe
+					if pool != nil && !autoTranscribe {
+						logger.Printf("%s: automatic transcription disabled by config (disableAutoTranscribe)", info.displayName())
+					}
 					st.recorder = newRecorderState(
 						time.Duration(wCfg.GapMs)*time.Millisecond,
 						time.Duration(wCfg.MaxClipMs)*time.Millisecond,
@@ -937,7 +946,7 @@ func main() {
 									start:    start,
 									duration: durationMs,
 								})
-								if pool != nil && shouldAutoTranscribe(wCfg, durationMs) {
+								if pool != nil && autoTranscribe && shouldAutoTranscribe(wCfg, durationMs) {
 									if job, _, ok := server.manualTranscriptJob(clipID, ""); ok {
 										pool.Submit(job)
 									}

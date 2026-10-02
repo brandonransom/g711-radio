@@ -410,6 +410,17 @@ func TestConfigExampleLoads(t *testing.T) {
 	if !cfg.Whisper.enabled() || cfg.Whisper.isRemote() {
 		t.Fatalf("example whisper block should configure local mode: %+v", cfg.Whisper)
 	}
+	disabled := map[string]bool{}
+	for _, sg := range cfg.streamGroups {
+		for _, sub := range sg.SubGroups {
+			for _, s := range sub.Streams {
+				disabled[s.StreamName] = s.DisableAutoTranscribe
+			}
+		}
+	}
+	if !disabled["Forest Net (Repeater)"] || disabled["Forest Net"] {
+		t.Fatalf("disableAutoTranscribe not parsed per stream: %+v", disabled)
+	}
 }
 
 func TestConfigLegacyRegionsKey(t *testing.T) {

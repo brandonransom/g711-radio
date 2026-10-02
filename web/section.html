@@ -243,6 +243,41 @@
         color: var(--secondary1-0);
       }
 
+      .favorite-toggle.is-partial svg {
+        fill: currentColor;
+        fill-opacity: 0.5;
+      }
+
+      h2 .favorite-group-toggle.favorite-toggle {
+        width: 30px;
+        height: 30px;
+        margin: 0 0 0 6px;
+        vertical-align: -6px;
+      }
+
+      h2 .favorite-group-toggle svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .favorite-group-toggle--text.favorite-toggle.favorite-toggle {
+        width: auto;
+        height: auto;
+        gap: 8px;
+        margin: 0;
+        padding: 12px 18px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .favorite-group-toggle--text svg {
+        width: 20px;
+        height: 20px;
+        color: var(--secondary1-2);
+      }
+
       .favorites-tip {
         margin: -8px 0 4px;
         font-size: 0.9rem;
@@ -342,6 +377,37 @@
         letter-spacing: 0.14em;
         color: var(--muted);
         margin-bottom: 10px;
+      }
+
+      .transcript-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 4px 12px;
+        margin-bottom: 10px;
+      }
+
+      .transcript-header .transcript-label {
+        margin-bottom: 0;
+      }
+
+      button.transcript-sort {
+        padding: 2px 4px;
+        border-radius: 6px;
+        background: transparent;
+        box-shadow: none;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 500;
+      }
+
+      button.transcript-sort:hover:not(:disabled),
+      button.transcript-sort:focus-visible {
+        transform: none;
+        background: transparent;
+        color: var(--accent);
+        text-decoration: underline;
       }
 
       .transcript-log {
@@ -791,7 +857,10 @@
       <div id="content" class="streams-pane"></div>
 
       <div id="transcriptPanel" class="transcript-panel" hidden>
-        <strong class="transcript-label">Recordings &amp; Transcripts</strong>
+        <div class="transcript-header">
+          <strong class="transcript-label">Recordings &amp; Transcripts</strong>
+          <button id="historySortBtn" class="transcript-sort" type="button"></button>
+        </div>
         <div class="transcript-filters">
           <div class="transcript-filters-grid">
             <label>Date range
@@ -825,7 +894,7 @@
       </div>
 
       <p class="note">
-        This service is provided by the USDA Forest Service CIO - Land Mobile Radio Innovation Team. This is a very early alpha phase of testing. DO NOT use this webpage as your primary means of radio communications. Contact <a href="mailto:brandon.r.thomas@usda.gov">Brandon Thomas</a> with any questions or feedback.
+        This service is provided by the USDA Forest Service CIO - Land Mobile Radio Innovation Team. This is a very early alpha phase of testing. DO NOT use this webpage as your primary means of radio communications. Contact <a href="https://teams.microsoft.com/l/chat/0/0?users=brandon.r.thomas@usda.gov" target="_blank" rel="noopener" title="Chat with Brandon Thomas in Microsoft Teams">Brandon Thomas</a> on Teams with any questions or feedback.
       </p>
     </main>
 
@@ -847,6 +916,7 @@
       const historyStreamClearBtn = document.getElementById("historyStreamClearBtn");
       const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
       const transcribeFilteredAudioBtn = document.getElementById("transcribeFilteredAudioBtn");
+      const historySortBtn = document.getElementById("historySortBtn");
       const clipAudio = new Audio();
 
       // Every card in this page manages its own independent RTCPeerConnection
@@ -886,6 +956,13 @@
       // single page whenever the filters or fetched data change, so a new
       // query doesn't inherit a huge limit from previous paging.
       let historyRenderLimit = MAX_RENDERED_HISTORY;
+
+      // Row order for every recordings & transcripts log, shared across
+      // pages via localStorage. Newest-first unless the listener chose
+      // oldest-first.
+      const HISTORY_SORT_KEY = "transcriptSortOrder";
+      let historyNewestFirst = true;
+      try { historyNewestFirst = localStorage.getItem(HISTORY_SORT_KEY) !== "oldest"; } catch (_) {}
 
       function formatStreamDisplayName(stream) {
         return [stream.stateName, stream.groupName, stream.streamName].filter(Boolean).join(" / ");
@@ -968,11 +1045,83 @@
         };
         button.addEventListener("click", () => {
           toggleFavorite(stream);
-          render();
+          refreshFavoriteToggles();
           updateFavoritesTip();
         });
+        button.renderFavorite = render;
         render();
         return button;
+      }
+
+      // Adds every stream in a forest or state to favorites, or removes them
+      // all when every one is already a favorite.
+      function toggleFavoriteGroup(streams) {
+        const list = loadFavorites();
+        const allOn = streams.every((stream) => list.some((f) => isSameStream(f, stream)));
+        if (allOn) {
+          saveFavorites(list.filter((f) => !streams.some((stream) => isSameStream(f, stream))));
+        } else {
+          for (const stream of streams) {
+            if (!list.some((f) => isSameStream(f, stream))) {
+              list.push({ state: stream.stateName, group: stream.groupName, name: stream.streamName });
+            }
+          }
+          saveFavorites(list);
+        }
+      }
+
+      // kind is "forest" or "state". withText adds a label for the page-level
+      // button; headings use the icon alone.
+      function buildGroupFavoriteToggle(streams, kind, name, withText = false) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = withText ? "favorite-toggle favorite-group-toggle favorite-group-toggle--text" : "favorite-toggle favorite-group-toggle";
+        const total = streams.length;
+        const plural = total === 1 ? "stream" : "streams";
+        const render = () => {
+          const favorites = loadFavorites();
+          const count = streams.filter((stream) => favorites.some((f) => isSameStream(f, stream))).length;
+          const allOn = total > 0 && count === total;
+          button.innerHTML = STAR_ICON;
+          button.classList.toggle("is-favorite", allOn);
+          button.classList.toggle("is-partial", count > 0 && !allOn);
+          if (allOn) {
+            button.title = `Remove all ${total} ${plural} in ${name} from my favorites`;
+          } else if (count > 0) {
+            button.title = `${count} of ${total} ${plural} in ${name} are favorites. Add the other ${total - count}`;
+          } else {
+            button.title = `Add all ${total} ${plural} in ${name} to my favorites (listed first on the home page)`;
+          }
+          if (withText) {
+            const label = document.createElement("span");
+            label.textContent = allOn
+              ? `${kind === "state" ? "State" : "Forest"} in favorites`
+              : count > 0
+                ? `Add remaining ${total - count} to favorites`
+                : `Add ${kind} to favorites`;
+            button.append(label);
+          }
+          button.setAttribute("aria-label", button.title);
+          button.setAttribute("aria-pressed", allOn ? "true" : count > 0 ? "mixed" : "false");
+        };
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleFavoriteGroup(streams);
+          refreshFavoriteToggles();
+          updateFavoritesTip();
+        });
+        button.renderFavorite = render;
+        render();
+        return button;
+      }
+
+      // Every star on the page reflects the same list, so a forest or state
+      // toggle updates the stream stars beneath it and vice versa.
+      function refreshFavoriteToggles() {
+        document.querySelectorAll(".favorite-toggle").forEach((button) => {
+          if (button.renderFavorite) button.renderFavorite();
+        });
       }
 
       const favoritesTip = document.getElementById("favoritesTip");
@@ -985,7 +1134,7 @@
         const count = loadFavorites().length;
         favoritesTip.textContent = "";
         if (count === 0) {
-          favoritesTip.textContent = "Tip: tap ☆ on any stream to add it to your favorites. Favorites are listed first on the home page with their latest recordings and transcripts, and share one combined page for live audio.";
+          favoritesTip.textContent = "Tip: tap ☆ on any stream, forest, or state to add it to your favorites. Favorites are listed first on the home page with their latest recordings and transcripts, and share one combined page for live audio.";
         } else {
           favoritesTip.append(
             `★ ${count} favorite ${count === 1 ? "stream" : "streams"} saved in this browser. Tap ☆ to add more. `,
@@ -1845,7 +1994,7 @@
         toggle.type = "button";
         toggle.className = "transcript-play";
         toggle.title = "Rate or correct this transcript";
-        toggle.textContent = "Feedback";
+        toggle.textContent = "Transcription feedback?";
         toggle.addEventListener("click", () => {
           wrap.hidden = !wrap.hidden;
           if (!wrap.hidden) {
@@ -1863,12 +2012,44 @@
         return wrap;
       }
 
-      // Live rows are always appended, but the log only auto-scrolls to the
-      // newest one when nothing is playing or queued. During playback the
-      // scrub bar lives inside the playing row, so scrolling to the bottom
-      // would drag the user away from the clip they're listening to.
+      // Live rows are added at the newest end of the log, but the log only
+      // auto-scrolls to them when nothing is playing or queued. During
+      // playback the scrub bar lives inside the playing row, so scrolling
+      // to the newest row would drag the user away from the clip they're
+      // listening to.
       function shouldAutoScrollHistory() {
         return !clipPlaybackActive && clipPlaybackQueue.length === 0;
+      }
+
+      // Newest-first, the row goes on top; the viewport stays put unless it
+      // was already at the top, so reading older rows isn't disturbed.
+      function insertLiveEntry(entry) {
+        const empty = transcriptLog.querySelector(".transcript-empty");
+        if (empty) empty.remove();
+        if (historyNewestFirst) {
+          const previousScrollTop = transcriptLog.scrollTop;
+          const previousScrollHeight = transcriptLog.scrollHeight;
+          transcriptLog.prepend(entry);
+          transcriptLog.scrollTop = previousScrollTop <= 4 && shouldAutoScrollHistory()
+            ? 0
+            : previousScrollTop + transcriptLog.scrollHeight - previousScrollHeight;
+        } else {
+          transcriptLog.append(entry);
+          if (shouldAutoScrollHistory()) transcriptLog.scrollTop = transcriptLog.scrollHeight;
+        }
+        updateClipPlayButtons();
+      }
+
+      function updateHistorySortButton() {
+        historySortBtn.textContent = historyNewestFirst ? "⇅ Newest at top" : "⇅ Oldest at top";
+        historySortBtn.title = historyNewestFirst ? "Show oldest recordings at the top" : "Show newest recordings at the top";
+      }
+
+      function toggleHistorySort() {
+        historyNewestFirst = !historyNewestFirst;
+        try { localStorage.setItem(HISTORY_SORT_KEY, historyNewestFirst ? "newest" : "oldest"); } catch (_) {}
+        updateHistorySortButton();
+        if (!transcriptLog.querySelector(".transcript-empty")) applyHistoryFiltersAndRender(false);
       }
 
       function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, wav) {
@@ -1877,11 +2058,7 @@
         // they aren't lost the next time a filter triggers a re-render.
         const streamId = key.slice(0, key.indexOf(":"));
         historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text: "", wav });
-        const empty = transcriptLog.querySelector(".transcript-empty");
-        if (empty) empty.remove();
-        transcriptLog.append(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, "", wav));
-        if (shouldAutoScrollHistory()) transcriptLog.scrollTop = transcriptLog.scrollHeight;
-        updateClipPlayButtons();
+        insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, "", wav));
       }
 
       // Finds a clip's row under either of its identities (see wavKey).
@@ -1940,11 +2117,7 @@
             const streamId = key.slice(0, key.indexOf(":"));
             historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text, wav });
           }
-          const empty = transcriptLog.querySelector(".transcript-empty");
-          if (empty) empty.remove();
-          transcriptLog.append(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text, wav));
-          if (shouldAutoScrollHistory()) transcriptLog.scrollTop = transcriptLog.scrollHeight;
-          updateClipPlayButtons();
+          insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text, wav));
         }
       }
 
@@ -2094,13 +2267,15 @@
 
         const sorted = filtered.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         const truncatedCount = Math.max(0, sorted.length - historyRenderLimit);
-        const toRender = truncatedCount > 0 ? sorted.slice(truncatedCount) : sorted;
+        const toRender = sorted.slice(truncatedCount);
+        if (historyNewestFirst) toRender.reverse();
 
-        // Rows are oldest-first, so the control for reaching still-older
-        // recordings belongs above them.
+        // The control for reaching still-older recordings sits at the oldest
+        // end of the log: above the rows oldest-first, below them newest-first.
+        let notice = null;
         if (truncatedCount > 0) {
           const olderBatch = Math.min(truncatedCount, MAX_RENDERED_HISTORY);
-          const notice = document.createElement("div");
+          notice = document.createElement("div");
           notice.className = "transcript-more";
           const label = document.createElement("span");
           label.textContent = `Showing the most recent ${toRender.length} of ${sorted.length} matching recordings.`;
@@ -2110,12 +2285,12 @@
           loadOlderBtn.textContent = `Load ${olderBatch} older`;
           loadOlderBtn.addEventListener("click", () => {
             historyRenderLimit += MAX_RENDERED_HISTORY;
-            // Keep the viewport on the first previously-visible row rather
-            // than snapping to the bottom after older rows are prepended.
+            // Keep the viewport on the previously-visible rows rather than
+            // jumping to the newest end after older rows are added.
             applyHistoryFiltersAndRender(false, { preserveTopRow: true });
           });
           notice.append(label, loadOlderBtn);
-          transcriptLog.append(notice);
+          if (!historyNewestFirst) transcriptLog.append(notice);
         }
 
         // Build every row into a detached fragment first so the browser
@@ -2127,6 +2302,7 @@
           fragment.append(buildTranscriptEntry(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || "", ev.wav));
         }
         transcriptLog.append(fragment);
+        if (notice && historyNewestFirst) transcriptLog.append(notice);
         // A re-render replaces the row the scrub bar was living in, so put it
         // back and keep the playing clip in view instead of jumping to the
         // newest row.
@@ -2135,6 +2311,8 @@
           attachClipScrubBar(playingKey);
           const playingRow = transcriptLog.querySelector(`[data-clip-key="${CSS.escape(playingKey)}"]`);
           if (playingRow) playingRow.scrollIntoView({ block: "nearest" });
+        } else if (historyNewestFirst) {
+          transcriptLog.scrollTop = preserveTopRow ? previousScrollTop : 0;
         } else {
           transcriptLog.scrollTop = preserveTopRow
             ? transcriptLog.scrollHeight - previousScrollHeight + previousScrollTop
@@ -2244,6 +2422,8 @@
       historyStreamSelect.addEventListener("change", () => applyHistoryFiltersAndRender());
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
       transcribeFilteredAudioBtn.addEventListener("click", transcribeFilteredAudio);
+      historySortBtn.addEventListener("click", toggleHistorySort);
+      updateHistorySortButton();
       historyStreamClearBtn.addEventListener("click", () => {
         Array.from(historyStreamSelect.options).forEach((o) => { o.selected = false; });
         applyHistoryFiltersAndRender();
@@ -2275,7 +2455,7 @@
 
         if (favoritesPage) {
           pageTitle.textContent = "My favorites";
-          pageSubtitle.textContent = "Your starred streams in one place, with their recordings and transcripts. Tap ☆ on any stream to add it here, or ★ to remove it. Favorites are saved in this browser only.";
+          pageSubtitle.textContent = "Your starred streams in one place, with their recordings and transcripts. Tap ☆ on any stream, forest, or state to add it here, or ★ to remove it. Favorites are saved in this browser only.";
           document.title = "My favorites - USDA FS Radio Streams";
 
           const favorites = loadFavorites();
@@ -2311,9 +2491,11 @@
             const stateSection = document.createElement("section");
             stateSection.className = "state-group";
             const stateHeading = document.createElement("h2");
+            const stateStreams = state.subGroups.flatMap((group) => group.streams);
             stateHeading.append(
-              buildActivityDot(state.subGroups.flatMap((group) => group.streams.map((stream) => stream.id))),
+              buildActivityDot(stateStreams.map((stream) => stream.id)),
               buildLink(sectionPagePath(state.stateName), state.stateName, "Open this state's page"),
+              buildGroupFavoriteToggle(stateStreams, "state", state.stateName),
             );
             stateSection.append(stateHeading);
 
@@ -2324,6 +2506,7 @@
               forestHeading.append(
                 buildActivityDot(group.streams.map((stream) => stream.id)),
                 buildLink(sectionPagePath(state.stateName, group.groupName), group.groupName, "Open this forest's page"),
+                buildGroupFavoriteToggle(group.streams, "forest", group.groupName),
               );
               forestSection.append(forestHeading, renderStreamsGrid(group.streams));
               stateSection.append(forestSection);
@@ -2348,11 +2531,14 @@
             pageSubtitle.textContent = "";
             pageSubtitle.append("Forest in ", buildLink(sectionPagePath(state.stateName), state.stateName, "Open this state's page"));
             document.title = `${forest.groupName} / ${state.stateName} - USDA FS Radio Streams`;
+            connectAllBtn.parentElement.append(buildGroupFavoriteToggle(forest.streams, "forest", forest.groupName, true));
             content.append(renderStreamsGrid(forest.streams));
           } else {
             pageTitle.textContent = state.stateName;
             pageSubtitle.textContent = "All forests in this state, grouped below.";
             document.title = `${state.stateName} - USDA FS Radio Streams`;
+            connectAllBtn.parentElement.append(buildGroupFavoriteToggle(
+              state.subGroups.flatMap((group) => group.streams), "state", state.stateName, true));
 
             for (const group of state.subGroups) {
               const section = document.createElement("section");
@@ -2361,6 +2547,7 @@
               heading.append(
                 buildActivityDot(group.streams.map((stream) => stream.id)),
                 buildLink(sectionPagePath(state.stateName, group.groupName), group.groupName, "Open this forest's page"),
+                buildGroupFavoriteToggle(group.streams, "forest", group.groupName),
               );
               section.append(heading, renderStreamsGrid(group.streams));
               content.append(section);
