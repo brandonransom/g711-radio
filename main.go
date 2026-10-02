@@ -368,6 +368,12 @@ type webrtcServer struct {
 	audioLogDir string
 	iceServers  []webrtc.ICEServer
 
+	// leaveTokens maps the random token handed to each listener in the
+	// X-Listen-Token response header to its subscriber, so the page can say
+	// "I'm leaving" via POST /listen-leave. Random (not the sequential peer
+	// ID) so nobody can disconnect other listeners by guessing.
+	leaveTokens sync.Map // string -> listenLease
+
 	// clipJobs offloads recorder clip finalization (WAV file write, hub
 	// publish, whisper submission) off each station's ingest goroutine.
 	// Without this, that synchronous disk I/O blocks UDP packet reads for
@@ -885,6 +891,7 @@ func main() {
 							job := func() {
 								var wavPath, audioURL string
 								durationMs := len(samples) * 1000 / recSampleRate
+								server.analytics.Transmission(captureInfo, start, durationMs)
 								if captureAudioLogDir != "" {
 									var err error
 
@@ -949,6 +956,8 @@ func main() {
 							case server.clipJobs <- job:
 							default:
 								logger.Printf("%s: clip job queue full; dropping clip finalization (disk/whisper backlog)", captureInfo.StreamName)
+								// Still count the transmission, off the ingest goroutine.
+								go server.analytics.Transmission(captureInfo, start, len(samples)*1000/recSampleRate)
 							}
 						},
 					)
@@ -1061,6 +1070,7 @@ func main() {
 	mux.HandleFunc("/stream-status", server.handleStreamStatus)
 	mux.HandleFunc("/stream-activity", server.handleStreamActivity)
 	mux.HandleFunc("/offer", server.handleOffer)
+	mux.HandleFunc("/listen-leave", server.handleListenLeave)
 	mux.HandleFunc("/transcripts/request", server.handleTranscriptRequest)
 	mux.HandleFunc("/transcripts/request-bulk", server.handleBulkTranscriptRequest)
 	mux.HandleFunc("/transcripts/feedback", server.handleTranscriptFeedback)
@@ -1103,7 +1113,7 @@ func main() {
 	if analytics != nil {
 		go analytics.Run(ctx)
 		if p := config.Analytics.DashboardPath; p != "" {
-			analytics.RegisterDashboard(mux, p, server.liveListenerCounts)
+			analytics.RegisterDashboard(mux, p, server.liveListenerCounts, server.streamInventory)
 			logger.Printf("analytics: dashboard enabled at the dashboardPath set in %s", configPath)
 		} else {
 			logger.Printf("analytics: dashboard disabled; set analytics.dashboardPath in %s, e.g. \"/%s\"", configPath, randomToken())
@@ -1919,6 +1929,18 @@ func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
 	return id, nil
 }
 
+// streamInventory lists the configured radio streams for the analytics
+// dashboard, in configuration order.
+func (s *webrtcServer) streamInventory() []streamInfo {
+	var out []streamInfo
+	for _, sg := range s.stateGroups {
+		for _, g := range sg.SubGroups {
+			out = append(out, g.Streams...)
+		}
+	}
+	return out
+}
+
 // liveListenerCounts reports connected listeners per stream for the
 // analytics dashboard.
 func (s *webrtcServer) liveListenerCounts() map[string]int {
@@ -2181,6 +2203,7 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.analytics.ListenStart(r, station.info.displayName(), peerID)
+	leaveToken := randomToken()
 
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		s.logger.Printf("%s %s state: %s", station.info.StreamName, peerID, state.String())
@@ -2200,9 +2223,11 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
 			station.markSubscriberNotReady(peerID)
 			station.removeSubscriber(peerID)
+			s.leaveTokens.Delete(leaveToken)
 			s.analytics.ListenEnded(peerID, state == webrtc.PeerConnectionStateFailed)
 		}
 	})
+	s.leaveTokens.Store(leaveToken, listenLease{station: station, peerID: peerID})
 
 	if err := pc.SetRemoteDescription(request.Offer); err != nil {
 		station.removeSubscriber(peerID)
@@ -2227,9 +2252,43 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	<-gatherComplete
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Listen-Token", leaveToken)
 	if err := json.NewEncoder(w).Encode(pc.LocalDescription()); err != nil {
 		station.removeSubscriber(peerID)
 	}
+}
+
+type listenLease struct {
+	station *station
+	peerID  string
+}
+
+// handleListenLeave is the page's "I'm leaving" beacon: it records why the
+// listener ended (tab closed/navigated vs. pressed Disconnect) and closes the
+// peer connection right away instead of waiting ~30s for ICE to time out.
+// Connections that end without this beacon are counted as dropped.
+func (s *webrtcServer) handleListenLeave(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	reason := r.PostForm.Get("reason")
+	if reason != endLeft && reason != endStopped {
+		http.Error(w, "invalid reason", http.StatusBadRequest)
+		return
+	}
+	if v, ok := s.leaveTokens.LoadAndDelete(r.PostForm.Get("token")); ok {
+		lease := v.(listenLease)
+		s.analytics.ListenLeaving(lease.peerID, reason)
+		lease.station.markSubscriberNotReady(lease.peerID)
+		lease.station.removeSubscriber(lease.peerID)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // extractAudioFrame extracts a fixed-size audio payload from a UDP packet and

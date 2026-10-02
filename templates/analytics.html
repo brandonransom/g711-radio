@@ -11,6 +11,8 @@
   body { font: 14px/1.4 system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 1200px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
   h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-size: 14px; margin: 18px 0 6px; }
+  summary { cursor: pointer; margin: 18px 0 6px; }
   .muted { color: var(--muted); }
   nav a { margin-right: 10px; }
   nav a.active { font-weight: bold; text-decoration: none; }
@@ -32,7 +34,7 @@
 <body>
 <h1>Site statistics</h1>
 <div class="muted">{{if .From}}{{.From}} to {{end}}{{.To}} · generated {{.Generated}}</div>
-<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}</nav>
+<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a></nav>
 
 <div class="cards">
   <div class="card">Listening now<b>{{.LiveTotal}}</b></div>
@@ -53,10 +55,66 @@
 
 <h2>Daily</h2>
 <table>
-  <tr><th>Date</th><th></th><th class="n">Visitors</th><th class="n">Page views</th><th class="n">Listens</th></tr>
-  {{range .Daily}}<tr><td>{{.Date}}</td><td class="bar" style="width:45%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Visitors}}</td><td class="n">{{.Pageviews}}</td><td class="n">{{.Listens}}</td></tr>
-  {{else}}<tr><td colspan="5" class="muted">No data yet.</td></tr>{{end}}
+  <tr><th>Date</th><th></th><th class="n">Visitors</th><th class="n">Page views</th><th class="n">Listens</th><th class="n">Transmissions</th><th class="n">Airtime</th></tr>
+  {{range .Daily}}<tr><td>{{.Date}}</td><td class="bar" style="width:45%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Visitors}}</td><td class="n">{{.Pageviews}}</td><td class="n">{{.Listens}}</td><td class="n">{{.Tx}}</td><td class="n">{{.Air}}</td></tr>
+  {{else}}<tr><td colspan="7" class="muted">No data yet.</td></tr>{{end}}
 </table>
+
+<h2 id="radio">Radio activity</h2>
+<div class="cards">
+  <div class="card">States<b>{{.Radio.States}}</b></div>
+  <div class="card">Forests / groups<b>{{.Radio.Forests}}</b></div>
+  <div class="card">Streams / nets<b>{{.Radio.Streams}}</b><span class="muted">{{.Radio.ActiveStreams}} with traffic</span></div>
+  <div class="card">Transmissions<b>{{.Radio.Count}}</b><span class="muted">{{.Radio.PerDay}}/day</span></div>
+  <div class="card">Total airtime<b>{{.Radio.Air}}</b><span class="muted">avg {{.Radio.Avg}} each</span></div>
+  <div class="card">Duty cycle<b>{{.Radio.DutyPct}}</b><span class="muted">airtime ÷ stream-time</span></div>
+  <div class="card">Busiest hour<b style="font-size:18px">{{.Radio.BusiestHour}}</b><span class="muted">by airtime</span></div>
+</div>
+<p class="muted">A transmission is one recording: activity with gaps shorter than the recorder's <code>gapMs</code> counts as one, and very long activity is split at <code>maxClipMs</code>. Counted only while recording or transcription is enabled. Per-stream totals: <a href="{{.BasePath}}/radio.csv?days={{.Days}}">radio.csv</a>.</p>
+
+<p class="muted">Transmissions started, by weekday and hour (server time).</p>
+<table class="heat">
+  <tr><th></th>{{range $h, $_ := (index .Radio.HeatCount 0).Cells}}<th>{{$h}}</th>{{end}}</tr>
+  {{range .Radio.HeatCount}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(234,88,12,{{printf "%.2f" .Alpha}})"{{if .Title}} title="{{.Title}}"{{end}}>{{.Label}}</td>{{end}}</tr>{{end}}
+</table>
+<p class="muted">Airtime in minutes, by weekday and hour.</p>
+<table class="heat">
+  <tr><th></th>{{range $h, $_ := (index .Radio.HeatAir 0).Cells}}<th>{{$h}}</th>{{end}}</tr>
+  {{range .Radio.HeatAir}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(220,38,38,{{printf "%.2f" .Alpha}})"{{if .Title}} title="{{.Title}}"{{end}}>{{.Label}}</td>{{end}}</tr>{{end}}
+</table>
+
+<div class="grid2">
+  <div>
+    <h3>By state</h3>
+    <table><tr><th>State</th><th></th><th class="n">Streams</th><th class="n">Tx</th><th class="n">Airtime</th></tr>
+    {{range .Radio.ByState}}<tr><td>{{.Name}}</td><td class="bar" style="width:25%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Active}}/{{.Streams}}</td><td class="n">{{.Count}}</td><td class="n">{{.Air}}</td></tr>
+    {{else}}<tr><td colspan="5" class="muted">No data yet.</td></tr>{{end}}
+    </table>
+  </div>
+  <div>
+    <h3>Transmission length</h3>
+    <table><tr><th>Length</th><th></th><th class="n">Transmissions</th></tr>
+    {{range .Radio.Lengths}}<tr><td>{{.Key}}</td><td class="bar" style="width:45%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Value}}</td></tr>{{end}}
+    </table>
+  </div>
+</div>
+
+<h3>By forest / group</h3>
+<table>
+  <tr><th>Forest</th><th>State</th><th></th><th class="n">Streams</th><th class="n">Tx</th><th class="n">Per day</th><th class="n">Airtime</th><th class="n">Average</th><th>Last heard</th></tr>
+  {{range .Radio.ByForest}}<tr><td>{{.Name}}</td><td>{{.State}}</td><td class="bar" style="width:18%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Active}}/{{.Streams}}</td><td class="n">{{.Count}}</td><td class="n">{{.PerDay}}</td><td class="n">{{.Air}}</td><td class="n">{{.Avg}}</td><td class="muted">{{.Last}}</td></tr>
+  {{else}}<tr><td colspan="9" class="muted">No data yet.</td></tr>{{end}}
+</table>
+<p class="muted">Streams column: streams with traffic in this range / streams configured.</p>
+
+<details>
+<summary><b>By stream / net</b> ({{len .Radio.ByStream}})</summary>
+<table>
+  <tr><th>Stream</th><th>Forest</th><th>State</th><th></th><th class="n">Tx</th><th class="n">Per day</th><th class="n">Airtime</th><th class="n">Average</th><th>Last heard</th></tr>
+  {{range .Radio.ByStream}}<tr><td>{{.Name}}{{if .Retired}} <span class="tag">not configured</span>{{end}}</td><td>{{.Group}}</td><td>{{.State}}</td><td class="bar" style="width:15%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Count}}</td><td class="n">{{.PerDay}}</td><td class="n">{{.Air}}</td><td class="n">{{.Avg}}</td><td class="muted">{{.Last}}</td></tr>
+  {{end}}
+</table>
+</details>
 
 <h2>Locations</h2>
 <p class="muted">Location source: {{.GeoSource}}. Raw networks: <a href="{{.BasePath}}/networks.csv?days={{.Days}}">networks.csv</a>.</p>
@@ -93,20 +151,23 @@
   <tr><td>Attempts</td><td class="n">{{.Health.Attempts}}</td></tr>
   <tr><td>Connected</td><td class="n">{{.Health.Connected}} ({{.Health.SuccessPct}})</td></tr>
   <tr><td>Never connected (ICE/NAT failure or abandoned)</td><td class="n">{{.Health.NeverConnected}}</td></tr>
-  <tr><td>Ended by close (normal)</td><td class="n">{{.Health.EndedClosed}}</td></tr>
-  <tr><td>Ended by failure/timeout (dropped, or tab closed without a clean close)</td><td class="n">{{.Health.EndedFailed}}</td></tr>
+  <tr><td>Ended: tab closed or navigated away</td><td class="n">{{.Health.EndedLeft}}</td></tr>
+  <tr><td>Ended: listener pressed Disconnect / switched stream</td><td class="n">{{.Health.EndedStopped}}</td></tr>
+  <tr><td>Ended: dropped (network failure/timeout, no leave signal)</td><td class="n">{{.Health.EndedFailed}}</td></tr>
+  <tr><td>Ended: closed by server (restart/shutdown)</td><td class="n">{{.Health.EndedClosed}}</td></tr>
 </table>
+<p class="muted">Leaves are reported by a page-exit beacon. A browser that is killed or crashes, or a phone that suspends the tab, can't send it, so a few of those show up as dropped.</p>
 
 <h2>When people listen</h2>
 <p class="muted">Listening sessions started, by weekday and hour (server time).</p>
 <table class="heat">
   <tr><th></th>{{range $h, $_ := (index .HeatListens 0).Cells}}<th>{{$h}}</th>{{end}}</tr>
-  {{range .HeatListens}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(59,130,246,{{printf "%.2f" .Alpha}})">{{if .Value}}{{.Value}}{{end}}</td>{{end}}</tr>{{end}}
+  {{range .HeatListens}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(59,130,246,{{printf "%.2f" .Alpha}})"{{if .Title}} title="{{.Title}}"{{end}}>{{.Label}}</td>{{end}}</tr>{{end}}
 </table>
 <p class="muted">Page views, by weekday and hour.</p>
 <table class="heat">
   <tr><th></th>{{range $h, $_ := (index .HeatViews 0).Cells}}<th>{{$h}}</th>{{end}}</tr>
-  {{range .HeatViews}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(16,185,129,{{printf "%.2f" .Alpha}})">{{if .Value}}{{.Value}}{{end}}</td>{{end}}</tr>{{end}}
+  {{range .HeatViews}}<tr><th>{{.Day}}</th>{{range .Cells}}<td style="background:rgba(16,185,129,{{printf "%.2f" .Alpha}})"{{if .Title}} title="{{.Title}}"{{end}}>{{.Label}}</td>{{end}}</tr>{{end}}
 </table>
 
 <h2>Engagement</h2>

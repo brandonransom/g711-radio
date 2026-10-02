@@ -163,9 +163,21 @@ func TestAnalyticsStoreLifecycle(t *testing.T) {
 	a.ListenConnected("p1")
 	a.ListenConnected("p2")
 	clock.t = clock.t.Add(90 * time.Second)
+	a.ListenLeaving("p3", endLeft) // never connected stays never_connected
 	a.ListenEnded("p1", false)
 	a.ListenEnded("p2", true)
 	a.ListenEnded("p3", false)
+
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "p4")
+	a.ListenStart(testRequest(http.MethodPost, "/offer", "198.51.100.5"), "StreamA", "p5")
+	a.ListenConnected("p4")
+	a.ListenConnected("p5")
+	clock.t = clock.t.Add(30 * time.Second)
+	a.ListenLeaving("p4", endLeft)
+	a.ListenLeaving("p5", endStopped)
+	a.ListenLeaving("p5", "bogus")
+	a.ListenEnded("p4", true) // a leave beacon wins over the later ICE failure
+	a.ListenEnded("p5", false)
 
 	a.Record(testRequest(http.MethodPost, "/transcripts/bulk", "198.51.100.5"), analyticsEvent{Type: evTranscriptBulk, Count: 4})
 	a.Record(testRequest(http.MethodPost, "/feedback", "198.51.100.5"), analyticsEvent{Type: evFeedback, Detail: "bad", Count: 1})
@@ -187,7 +199,8 @@ func TestAnalyticsStoreLifecycle(t *testing.T) {
 			t.Errorf("%s: network 203.0.113.0/24 = %+v", label, n)
 		}
 		s := d.Streams["StreamA"]
-		if s == nil || s.Attempts != 3 || s.Connected != 2 || s.NeverConnected != 1 || s.EndedClosed != 1 || s.EndedFailed != 1 || s.ListenMs != 180000 {
+		if s == nil || s.Attempts != 5 || s.Connected != 4 || s.NeverConnected != 1 || s.EndedClosed != 1 || s.EndedFailed != 1 ||
+			s.EndedLeft != 1 || s.EndedStopped != 1 || s.ListenMs != 240000 {
 			t.Errorf("%s: stream = %+v", label, s)
 		}
 		if d.PeakConcurrent != 2 {
@@ -284,7 +297,10 @@ func TestDashboardAndExports(t *testing.T) {
 
 	path := "/" + randomToken()
 	mux := http.NewServeMux()
-	a.RegisterDashboard(mux, path, func() map[string]int { return map[string]int{"Stream <A>": 1} })
+	a.RegisterDashboard(mux, path, func() map[string]int { return map[string]int{"Stream <A>": 1} }, func() []streamInfo {
+		return []streamInfo{{StateName: "Utah", GroupName: "Ashley NF", StreamName: "Net <1>"}, {StateName: "Utah", GroupName: "Ashley NF", StreamName: "Net 2"}}
+	})
+	a.Transmission(streamInfo{StateName: "Utah", GroupName: "Ashley NF", StreamName: "Net <1>"}, clock.t.Add(-time.Minute), 12000)
 
 	get := func(target string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
@@ -301,8 +317,11 @@ func TestDashboardAndExports(t *testing.T) {
 		if !strings.Contains(body, "203.0.113.0/24") {
 			t.Errorf("dashboard%s missing network", days)
 		}
-		if strings.Contains(body, "Stream <A>") {
+		if strings.Contains(body, "Stream <A>") || strings.Contains(body, "Net <1>") {
 			t.Errorf("dashboard%s did not escape stream name", days)
+		}
+		if !strings.Contains(body, "Radio activity") || !strings.Contains(body, "Net &lt;1&gt;") || !strings.Contains(body, "1/2") {
+			t.Errorf("dashboard%s missing radio activity", days)
 		}
 		if rec.Header().Get("Cache-Control") != "no-store" || !strings.Contains(rec.Header().Get("X-Robots-Tag"), "noindex") {
 			t.Errorf("dashboard%s missing private headers", days)
@@ -322,7 +341,107 @@ func TestDashboardAndExports(t *testing.T) {
 		}
 	}
 
+	if rec := get(path + "/radio.csv?days=7"); rec.Code != http.StatusOK ||
+		!strings.Contains(rec.Body.String(), "Utah,Ashley NF,Net <1>,true,1,0.2,12.0,") ||
+		!strings.Contains(rec.Body.String(), "Utah,Ashley NF,Net 2,true,0,0.0,,") {
+		t.Errorf("radio.csv:\n%s", rec.Body.String())
+	}
+
 	if rec := get("/" + strings.Repeat("x", 20)); rec.Code != http.StatusNotFound {
 		t.Errorf("unregistered path served: %d", rec.Code)
+	}
+}
+
+func TestHandleListenLeaveValidation(t *testing.T) {
+	s := &webrtcServer{}
+	cases := []struct {
+		method, body string
+		want         int
+	}{
+		{http.MethodGet, "", http.StatusMethodNotAllowed},
+		{http.MethodPost, "token=x&reason=nope", http.StatusBadRequest},
+		{http.MethodPost, "token=unknown&reason=left", http.StatusNoContent},
+		{http.MethodPost, "token=unknown&reason=stopped", http.StatusNoContent},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(c.method, "/listen-leave", strings.NewReader(c.body))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		s.handleListenLeave(w, r)
+		if w.Code != c.want {
+			t.Errorf("%s %q: got %d, want %d", c.method, c.body, w.Code, c.want)
+		}
+	}
+}
+
+func TestTransmissions(t *testing.T) {
+	dir := t.TempDir()
+	clock := &fakeClock{t: time.Date(2025, 3, 10, 15, 0, 0, 0, time.Local)} // a Monday
+	a := newTestStore(t, dir, clock)
+	n1 := streamInfo{StateName: "Utah", GroupName: "Ashley NF", StreamName: "Net 1"}
+	n2 := streamInfo{StateName: "Utah", GroupName: "Dixie NF", StreamName: "Net 2"}
+	a.Transmission(n1, time.Date(2025, 3, 10, 9, 59, 0, 0, time.Local), 120000) // spans 09:59-10:01
+	a.Transmission(n1, time.Date(2025, 3, 10, 14, 0, 0, 0, time.Local), 3000)
+	a.Transmission(n2, time.Date(2025, 3, 10, 14, 30, 0, 0, time.Local), 500)
+	a.Transmission(n2, time.Date(2025, 3, 10, 14, 31, 0, 0, time.Local), 0) // ignored
+
+	check := func(label string, a *analyticsStore) {
+		t.Helper()
+		d := a.days["2025-03-10"]
+		r := d.Radio[n1.displayName()]
+		if r == nil || r.Count != 2 || r.Ms != 123000 || r.State != "Utah" || r.Group != "Ashley NF" || r.Name != "Net 1" {
+			t.Errorf("%s: net 1 = %+v", label, r)
+		}
+		if d.TxHour[9] != 1 || d.TxHour[14] != 2 || d.TxHourMs[9] != 60000 || d.TxHourMs[10] != 60000 || d.TxHourMs[14] != 3500 {
+			t.Errorf("%s: hours count=%v ms=%v", label, d.TxHour, d.TxHourMs)
+		}
+		if d.TxLengths[0] != 1 || d.TxLengths[1] != 1 || d.TxLengths[6] != 1 {
+			t.Errorf("%s: lengths = %v", label, d.TxLengths)
+		}
+	}
+	check("live", a)
+	a.Close()
+	b := newTestStore(t, dir, clock)
+	check("replayed", b)
+
+	inv := func() []streamInfo {
+		return []streamInfo{n1, n2, {StateName: "Alaska", GroupName: "Chugach NF", StreamName: "Glacier"}}
+	}
+	rd := b.radioStats(b.daysInRange(1), 1, inv)
+	if rd.States != 2 || rd.Forests != 3 || rd.Streams != 3 || rd.ActiveStreams != 2 || rd.Count != 3 || rd.BusiestHour != "09:00–10:00" {
+		t.Errorf("summary = %+v", rd)
+	}
+	if len(rd.ByState) != 2 || rd.ByState[0].Name != "Utah" || rd.ByState[0].Active != 2 || rd.ByState[0].Streams != 2 || rd.ByState[1].Count != 0 {
+		t.Errorf("by state = %+v", rd.ByState)
+	}
+	if len(rd.ByStream) != 3 || rd.ByStream[0].Name != "Net 1" || rd.ByStream[2].Last != "–" {
+		t.Errorf("by stream = %+v", rd.ByStream)
+	}
+	if rd.HeatCount[0].Cells[14].Label != "2" || rd.HeatAir[0].Cells[9].Label != "1" {
+		t.Errorf("heat = %+v / %+v", rd.HeatCount[0].Cells[14], rd.HeatAir[0].Cells[9])
+	}
+
+	// A recording that began before midnight is filed under the new day, and
+	// totals survive the rollup.
+	clock.t = time.Date(2025, 3, 11, 0, 0, 5, 0, time.Local)
+	b.Transmission(n1, time.Date(2025, 3, 10, 23, 59, 50, 0, time.Local), 15000)
+	if d := b.days["2025-03-11"]; d == nil || d.Radio[n1.displayName()].Count != 1 {
+		t.Errorf("cross-midnight transmission not filed under today")
+	}
+	b.Close()
+	c := newTestStore(t, dir, clock)
+	if d := c.days["2025-03-10"]; d == nil || d.Radio[n1.displayName()] == nil || d.Radio[n1.displayName()].Count != 2 {
+		t.Errorf("rolled-up radio totals lost")
+	}
+	// Retired streams still show up, flagged.
+	rd = c.radioStats(c.daysInRange(0), 0, func() []streamInfo { return []streamInfo{n2} })
+	retired := 0
+	for _, r := range rd.ByStream {
+		if r.Retired {
+			retired++
+		}
+	}
+	if rd.Streams != 1 || retired != 1 {
+		t.Errorf("retired handling: streams=%d retired=%d", rd.Streams, retired)
 	}
 }

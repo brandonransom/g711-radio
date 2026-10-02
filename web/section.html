@@ -1244,17 +1244,36 @@
         disconnectAllBtn.disabled = !anyActive;
       }
 
-      function closeCard(card) {
+      // Tells the server why this listener is ending ("left" = tab closed or
+      // navigated away, "stopped" = Disconnect) so analytics can tell those
+      // apart from dropped connections, and so the server frees the
+      // connection immediately. Never sent for failures.
+      function sendListenLeave(connection, reason) {
+        const token = connection && connection.g711ListenToken;
+        if (!token || !reason) return;
+        connection.g711ListenToken = null;
+        if (connection.connectionState === "failed") return;
+        const body = new URLSearchParams({ token, reason });
+        try {
+          if (navigator.sendBeacon && navigator.sendBeacon("/listen-leave", body)) return;
+        } catch (_) {}
+        fetch("/listen-leave", { method: "POST", body, keepalive: true }).catch(() => {});
+      }
+
+      function closeCard(card, leaveReason) {
         stopMeter(card);
         const connection = card.pc;
         card.pc = null;
-        if (connection) connection.close();
+        if (connection) {
+          sendListenLeave(connection, leaveReason);
+          connection.close();
+        }
         card.audioEl.srcObject = null;
       }
 
-      function disconnectCard(card, statusText = "") {
+      function disconnectCard(card, statusText = "", leaveReason) {
         card.connecting = false;
-        closeCard(card);
+        closeCard(card, leaveReason);
         card.button.textContent = "Connect to live audio";
         card.button.classList.remove("connected");
         card.button.disabled = false;
@@ -1346,6 +1365,11 @@
             throw new Error(await response.text());
           }
 
+          connection.g711ListenToken = response.headers.get("X-Listen-Token");
+          if (card.pc !== connection) {
+            // Disconnected while the offer was in flight; let the server know.
+            sendListenLeave(connection, "stopped");
+          }
           const answer = await response.json();
           await connection.setRemoteDescription(answer);
 
@@ -1420,7 +1444,7 @@
 
         button.addEventListener("click", () => {
           if (card.pc || card.connecting) {
-            disconnectCard(card);
+            disconnectCard(card, "", "stopped");
           } else {
             void connectCard(card);
           }
@@ -2595,12 +2619,12 @@
 
       disconnectAllBtn.addEventListener("click", () => {
         for (const card of cards.values()) {
-          if (card.pc || card.connecting) disconnectCard(card);
+          if (card.pc || card.connecting) disconnectCard(card, "", "stopped");
         }
       });
 
       window.addEventListener("pagehide", () => {
-        for (const card of cards.values()) closeCard(card);
+        for (const card of cards.values()) closeCard(card, "left");
         if (transcriptSSE) transcriptSSE.close();
       });
       // Connections were closed on pagehide, so a page restored from the

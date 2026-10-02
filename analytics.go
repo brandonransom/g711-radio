@@ -47,7 +47,7 @@ var dashboardPathPattern = regexp.MustCompile(`^/[A-Za-z0-9_-]{12,64}$`)
 
 // reservedRoutes are exact paths the server already serves; the dashboard
 // must not shadow any of them.
-var reservedRoutes = []string{"/streams", "/stream-status", "/stream-activity", "/offer", "/transcripts", "/recordings", "/audio"}
+var reservedRoutes = []string{"/streams", "/stream-status", "/stream-activity", "/offer", "/listen-leave", "/transcripts", "/recordings", "/audio"}
 
 func (c *analyticsConfig) normalize() error {
 	if c.Dir == "" {
@@ -81,13 +81,18 @@ const (
 	evTranscriptReq   = "transcript_request"
 	evTranscriptBulk  = "transcript_bulk"
 	evFeedback        = "feedback"
+	evTransmission    = "transmission"
 )
 
-// listen_end details.
+// listen_end details. left and stopped come from the client's leave beacon
+// (POST /listen-leave); failed means no beacon arrived and the connection
+// timed out, i.e. a network drop (or, rarely, a beacon the browser lost).
 const (
 	endNeverConnected = "never_connected"
-	endClosed         = "closed"
-	endFailed         = "failed"
+	endClosed         = "closed"  // closed by the server (shutdown, stream removed)
+	endFailed         = "failed"  // dropped: ICE/DTLS failure or timeout
+	endLeft           = "left"    // tab closed, reloaded or navigated away
+	endStopped        = "stopped" // listener pressed Disconnect / switched stream
 )
 
 // analyticsEvent is one raw event line in events/YYYY-MM-DD.jsonl. Net is the
@@ -107,6 +112,37 @@ type analyticsEvent struct {
 	DurationMs int64     `json:"ms,omitempty"`
 	Detail     string    `json:"detail,omitempty"`
 	Count      int       `json:"n,omitempty"`
+	// State, Group and Name identify the radio stream of a transmission.
+	State string `json:"state,omitempty"`
+	Group string `json:"group,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
+// txAgg is one radio stream's transmissions for a day.
+type txAgg struct {
+	State string `json:"state"`
+	Group string `json:"group"`
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+	Ms    int64  `json:"ms"`
+	Last  string `json:"last"`
+}
+
+// txLengthBounds are the upper limits (ms) of the transmission-length
+// histogram buckets; the final bucket is everything longer.
+var txLengthBounds = [...]int64{2000, 5000, 10000, 30000, 60000, 120000, 300000}
+
+const txLengthBuckets = len(txLengthBounds) + 1
+
+var txLengthLabels = [txLengthBuckets]string{"under 2s", "2–5s", "5–10s", "10–30s", "30s–1m", "1–2m", "2–5m", "5m+"}
+
+func txLengthBucket(ms int64) int {
+	for i, b := range txLengthBounds {
+		if ms < b {
+			return i
+		}
+	}
+	return len(txLengthBounds)
 }
 
 type netAgg struct {
@@ -125,6 +161,8 @@ type streamAgg struct {
 	NeverConnected int     `json:"neverConnected"`
 	EndedClosed    int     `json:"endedClosed"`
 	EndedFailed    int     `json:"endedFailed"`
+	EndedLeft      int     `json:"endedLeft"`
+	EndedStopped   int     `json:"endedStopped"`
 	ListenMs       int64   `json:"listenMs"`
 	DurationsSec   []int64 `json:"durationsSec"`
 }
@@ -156,6 +194,12 @@ type dayAgg struct {
 	FeedbackGood       int                   `json:"feedbackGood"`
 	FeedbackBad        int                   `json:"feedbackBad"`
 	Corrections        int                   `json:"corrections"`
+	// Radio side: transmissions per stream (keyed by display name), by
+	// starting hour, airtime per hour, and a length histogram.
+	Radio     map[string]*txAgg    `json:"radio"`
+	TxHour    [24]int              `json:"txHour"`
+	TxHourMs  [24]int64            `json:"txHourMs"`
+	TxLengths [txLengthBuckets]int `json:"txLengths"`
 
 	visitors map[string]struct{}
 }
@@ -178,6 +222,9 @@ func (d *dayAgg) init() {
 	if d.Streams == nil {
 		d.Streams = map[string]*streamAgg{}
 	}
+	if d.Radio == nil {
+		d.Radio = map[string]*txAgg{}
+	}
 	if d.visitors == nil {
 		d.visitors = map[string]struct{}{}
 	}
@@ -188,6 +235,7 @@ func (d *dayAgg) init() {
 type peerTrack struct {
 	base        analyticsEvent
 	connectedAt time.Time
+	leaveReason string
 }
 
 type analyticsStore struct {
@@ -519,11 +567,16 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 		switch ev.Detail {
 		case endNeverConnected:
 			s.NeverConnected++
-		case endClosed, endFailed:
-			if ev.Detail == endClosed {
+		case endClosed, endFailed, endLeft, endStopped:
+			switch ev.Detail {
+			case endClosed:
 				s.EndedClosed++
-			} else {
+			case endFailed:
 				s.EndedFailed++
+			case endLeft:
+				s.EndedLeft++
+			case endStopped:
+				s.EndedStopped++
 			}
 			if a.concurrent > 0 {
 				a.concurrent--
@@ -540,6 +593,20 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 		if n != nil {
 			n.Plays++
 		}
+	case evTransmission:
+		t := d.Radio[ev.Stream]
+		if t == nil {
+			t = &txAgg{State: ev.State, Group: ev.Group, Name: ev.Name}
+			d.Radio[ev.Stream] = t
+		}
+		t.Count++
+		t.Ms += ev.DurationMs
+		if end := ev.Time.Add(time.Duration(ev.DurationMs) * time.Millisecond).Format(time.RFC3339); end > t.Last {
+			t.Last = end
+		}
+		d.TxHour[hour]++
+		d.TxLengths[txLengthBucket(ev.DurationMs)]++
+		spreadByHour(&d.TxHourMs, ev.Time, ev.DurationMs)
 	case evDownload:
 		d.Downloads++
 	case evTranscriptReq:
@@ -555,6 +622,41 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 		}
 		d.Corrections += ev.Count
 	}
+}
+
+// spreadByHour adds a span's milliseconds to the hours it covers, stopping at
+// midnight (the rest of a span past midnight is rare and short).
+func spreadByHour(hours *[24]int64, start time.Time, ms int64) {
+	end := start.Add(time.Duration(ms) * time.Millisecond)
+	for t := start; t.Before(end) && t.Day() == start.Day(); {
+		next := t.Truncate(time.Hour).Add(time.Hour)
+		if next.After(end) {
+			next = end
+		}
+		hours[t.Hour()] += next.Sub(t).Milliseconds()
+		t = next
+	}
+}
+
+// Transmission records one radio transmission (a finished recording) on a
+// stream. Safe to call on a nil store.
+func (a *analyticsStore) Transmission(info streamInfo, start time.Time, durationMs int) {
+	if a == nil || durationMs <= 0 {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	ev := analyticsEvent{
+		Time: start, Type: evTransmission, Stream: info.displayName(),
+		State: info.StateName, Group: info.GroupName, Name: info.StreamName,
+		DurationMs: int64(durationMs),
+	}
+	// A recording that began before midnight is filed under today; earlier
+	// days are already rolled up.
+	if now := a.now(); start.Format(dateLayout) != now.Format(dateLayout) {
+		ev.Time = now
+	}
+	a.appendLocked(ev)
 }
 
 // Record logs one request-driven event. Safe to call on a nil store.
@@ -600,6 +702,20 @@ func (a *analyticsStore) ListenConnected(peerID string) {
 	a.appendLocked(ev)
 }
 
+// ListenLeaving notes why the client says it is ending a connection (endLeft
+// or endStopped), so the following ListenEnded records that instead of a
+// generic close or failure.
+func (a *analyticsStore) ListenLeaving(peerID, reason string) {
+	if a == nil || (reason != endLeft && reason != endStopped) {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if p := a.peers[peerID]; p != nil {
+		p.leaveReason = reason
+	}
+}
+
 // ListenEnded records the end of a listener's connection. failed is true
 // when WebRTC reported a failure rather than an orderly close.
 func (a *analyticsStore) ListenEnded(peerID string, failed bool) {
@@ -618,6 +734,8 @@ func (a *analyticsStore) ListenEnded(peerID string, failed bool) {
 	switch {
 	case p.connectedAt.IsZero():
 		ev.Detail = endNeverConnected
+	case p.leaveReason != "":
+		ev.Detail = p.leaveReason
 	case failed:
 		ev.Detail = endFailed
 	default:
