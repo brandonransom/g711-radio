@@ -992,6 +992,8 @@
       let pc;
       let currentStreamId = null;
       let currentStreamName = "";
+      // Tab title: most specific first so it survives tab-width truncation.
+      let currentStreamTitle = "";
       let connectingStreamId = null;
       let sharePageStream = null;
       let reconnectAttempts = 0;
@@ -2097,8 +2099,8 @@
 
       function updatePageTitle() {
         const indicator = connectionIndicators[currentConnectionState] || "⚪";
-        if (currentStreamName) {
-          document.title = `${indicator} ${currentStreamName}`;
+        if (currentStreamTitle) {
+          document.title = `${indicator} ${currentStreamTitle}`;
         } else {
           document.title = basePageTitle;
         }
@@ -2133,7 +2135,7 @@
       function renderPageChrome() {
         const showPlayerUI = hasRequestedStream();
         statusPanel.hidden = !showPlayerUI;
-        if (!currentStreamName) {
+        if (!currentStreamTitle) {
           updatePageTitle();
         }
       }
@@ -2617,6 +2619,7 @@
         reconnectAttempts = 0;
         if (!keepURL) {
           currentStreamName = "";
+          currentStreamTitle = "";
           stopTranscription();
           syncURL(null);
         }
@@ -2673,6 +2676,7 @@
 
         currentStreamId = stream.id;
         currentStreamName = formatStreamDisplayName(stream);
+        currentStreamTitle = [stream.streamName, stream.groupName, stream.stateName].filter(Boolean).join(" / ");
         connectingStreamId = stream.id;
         syncURL(stream);
         renderLaunchView();
