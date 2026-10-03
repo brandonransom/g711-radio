@@ -154,6 +154,7 @@
 
       .state-card-header {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         gap: 16px;
@@ -178,6 +179,9 @@
       .state-info {
         display: grid;
         gap: 4px;
+        min-width: 0;
+        flex: 1 1 180px;
+        overflow-wrap: anywhere;
       }
 
       .state-title {
@@ -195,7 +199,8 @@
       .state-card-go {
         color: var(--accent);
         font-weight: 700;
-        white-space: nowrap;
+        white-space: normal;
+        overflow-wrap: anywhere;
       }
 
       .forest-links {
@@ -910,6 +915,7 @@
             </span>
             <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
             <div id="bulkAudioActions" class="transcript-filters-actions" hidden>
+              <button id="filterUntranscribedAudioBtn" class="secondary" type="button" aria-pressed="false" title="Show only recordings without a transcript, including failed transcriptions, within the current filters">Filter all untranscribed audio</button>
               <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
               <button id="transcribeFilteredAudioBtn" class="secondary" type="button" disabled title="Queue every filtered recording that has no transcript yet">Transcribe all filtered audio</button>
             </div>
@@ -964,6 +970,8 @@
       const historyToInput = document.getElementById("historyToInput");
       const historyMinDurationInput = document.getElementById("historyMinDurationInput");
       const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
+      const filterUntranscribedAudioBtn = document.getElementById("filterUntranscribedAudioBtn");
+      let untranscribedAudioOnly = false;
       const transcribeFilteredAudioBtn = document.getElementById("transcribeFilteredAudioBtn");
       const historySortBtn = document.getElementById("historySortBtn");
       const basePageTitle = "USDA Forest Service Land Mobile Radio Streams";
@@ -1735,6 +1743,11 @@
           historyEntry.text = text;
           setTranscriptionPending([historyEntry.clipId, historyEntry.wavFilename], false);
         }
+        if (untranscribedAudioOnly) {
+          setTranscriptionPending([clipId, wavFilename], false);
+          if (!historyEntry) historyEntries.push({ clipId, text, wavFilename });
+          return;
+        }
 
         const entry = findTranscriptEntry(clipId, wavFilename);
         if (entry) {
@@ -1778,6 +1791,7 @@
               const textEl = entry ? entry.querySelector(".transcript-text") : null;
               applySharedCorrection(textEl, [payload.clipId, payload.wavFilename], payload.text || "", payload.corrected || "");
             }
+            if (untranscribedAudioOnly) applyHistoryFiltersAndRender(false);
           } catch (_) {}
         };
 
@@ -1823,7 +1837,20 @@
       // render cap — neither of those require a server round-trip.
       function filteredHistoryEntries() {
         const duration = historyDurationFilter();
-        return historyEntries.filter((ev) => passesDurationFilter(ev.durationMs, duration));
+        return historyEntries.filter((ev) => passesDurationFilter(ev.durationMs, duration) &&
+          (!untranscribedAudioOnly || isUntranscribedAudio(ev)));
+      }
+
+      function isUntranscribedAudio(ev) {
+        return Boolean(ev.audioUrl && (!ev.text || ev.text === TRANSCRIPTION_FAILED));
+      }
+
+      function toggleUntranscribedAudioFilter() {
+        untranscribedAudioOnly = !untranscribedAudioOnly;
+        filterUntranscribedAudioBtn.setAttribute("aria-pressed", String(untranscribedAudioOnly));
+        filterUntranscribedAudioBtn.textContent = untranscribedAudioOnly
+          ? "Show all transcription statuses" : "Filter all untranscribed audio";
+        applyHistoryFiltersAndRender();
       }
 
       function filteredAudioURLs() {
@@ -1831,7 +1858,7 @@
       }
 
       // Matches maxBulkTranscriptRequest on the server.
-      const MAX_BULK_TRANSCRIBE = 1000;
+      const MAX_BULK_TRANSCRIBE = 10000;
       const TRANSCRIPTION_FAILED = "[transcription failed]";
       let transcribeFilteredBusy = false;
 
@@ -1839,7 +1866,7 @@
       // aren't already queued, newest first.
       function untranscribedFilteredEntries() {
         return filteredHistoryEntries()
-          .filter((ev) => ev.audioUrl && (!ev.text || ev.text === TRANSCRIPTION_FAILED) &&
+          .filter((ev) => isUntranscribedAudio(ev) &&
             !isTranscriptionPending([ev.clipId, ev.wavFilename]))
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       }
@@ -2053,6 +2080,7 @@
       historyToInput.addEventListener("change", () => void loadHistoryForCurrentStream());
       historyMinDurationInput.addEventListener("input", () => applyHistoryFiltersAndRender());
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
+      filterUntranscribedAudioBtn.addEventListener("click", toggleUntranscribedAudioFilter);
       transcribeFilteredAudioBtn.addEventListener("click", transcribeFilteredAudio);
       historySortBtn.addEventListener("click", toggleHistorySort);
       updateHistorySortButton();

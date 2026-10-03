@@ -444,7 +444,7 @@ func checkWhisperHealth(ctx context.Context, baseURL string, timeout time.Durati
 
 // maxBulkQueue caps how many bulk-transcription jobs may wait at once, so
 // repeated "transcribe all" clicks can't queue an unbounded backlog.
-const maxBulkQueue = 5000
+const maxBulkQueue = 10000
 
 // bulkSubmitResult reports what SubmitBulk did with one job.
 type bulkSubmitResult int

@@ -21,6 +21,7 @@ function setupFilter(useFullNames = false) {
   const context = vm.createContext({
     historyStreamSelect: select,
     historyAllStreamsSelected: true,
+    untranscribedAudioOnly: false,
     document: { createElement: () => ({ selected: false }) },
     historyMinDurationInput: { value: "2" },
     historyEntries: [
@@ -89,6 +90,66 @@ test("deselecting the last stream restores All Streams", () => {
 });
 
 for (const page of ["index.html", "section.html"]) {
+  test(`${page}: transcript arrival does not duplicate a filtered-out recording`, () => {
+    const html = fs.readFileSync(path.join(__dirname, "web", page), "utf8");
+    const row = { clipId: "a", key: "a", wavFilename: "a.wav", wav: "a.wav", text: "" };
+    const context = vm.createContext({
+      untranscribedAudioOnly: true,
+      historyEntries: [row],
+      findHistoryEntry: () => row,
+      setTranscriptionPending: () => {},
+      findTranscriptEntry: () => { throw new Error("Filtered view must not append a duplicate"); },
+    });
+    vm.runInContext(extractFunction(html, "updateTranscript"), context);
+    if (page === "index.html") context.updateTranscript("a", "Arrived", "a.wav");
+    else context.updateTranscript("a", "Stream", "", "/a.wav", 3000, "Arrived", "a.wav");
+    assert.equal(context.historyEntries.length, 1);
+    assert.equal(row.text, "Arrived");
+  });
+
+  test(`${page}: untranscribed filter toggles and retains other filters`, () => {
+    const html = fs.readFileSync(path.join(__dirname, "web", page), "utf8");
+    const button = { setAttribute(name, value) { this[name] = value; } };
+    let renders = 0;
+    const context = vm.createContext({
+      untranscribedAudioOnly: false,
+      TRANSCRIPTION_FAILED: "[transcription failed]",
+      filterUntranscribedAudioBtn: button,
+      historyMinDurationInput: { value: "2" },
+      getSelectedStreamIds: () => new Set(["a"]),
+      isTranscriptionPending: (ids) => ids.includes("queued"),
+      applyHistoryFiltersAndRender: () => { renders++; },
+      historyEntries: [
+        { streamId: "a", key: "empty", clipId: "empty", durationMs: 3000, audioUrl: "/empty.wav", text: "" },
+        { streamId: "a", key: "failed", clipId: "failed", durationMs: 3000, audioUrl: "/failed.wav", text: "[transcription failed]" },
+        { streamId: "a", key: "done", clipId: "done", durationMs: 3000, audioUrl: "/done.wav", text: "Done" },
+        { streamId: "a", key: "queued", clipId: "queued", durationMs: 3000, audioUrl: "/queued.wav", text: "" },
+        { streamId: "a", durationMs: 1000, audioUrl: "/short.wav", text: "" },
+        { streamId: "a", durationMs: 3000, text: "" },
+        { streamId: "b", durationMs: 3000, audioUrl: "/b.wav", text: "" },
+      ],
+    });
+    const names = [
+      "historyDurationFilter", "passesDurationFilter", "filteredHistoryEntries",
+      "filteredAudioURLs", "isUntranscribedAudio", "toggleUntranscribedAudioFilter",
+      "untranscribedFilteredEntries",
+    ];
+    vm.runInContext(names.map((name) => extractFunction(html, name)).join("\n"), context);
+    assert.match(html, /const MAX_BULK_TRANSCRIBE = 10000;/);
+    context.toggleUntranscribedAudioFilter();
+    assert.equal(button["aria-pressed"], "true");
+    const expected = ["/empty.wav", "/failed.wav", "/queued.wav"];
+    if (page === "index.html") expected.push("/b.wav");
+    assert.deepEqual(Array.from(context.filteredAudioURLs()), expected);
+    assert.equal(context.untranscribedFilteredEntries().some((ev) => ev.audioUrl === "/queued.wav"), false);
+    context.historyEntries[0].text = "Arrived";
+    assert.equal(context.filteredAudioURLs().includes("/empty.wav"), false);
+    context.toggleUntranscribedAudioFilter();
+    assert.equal(button["aria-pressed"], "false");
+    assert.equal(context.filteredAudioURLs().includes("/done.wav"), true);
+    assert.equal(renders, 2);
+  });
+
   test(`${page}: bulk controls are hidden unless user=super`, () => {
     const html = fs.readFileSync(path.join(__dirname, "web", page), "utf8");
     assert.match(html, /<div id="bulkAudioActions"[^>]* hidden>/);

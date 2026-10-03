@@ -878,6 +878,7 @@
             </span>
             <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
             <div id="bulkAudioActions" class="transcript-filters-actions" hidden>
+              <button id="filterUntranscribedAudioBtn" class="secondary" type="button" aria-pressed="false" title="Show only recordings without a transcript, including failed transcriptions, within the current filters">Filter all untranscribed audio</button>
               <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
               <button id="transcribeFilteredAudioBtn" class="secondary" type="button" disabled title="Queue every filtered recording that has no transcript yet">Transcribe all filtered audio</button>
             </div>
@@ -914,6 +915,8 @@
       const historyMinDurationInput = document.getElementById("historyMinDurationInput");
       const historyStreamSelect = document.getElementById("historyStreamSelect");
       const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
+      const filterUntranscribedAudioBtn = document.getElementById("filterUntranscribedAudioBtn");
+      let untranscribedAudioOnly = false;
       const transcribeFilteredAudioBtn = document.getElementById("transcribeFilteredAudioBtn");
       const historySortBtn = document.getElementById("historySortBtn");
       const clipAudio = new Audio();
@@ -2144,6 +2147,14 @@
           historyEntry.text = text;
           setTranscriptionPending([historyEntry.key, historyEntry.wav], false);
         }
+        if (untranscribedAudioOnly) {
+          setTranscriptionPending([key, wav], false);
+          if (!historyEntry) {
+            const streamId = key.slice(0, key.indexOf(":"));
+            historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text, wav });
+          }
+          return;
+        }
 
         const entry = findTranscriptEntry(key, wav);
         if (entry) {
@@ -2191,6 +2202,7 @@
               const textEl = entry ? entry.querySelector(".transcript-text") : null;
               applySharedCorrection(textEl, [key, wav], payload.text || "", payload.corrected || "");
             }
+            if (untranscribedAudioOnly) applyHistoryFiltersAndRender(false);
           } catch (_) {}
         };
 
@@ -2222,8 +2234,21 @@
         const selectedStreamIds = getSelectedStreamIds();
         return historyEntries.filter((ev) =>
           passesDurationFilter(ev.durationMs, duration) &&
+          (!untranscribedAudioOnly || isUntranscribedAudio(ev)) &&
           (selectedStreamIds.size === 0 || selectedStreamIds.has(ev.streamId))
         );
+      }
+
+      function isUntranscribedAudio(ev) {
+        return Boolean(ev.audioUrl && (!ev.text || ev.text === TRANSCRIPTION_FAILED));
+      }
+
+      function toggleUntranscribedAudioFilter() {
+        untranscribedAudioOnly = !untranscribedAudioOnly;
+        filterUntranscribedAudioBtn.setAttribute("aria-pressed", String(untranscribedAudioOnly));
+        filterUntranscribedAudioBtn.textContent = untranscribedAudioOnly
+          ? "Show all transcription statuses" : "Filter all untranscribed audio";
+        applyHistoryFiltersAndRender();
       }
 
       function filteredAudioURLs() {
@@ -2231,7 +2256,7 @@
       }
 
       // Matches maxBulkTranscriptRequest on the server.
-      const MAX_BULK_TRANSCRIBE = 1000;
+      const MAX_BULK_TRANSCRIBE = 10000;
       const TRANSCRIPTION_FAILED = "[transcription failed]";
       let transcribeFilteredBusy = false;
 
@@ -2239,7 +2264,7 @@
       // aren't already queued, newest first.
       function untranscribedFilteredEntries() {
         return filteredHistoryEntries()
-          .filter((ev) => ev.audioUrl && (!ev.text || ev.text === TRANSCRIPTION_FAILED) &&
+          .filter((ev) => isUntranscribedAudio(ev) &&
             !isTranscriptionPending([ev.key, ev.wav]))
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       }
@@ -2472,6 +2497,7 @@
         applyHistoryFiltersAndRender();
       });
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
+      filterUntranscribedAudioBtn.addEventListener("click", toggleUntranscribedAudioFilter);
       transcribeFilteredAudioBtn.addEventListener("click", transcribeFilteredAudio);
       historySortBtn.addEventListener("click", toggleHistorySort);
       updateHistorySortButton();

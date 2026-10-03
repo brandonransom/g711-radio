@@ -514,7 +514,7 @@ func (s *webrtcServer) handleTranscriptRequest(w http.ResponseWriter, r *http.Re
 
 // maxBulkTranscriptRequest caps how many clips one "transcribe all filtered
 // audio" request may name.
-const maxBulkTranscriptRequest = 1000
+const maxBulkTranscriptRequest = 10000
 
 // handleBulkTranscriptRequest queues every listed clip at low priority (see
 // whisperPool.SubmitBulk) and reports which were accepted, so the page can
@@ -535,7 +535,7 @@ func (s *webrtcServer) handleBulkTranscriptRequest(w http.ResponseWriter, r *htt
 			AudioURL string `json:"audioUrl"`
 		} `json:"clips"`
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Clips) == 0 {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
