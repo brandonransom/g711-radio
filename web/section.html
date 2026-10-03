@@ -877,14 +877,13 @@
               <label>To <input type="datetime-local" id="historyToInput"></label>
             </span>
             <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
-            <div class="transcript-filters-actions">
-              <button id="historyStreamClearBtn" class="secondary" type="button">Clear stream filter</button>
+            <div id="bulkAudioActions" class="transcript-filters-actions" hidden>
               <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
               <button id="transcribeFilteredAudioBtn" class="secondary" type="button" disabled title="Queue every filtered recording that has no transcript yet">Transcribe all filtered audio</button>
             </div>
             <span class="transcript-filters-streams">
-              <label>Streams (none = all)
-                <select id="historyStreamSelect" multiple size="4"></select>
+              <label>Streams
+                <select id="historyStreamSelect" multiple size="4" title="Hold Ctrl (Command on Mac) and click to select multiple streams. Shift-click selects a range."></select>
               </label>
             </span>
           </div>
@@ -914,7 +913,6 @@
       const historyToInput = document.getElementById("historyToInput");
       const historyMinDurationInput = document.getElementById("historyMinDurationInput");
       const historyStreamSelect = document.getElementById("historyStreamSelect");
-      const historyStreamClearBtn = document.getElementById("historyStreamClearBtn");
       const downloadFilteredAudioBtn = document.getElementById("downloadFilteredAudioBtn");
       const transcribeFilteredAudioBtn = document.getElementById("transcribeFilteredAudioBtn");
       const historySortBtn = document.getElementById("historySortBtn");
@@ -1544,10 +1542,26 @@
         return true;
       }
 
-      // getSelectedStreamIds returns the set of stream IDs chosen in the
-      // stream filter. An empty set means "no filter — show all streams".
+      let historyAllStreamsSelected = true;
+
+      // An empty option represents all streams; never treat it as a stream ID.
       function getSelectedStreamIds() {
-        return new Set(Array.from(historyStreamSelect.selectedOptions).map((o) => o.value));
+        const selected = Array.from(historyStreamSelect.selectedOptions);
+        return new Set(selected.some((o) => o.value === "") ? [] : selected.map((o) => o.value));
+      }
+
+      function normalizeStreamFilterSelection() {
+        const allOption = historyStreamSelect.options[0];
+        const streams = Array.from(historyStreamSelect.options).slice(1);
+        const hasStreams = streams.some((o) => o.selected);
+        if (allOption.selected && hasStreams) {
+          // Resolve mixed selections according to which mode was just chosen.
+          if (historyAllStreamsSelected) allOption.selected = false;
+          else streams.forEach((o) => { o.selected = false; });
+        } else if (!hasStreams) {
+          allOption.selected = true;
+        }
+        historyAllStreamsSelected = allOption.selected;
       }
 
       // populateStreamFilterOptions fills the stream filter <select> from
@@ -1556,12 +1570,21 @@
       // for the lifetime of the page, so it never needs to be rebuilt.
       function populateStreamFilterOptions(cardList, useFullNames = false) {
         historyStreamSelect.innerHTML = "";
+        const allOption = document.createElement("option");
+        allOption.value = "";
+        allOption.textContent = "All Streams";
+        allOption.selected = true;
+        historyStreamSelect.append(allOption);
+        historyAllStreamsSelected = true;
+        const options = [];
         for (const card of cardList) {
           const option = document.createElement("option");
           option.value = card.stream.id;
           option.textContent = useFullNames ? formatStreamDisplayName(card.stream) : card.stream.streamName;
-          historyStreamSelect.append(option);
+          options.push(option);
         }
+        options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+        historyStreamSelect.append(...options);
       }
 
       function updateClipPlayButtons() {
@@ -2444,15 +2467,20 @@
       historyFromInput.addEventListener("change", () => void loadTranscriptHistory());
       historyToInput.addEventListener("change", () => void loadTranscriptHistory());
       historyMinDurationInput.addEventListener("input", () => applyHistoryFiltersAndRender());
-      historyStreamSelect.addEventListener("change", () => applyHistoryFiltersAndRender());
+      historyStreamSelect.addEventListener("change", () => {
+        normalizeStreamFilterSelection();
+        applyHistoryFiltersAndRender();
+      });
       downloadFilteredAudioBtn.addEventListener("click", downloadFilteredAudio);
       transcribeFilteredAudioBtn.addEventListener("click", transcribeFilteredAudio);
       historySortBtn.addEventListener("click", toggleHistorySort);
       updateHistorySortButton();
-      historyStreamClearBtn.addEventListener("click", () => {
-        Array.from(historyStreamSelect.options).forEach((o) => { o.selected = false; });
-        applyHistoryFiltersAndRender();
-      });
+
+      function configureBulkAudioControls() {
+        const params = new URL(window.location.href).searchParams;
+        document.getElementById("bulkAudioActions").hidden = params.get("user") !== "super";
+      }
+      configureBulkAudioControls();
 
       async function init() {
         const params = new URL(window.location.href).searchParams;

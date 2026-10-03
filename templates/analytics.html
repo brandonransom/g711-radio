@@ -34,7 +34,7 @@
 <body>
 <h1>Site statistics</h1>
 <div class="muted">{{if .From}}{{.From}} to {{end}}{{.To}} · generated {{.Generated}}</div>
-<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a></nav>
+<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a> · <a href="/section.html?all=1">All streams</a></nav>
 
 <div class="cards">
   <div class="card">Listening now<b>{{.LiveTotal}}</b></div>

@@ -480,21 +480,6 @@
         font-size: 0.94rem;
       }
 
-      .all-streams-link {
-        margin-top: 18px;
-        text-align: center;
-      }
-
-      .all-streams-link a {
-        color: var(--accent);
-        font-weight: 600;
-        text-decoration: none;
-      }
-
-      .all-streams-link a:hover {
-        text-decoration: underline;
-      }
-
       /* Wide screens: live audio (stream page) or the directory (home page)
          on the left, recordings and transcripts in a column on the right
          that stays in view while the page scrolls. */
@@ -924,7 +909,7 @@
               <label>To <input type="datetime-local" id="historyToInput"></label>
             </span>
             <label>Min length (s) <input type="number" id="historyMinDurationInput" min="0" step="1" placeholder="Any"></label>
-            <div class="transcript-filters-actions">
+            <div id="bulkAudioActions" class="transcript-filters-actions" hidden>
               <button id="downloadFilteredAudioBtn" class="secondary" type="button" disabled>Download all filtered audio</button>
               <button id="transcribeFilteredAudioBtn" class="secondary" type="button" disabled title="Queue every filtered recording that has no transcript yet">Transcribe all filtered audio</button>
             </div>
@@ -952,9 +937,6 @@
         This service is provided by the USDA Forest Service CIO - Land Mobile Radio Innovation Team. This is a very early alpha phase of testing. DO NOT use this webpage as your primary means of radio communications. Contact <a href="https://teams.microsoft.com/l/chat/0/0?users=brandon.r.thomas@usda.gov" target="_blank" rel="noopener" title="Chat with Brandon Thomas in Microsoft Teams">Brandon Thomas</a> on Teams with any questions or feedback.
       </p>
 
-      <p class="all-streams-link">
-        <a href="/section.html?all=1">Open the combined all-streams page &rarr;</a>
-      </p>
     </main>
 
     <script src="/activity.js"></script>
@@ -2074,6 +2056,12 @@
       transcribeFilteredAudioBtn.addEventListener("click", transcribeFilteredAudio);
       historySortBtn.addEventListener("click", toggleHistorySort);
       updateHistorySortButton();
+
+      function configureBulkAudioControls() {
+        const params = new URL(window.location.href).searchParams;
+        document.getElementById("bulkAudioActions").hidden = params.get("user") !== "super";
+      }
+      configureBulkAudioControls();
 
       const connectionIndicators = {
         idle: "⚪",
