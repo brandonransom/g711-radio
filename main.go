@@ -773,6 +773,7 @@ func main() {
 	if config.Whisper.enabled() {
 		config.Whisper.setDefaults()
 		pool = newWhisperPool(*config.Whisper, hub, logger)
+		pool.analytics = analytics
 		if err := pool.Start(); err != nil {
 			// Transcription is optional: keep streaming and recording.
 			logger.Printf("WARNING: whisper transcription disabled: %v", err)
@@ -1140,7 +1141,7 @@ func main() {
 	if analytics != nil {
 		go analytics.Run(ctx)
 		if p := config.Analytics.DashboardPath; p != "" {
-			analytics.RegisterDashboard(mux, p, server.liveListenerCounts, server.streamInventory)
+			analytics.RegisterDashboard(mux, p, server.liveListenerCounts, server.streamInventory, pool.transcriptionSnapshot)
 			logger.Printf("analytics: dashboard enabled at the dashboardPath set in %s", configPath)
 		} else {
 			logger.Printf("analytics: dashboard disabled; set analytics.dashboardPath in %s, e.g. \"/%s\"", configPath, randomToken())

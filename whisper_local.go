@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ func (p *whisperPool) startLocalInstances() error {
 			fmt.Sprintf("http://127.0.0.1:%d", port),
 			true,
 		)
+		ep.model = filepath.Base(p.cfg.ModelPath) + " (configured)"
 		p.endpoints = append(p.endpoints, ep)
 		p.wg.Add(1)
 		go func() {
@@ -134,6 +136,7 @@ func (p *whisperPool) waitLocalHealthy(ep *whisperEndpoint, exited <-chan error)
 		case <-poll.C:
 		}
 		if checkWhisperHealth(p.ctx, ep.baseURL, 2*time.Second) == nil {
+			ep.markChecked()
 			return nil
 		}
 		if waited := time.Since(started); waited >= nextNotice {

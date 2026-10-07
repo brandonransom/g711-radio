@@ -83,6 +83,7 @@ const (
 	evTranscriptBulk  = "transcript_bulk"
 	evFeedback        = "feedback"
 	evTransmission    = "transmission"
+	evTranscription   = "transcription"
 )
 
 // listen_end details. left and stopped come from the client's leave beacon
@@ -119,7 +120,8 @@ type analyticsEvent struct {
 	Name  string `json:"name,omitempty"`
 	// TZ is the stream's time zone (empty = server local), so time-of-day
 	// stats are filed in the stream's local time even when replayed later.
-	TZ string `json:"tz,omitempty"`
+	TZ            string                `json:"tz,omitempty"`
+	Transcription *transcriptionAttempt `json:"transcription,omitempty"`
 }
 
 // txAgg is one radio stream's transmissions for a day.
@@ -200,10 +202,11 @@ type dayAgg struct {
 	Corrections        int                   `json:"corrections"`
 	// Radio side: transmissions per stream (keyed by display name), by
 	// starting hour, airtime per hour, and a length histogram.
-	Radio     map[string]*txAgg    `json:"radio"`
-	TxHour    [24]int              `json:"txHour"`
-	TxHourMs  [24]int64            `json:"txHourMs"`
-	TxLengths [txLengthBuckets]int `json:"txLengths"`
+	Radio         map[string]*txAgg            `json:"radio"`
+	Transcription map[string]*transcriptionAgg `json:"transcription,omitempty"`
+	TxHour        [24]int                      `json:"txHour"`
+	TxHourMs      [24]int64                    `json:"txHourMs"`
+	TxLengths     [txLengthBuckets]int         `json:"txLengths"`
 
 	// Weekday (Monday first) × hour in each stream's own time zone. Days
 	// rolled up before these existed only have the server-time HourListens,
@@ -235,6 +238,9 @@ func (d *dayAgg) init() {
 	}
 	if d.Radio == nil {
 		d.Radio = map[string]*txAgg{}
+	}
+	if d.Transcription == nil {
+		d.Transcription = map[string]*transcriptionAgg{}
 	}
 	if d.visitors == nil {
 		d.visitors = map[string]struct{}{}
@@ -555,6 +561,14 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 	}
 	hour := ev.Time.Hour()
 	switch ev.Type {
+	case evTranscription:
+		if ev.Transcription != nil {
+			t := ev.Transcription
+			if d.Transcription[t.Host] == nil {
+				d.Transcription[t.Host] = &transcriptionAgg{}
+			}
+			d.Transcription[t.Host].add(*t)
+		}
 	case evPageview:
 		d.Pageviews++
 		d.Pages[ev.Page]++

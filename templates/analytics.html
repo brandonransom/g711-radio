@@ -29,12 +29,13 @@
   .heat th { font-weight: normal; font-size: 11px; padding: 0 4px; }
   .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   code { font-size: 12px; }
+  .scroll { overflow-x: auto; }
 </style>
 </head>
 <body>
 <h1>Site statistics</h1>
 <div class="muted">{{if .From}}{{.From}} to {{end}}{{.To}} · generated {{.Generated}}</div>
-<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a> · <a href="/section.html?all=1">All streams</a></nav>
+<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a> · <a href="#transcription">Transcription ↓</a> · <a href="/section.html?all=1">All streams</a></nav>
 
 <div class="cards">
   <div class="card">Listening now<b>{{.LiveTotal}}</b></div>
@@ -115,6 +116,39 @@
   {{end}}
 </table>
 </details>
+
+<h2 id="transcription">Transcription</h2>
+{{with .Transcription}}
+<div class="cards">
+  <div class="card">Hosts available now<b>{{.Available}} / {{.Configured}}</b><span class="muted">{{.Busy}} busy{{if not .Enabled}} · transcription disabled{{end}}</span></div>
+  <div class="card">Clips queued now<b>{{.Queued}}</b></div>
+  <div class="card">Completed<b>{{.Total.Succeeded}}</b><span class="muted">{{.Total.Attempts}} attempts</span></div>
+  <div class="card">Failed attempts<b>{{.Total.Failed}}</b><span class="muted">{{.Total.Retries}} additional attempts requeued</span></div>
+  <div class="card">Average processing<b>{{.Total.Average}}</b></div>
+  <div class="card">Average queue wait<b>{{.Total.QueueAverage}}</b></div>
+  <div class="card">Real-time factor<b>{{.Total.RTF}}</b><span class="muted">processing / audio duration</span></div>
+  <div class="card">No speech / filtered<b>{{.Total.NoSpeech}} / {{.Total.Filtered}}</b></div>
+</div>
+<p class="muted">Totals cover the selected date range and start when transcription metrics are enabled; older recordings cannot supply historical processing times. Availability, busy state, queue depth and current models are live snapshots at page generation. Each host is one whisper-server endpoint, including local instances; remote health is checked every 30 seconds and while recovering.</p>
+<h3>Host performance</h3>
+<div class="scroll">
+<table>
+  <tr><th>Host</th><th>Status now</th><th class="n">Completed</th><th class="n">Failed</th><th class="n">Requeued</th><th class="n">Avg processing</th><th class="n">Avg queue</th><th class="n">RTF</th><th class="n">Speed vs others</th><th class="n">Work share</th></tr>
+  {{range .Hosts}}<tr><td><code>{{.Host}}</code></td><td title="Last health check: {{.Checked}}">{{.Status}}</td><td class="n">{{.Succeeded}}</td><td class="n">{{.Failed}}</td><td class="n">{{.Retries}}</td><td class="n">{{.Average}}</td><td class="n">{{.QueueAverage}}</td><td class="n">{{.RTF}}</td><td class="n">{{.Relative}}</td><td class="n">{{.Share}}</td></tr>
+  {{else}}<tr><td colspan="10" class="muted">No transcription hosts or metrics yet.</td></tr>{{end}}
+</table>
+</div>
+<p class="muted">Processing includes file preparation and the HTTP inference request, excluding queue wait and transcript publishing. Processing averages use successful attempts, including no-speech results; queue averages use all attempts. RTF is total processing time divided by total audio duration (lower is faster). Speed vs others compares RTF against the combined other hosts: above 1x is faster. Work share is the share of completed attempts. Retries count separately from terminal failures; no-speech and filtered counts can overlap.</p>
+<h3>Models and Whisper diagnostics</h3>
+<div class="scroll">
+<table>
+  <tr><th>Host</th><th>Current / last known model</th><th>Models in range</th><th class="n">Reported confidence</th><th class="n">Token probability</th><th class="n">Avg log probability</th><th class="n">No speech / filtered</th></tr>
+  {{range .Hosts}}<tr><td><code>{{.Host}}</code></td><td>{{.Model}}</td><td>{{.RangeModels}}</td><td class="n">{{.Confidence}}</td><td class="n">{{.TokenProbability}}</td><td class="n">{{.Logprob}}</td><td class="n">{{.NoSpeech}} / {{.Filtered}}</td></tr>
+  {{else}}<tr><td colspan="7" class="muted">No model or quality metadata yet.</td></tr>{{end}}
+</table>
+</div>
+<p class="muted">Metadata is requested using Whisper's verbose JSON response; text-only JSON still works. Confidence is shown only for explicit 0–1 confidence fields. Token probabilities and average log probabilities are separate Whisper diagnostics, not measured transcription accuracy. Each diagnostic is averaged per clip, then across only the clips reporting it; sample counts are shown. Local models come from configuration; remote models come from responses when reported, or optional <code>whisper.remoteModels</code> labels. Missing metadata is not inferred.</p>
+{{end}}
 
 <h2>Locations</h2>
 <p class="muted">Location source: {{.GeoSource}}. Raw networks: <a href="{{.BasePath}}/networks.csv?days={{.Days}}">networks.csv</a>.</p>

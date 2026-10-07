@@ -29,6 +29,7 @@ type transcriptJob struct {
 	audioURL string // relative URL served to browsers (e.g. /audio/...)
 	start    time.Time
 	manual   bool
+	queuedAt time.Time
 	// retries counts how many times this job was handed back to the queue
 	// because its server was unreachable (see maxJobRetries).
 	retries int
@@ -63,6 +64,8 @@ type whisperConfig struct {
 	// RemoteServers lists base URLs of whisper.cpp whisper-server instances,
 	// e.g. "http://gpu-box:8080". Setting it selects remote mode.
 	RemoteServers []string `json:"remoteServers"`
+	// RemoteModels labels models on hosts that do not report their model.
+	RemoteModels map[string]string `json:"remoteModels"`
 
 	// ServerBinaryPath is the whisper.cpp whisper-server executable (local mode).
 	ServerBinaryPath string `json:"serverBinaryPath"`
@@ -142,10 +145,24 @@ func (c *whisperConfig) validate() error {
 	if c.LegacyRemoteHost != "" {
 		return errors.New(`"remoteHost" (cmd/whisper-server) is no longer supported: run whisper.cpp's whisper-server on the remote host and list its URL(s) in "remoteServers"`)
 	}
+	modelHosts := map[string]bool{}
 	for _, raw := range c.RemoteServers {
-		if _, err := whisperServerURL(raw); err != nil {
+		base, err := whisperServerURL(raw)
+		if err != nil {
 			return fmt.Errorf("remoteServers: %w", err)
 		}
+		modelHosts[base] = true
+	}
+	modelLabels := map[string]bool{}
+	for raw, model := range c.RemoteModels {
+		base, err := whisperServerURL(raw)
+		if err != nil || !modelHosts[base] || strings.TrimSpace(model) == "" {
+			return fmt.Errorf("remoteModels: %q must name a configured remote server with a non-empty model", raw)
+		}
+		if modelLabels[base] {
+			return fmt.Errorf("remoteModels: duplicate normalized server URL %q", base)
+		}
+		modelLabels[base] = true
 	}
 	for _, arg := range c.ServerArgs {
 		flagName, _, _ := strings.Cut(arg, "=")
@@ -272,6 +289,9 @@ type whisperEndpoint struct {
 	mu      sync.Mutex
 	ready   bool
 	readyCh chan struct{} // closed while ready
+	busy    bool
+	model   string
+	checked time.Time
 }
 
 func newWhisperEndpoint(label, baseURL string, managed bool) *whisperEndpoint {
@@ -330,11 +350,12 @@ type whisperPool struct {
 	closeOnce  sync.Once
 	ctx        context.Context // cancelled by Close; kills local instances
 	cancel     context.CancelFunc
-	wg         sync.WaitGroup // local instance supervisors
+	wg         sync.WaitGroup // workers, health monitors and local supervisors
 	httpClient *http.Client
 	endpoints  []*whisperEndpoint
 	formFields map[string]string
 	filter     *hallucinationFilter
+	analytics  *analyticsStore
 }
 
 func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *whisperPool {
@@ -377,7 +398,7 @@ func inferenceFormFields(params map[string]any) map[string]string {
 			fields[key] = s
 		}
 	}
-	fields["response_format"] = "json"
+	fields["response_format"] = "verbose_json"
 	return fields
 }
 
@@ -398,22 +419,38 @@ func (p *whisperPool) Start() error {
 				fmt.Sprintf("server#%d %s", i+1, base), base, false))
 		}
 		p.checkRemoteReachability()
+		for _, ep := range p.endpoints {
+			for raw, model := range p.cfg.RemoteModels {
+				base, _ := whisperServerURL(raw)
+				if base == ep.baseURL {
+					ep.model = strings.TrimSpace(model) + " (configured)"
+				}
+			}
+			p.wg.Add(1)
+			go func() {
+				defer p.wg.Done()
+				p.monitorRemote(ep)
+			}()
+		}
 	} else {
 		if err := p.startLocalInstances(); err != nil {
 			return err
 		}
 	}
 	for _, ep := range p.endpoints {
-		go p.worker(ep)
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.worker(ep)
+		}()
 	}
 	return nil
 }
 
-// checkRemoteReachability logs whether each remote server answers /health.
-// It is diagnostic only and never blocks startup for long.
+// checkRemoteReachability initializes readiness from each server's /health.
 func (p *whisperPool) checkRemoteReachability() {
 	for _, ep := range p.endpoints {
-		if err := checkWhisperHealth(p.ctx, ep.baseURL, 5*time.Second); err != nil {
+		if err := p.probeRemote(ep); err != nil {
 			p.logger.Printf("WARNING: whisper server %s is not ready: %v", ep.label, err)
 			continue
 		}
@@ -476,6 +513,9 @@ func (p *whisperPool) markQueuedLocked(job transcriptJob) bool {
 // waiting is not queued twice; it reports false in that case, and the
 // waiting job's transcript will still be published to every listener.
 func (p *whisperPool) Submit(job transcriptJob) bool {
+	if job.queuedAt.IsZero() {
+		job.queuedAt = time.Now()
+	}
 	p.mu.Lock()
 	if !p.markQueuedLocked(job) {
 		// A clip waiting in the low-priority bulk queue is promoted, so a
@@ -502,6 +542,9 @@ func (p *whisperPool) Submit(job transcriptJob) bool {
 
 // SubmitBulk queues a clip at low priority (see bulkQueue).
 func (p *whisperPool) SubmitBulk(job transcriptJob) bulkSubmitResult {
+	if job.queuedAt.IsZero() {
+		job.queuedAt = time.Now()
+	}
 	p.mu.Lock()
 	if len(p.bulkQueue) >= maxBulkQueue {
 		p.mu.Unlock()
@@ -527,6 +570,7 @@ func (p *whisperPool) queueDepth() int {
 // requeueFront puts a job back at the head of the queue so another endpoint
 // can pick it up without losing its place in line.
 func (p *whisperPool) requeueFront(job transcriptJob) {
+	job.queuedAt = time.Now()
 	p.mu.Lock()
 	p.markQueuedLocked(job)
 	p.queue = append([]transcriptJob{job}, p.queue...)
@@ -546,6 +590,11 @@ func (p *whisperPool) signal() {
 // always go first; bulk jobs only run when nothing else is waiting.
 func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
 	for {
+		select {
+		case <-p.done:
+			return transcriptJob{}, 0, false
+		default:
+		}
 		p.mu.Lock()
 		var job transcriptJob
 		found := true
@@ -591,7 +640,7 @@ func (p *whisperPool) Close() {
 		select {
 		case <-stopped:
 		case <-time.After(5 * time.Second):
-			p.logger.Printf("whisper: timed out waiting for local whisper-server instances to stop")
+			p.logger.Printf("whisper: timed out waiting for workers and whisper-server instances to stop")
 		}
 	})
 }
@@ -615,9 +664,9 @@ func (p *whisperPool) awaitEndpoint(ep *whisperEndpoint) bool {
 			return false
 		case <-time.After(backoff):
 		}
-		if err := checkWhisperHealth(p.ctx, ep.baseURL, 5*time.Second); err == nil {
+		err := p.probeRemote(ep)
+		if err == nil {
 			p.logger.Printf("whisper server %s is reachable again", ep.label)
-			ep.setReady(true)
 			break
 		}
 		backoff = min(backoff*2, 30*time.Second)
@@ -635,6 +684,9 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 			return
 		}
 		started := time.Now()
+		ep.mu.Lock()
+		ep.busy = true
+		ep.mu.Unlock()
 		p.logger.Printf("whisper %s: transcribing clip %s from %s (queue depth: %d)",
 			ep.label, job.clipID, job.info.StreamName, waiting)
 		// Tell the UI a server has picked this clip up, so the row stops
@@ -650,10 +702,30 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 			Timestamp:   job.start,
 			WAVFilename: wavBaseName(job.wavPath),
 		})
-		text, err := p.transcribe(ep, job.wavPath, job.info.StreamName)
+		result, err := p.transcribe(ep, job.wavPath, job.info.StreamName)
+		elapsed := time.Since(started)
+		ep.mu.Lock()
+		ep.busy = false
+		if err == nil && result.Model != "" {
+			ep.model = result.Model + " (reported)"
+		}
+		model := ep.model
+		ep.mu.Unlock()
+		attempt := transcriptionAttempt{
+			Host: ep.baseURL, Model: model, Ms: elapsed.Milliseconds(),
+			Confidence: result.Confidence, AvgLogprob: result.AvgLogprob,
+			TokenProbability: result.TokenProbability,
+			AudioMs:          result.AudioMs,
+		}
+		if !job.queuedAt.IsZero() {
+			attempt.QueueMs = max(0, started.Sub(job.queuedAt).Milliseconds())
+		}
 		if err != nil {
 			var unreachable *endpointUnreachableError
+			attempt.Outcome = "failed"
 			if errors.As(err, &unreachable) && job.retries < maxJobRetries {
+				attempt.Outcome = "retry"
+				p.analytics.TranscriptionAttempt(attempt)
 				// The server itself is down, not the clip: take this
 				// endpoint out of rotation and let another (or this one,
 				// once healthy again) retry the clip.
@@ -673,6 +745,7 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 				}
 				continue
 			}
+			p.analytics.TranscriptionAttempt(attempt)
 			p.logger.Printf("whisper %s: transcribe %s (clip %s): %v", ep.label, job.info.StreamName, job.clipID, err)
 			// Publish a visible failure marker instead of silently dropping
 			// the job: otherwise the clip stays stuck showing "Recording
@@ -681,12 +754,16 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 			p.publish(job, "[transcription failed]")
 			continue
 		}
-		text = strings.TrimSpace(text)
+		text := strings.TrimSpace(result.Text)
 		if filtered, changed := p.filter.Apply(text); changed {
+			attempt.Filtered = true
 			p.logger.Printf("whisper %s: clip %s from %s: filtered hallucination %q -> %q",
 				ep.label, job.clipID, job.info.StreamName, text, filtered)
 			text = filtered
 		}
+		attempt.Outcome = "success"
+		attempt.NoSpeech = text == "" || text == noSpeechMarker
+		p.analytics.TranscriptionAttempt(attempt)
 		if text == "" {
 			// No speech detected — a normal outcome (e.g. a keyed-up but
 			// silent transmission), published so the clip isn't left pending.
@@ -726,10 +803,10 @@ func (e *endpointUnreachableError) Unwrap() error { return e.err }
 // transcribe POSTs the WAV file to the endpoint's /inference as
 // multipart/form-data. whisper-server decodes WAV at any sample rate and
 // resamples it internally, so the 8kHz clips are sent unmodified.
-func (p *whisperPool) transcribe(ep *whisperEndpoint, wavPath, streamName string) (string, error) {
+func (p *whisperPool) transcribe(ep *whisperEndpoint, wavPath, streamName string) (whisperResult, error) {
 	data, err := os.ReadFile(wavPath)
 	if err != nil {
-		return "", fmt.Errorf("read %s: %w", wavPath, err)
+		return whisperResult{}, fmt.Errorf("read %s: %w", wavPath, err)
 	}
 
 	var body bytes.Buffer
@@ -741,18 +818,18 @@ func (p *whisperPool) transcribe(ep *whisperEndpoint, wavPath, streamName string
 	sort.Strings(keys)
 	for _, key := range keys {
 		if err := form.WriteField(key, p.formFields[key]); err != nil {
-			return "", fmt.Errorf("build request: %w", err)
+			return whisperResult{}, fmt.Errorf("build request: %w", err)
 		}
 	}
 	part, err := form.CreateFormFile("file", filepath.Base(wavPath))
 	if err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return whisperResult{}, fmt.Errorf("build request: %w", err)
 	}
 	if _, err := part.Write(data); err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return whisperResult{}, fmt.Errorf("build request: %w", err)
 	}
 	if err := form.Close(); err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return whisperResult{}, fmt.Errorf("build request: %w", err)
 	}
 
 	endpointURL := ep.baseURL + "/inference"
@@ -760,7 +837,7 @@ func (p *whisperPool) transcribe(ep *whisperEndpoint, wavPath, streamName string
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, &body)
 	if err != nil {
-		return "", fmt.Errorf("%s: build request: %w", endpointURL, err)
+		return whisperResult{}, fmt.Errorf("%s: build request: %w", endpointURL, err)
 	}
 	req.Header.Set("Content-Type", form.FormDataContentType())
 	// Ignored by whisper-server; useful in proxy/access logs.
@@ -769,33 +846,37 @@ func (p *whisperPool) transcribe(ep *whisperEndpoint, wavPath, streamName string
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", fmt.Errorf("%s: timed out after %dms: %w", endpointURL, p.cfg.TimeoutMs, err)
+			return whisperResult{}, fmt.Errorf("%s: timed out after %dms: %w", endpointURL, p.cfg.TimeoutMs, err)
 		}
-		return "", &endpointUnreachableError{fmt.Errorf("%s: %w", endpointURL, err)}
+		return whisperResult{}, &endpointUnreachableError{fmt.Errorf("%s: %w", endpointURL, err)}
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("%s: read response: %w", endpointURL, err)
+		return whisperResult{}, fmt.Errorf("%s: read response: %w", endpointURL, err)
 	}
 	// whisper-server reports some errors as {"error": "..."} with a 200
 	// status, so the body is checked for an error regardless of status.
-	var result struct {
-		Text  string `json:"text"`
-		Error string `json:"error"`
-	}
+	var result whisperResult
 	decodeErr := json.Unmarshal(respBody, &result)
 	if result.Error != "" {
-		return "", fmt.Errorf("%s: %s", endpointURL, result.Error)
+		return whisperResult{}, fmt.Errorf("%s: %s", endpointURL, result.Error)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s: unexpected status %s", endpointURL, resp.Status)
+		return whisperResult{}, fmt.Errorf("%s: unexpected status %s", endpointURL, resp.Status)
 	}
 	if decodeErr != nil {
-		return "", fmt.Errorf("%s: decode response: %w", endpointURL, decodeErr)
+		return whisperResult{}, fmt.Errorf("%s: decode response: %w", endpointURL, decodeErr)
 	}
-	return cleanWhisperOutput(result.Text), nil
+	result.Text = cleanWhisperOutput(result.Text)
+	result.summarizeMetadata()
+	if ms, err := wavDurationMs(wavPath); err == nil {
+		result.AudioMs = int64(ms)
+	} else {
+		p.logger.Printf("whisper %s: audio duration unavailable for %s: %v", ep.label, wavPath, err)
+	}
+	return result, nil
 }
 
 // encodePCM16WAV encodes int16 samples into a standard WAV byte slice.

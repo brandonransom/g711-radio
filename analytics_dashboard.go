@@ -171,6 +171,7 @@ type dashData struct {
 	Retention     string
 	GeoSource     string
 	Radio         radioData
+	Transcription transcriptionData
 }
 
 var dashRanges = []rangeOpt{{1, "Today", false}, {7, "7 days", false}, {30, "30 days", false}, {90, "90 days", false}, {365, "1 year", false}, {0, "All time", false}}
@@ -194,7 +195,7 @@ func (a *analyticsStore) rangeDates(days int) (from, to string) {
 }
 
 // RegisterDashboard serves the stats page and its CSV exports at path.
-func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live liveListenerFunc, inventory inventoryFunc) {
+func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live liveListenerFunc, inventory inventoryFunc, transcription ...func() transcriptionSnapshot) {
 	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -202,7 +203,7 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 		}
 		privateHeaders(w)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		data := a.dashboard(parseDays(r), live, inventory)
+		data := a.dashboard(parseDays(r), live, inventory, transcription...)
 		data.BasePath = path
 		if err := analyticsTemplate.Execute(w, data); err != nil {
 			a.logger.Printf("analytics: render dashboard: %v", err)
@@ -283,10 +284,15 @@ func mergeNetworks(days []dayAgg) map[string]*netAgg {
 	return nets
 }
 
-func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory inventoryFunc) dashData {
+func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory inventoryFunc, transcription ...func() transcriptionSnapshot) dashData {
 	agg := a.daysInRange(days)
 	all := a.withRadioArchive(agg, days)
 	data := dashData{Days: days, Generated: a.now().Format("2006-01-02 15:04:05 MST"), GeoSource: a.geo.Source()}
+	var snapshot transcriptionSnapshot
+	if len(transcription) > 0 && transcription[0] != nil {
+		snapshot = transcription[0]()
+	}
+	data.Transcription = makeTranscriptionData(agg, snapshot)
 	data.From, data.To = a.rangeDates(days)
 	if data.From == "" && len(all) > 0 {
 		data.From = all[0].Date
@@ -870,16 +876,25 @@ func csvAttachment(w http.ResponseWriter, name string) *csv.Writer {
 func (a *analyticsStore) exportEvents(w http.ResponseWriter, days int) {
 	from, to := a.rangeDates(days)
 	cw := csvAttachment(w, "analytics-events-"+strings.TrimSpace(from+"_"+to)+".csv")
-	_ = cw.Write([]string{"time", "type", "network", "visitor_day_hash", "page", "referrer", "browser", "os", "device", "stream", "duration_ms", "detail", "count", "state", "forest", "stream_name"})
+	_ = cw.Write([]string{"time", "type", "network", "visitor_day_hash", "page", "referrer", "browser", "os", "device", "stream", "duration_ms", "detail", "count", "state", "forest", "stream_name", "transcription_json"})
 	for _, date := range a.rawDates() {
 		if (from != "" && date < from) || date > to {
 			continue
 		}
 		_ = a.readEvents(date, func(ev analyticsEvent) {
+			metadata := ""
+			if ev.Transcription != nil {
+				b, err := json.Marshal(ev.Transcription)
+				if err != nil {
+					a.logger.Printf("analytics: export transcription metadata: %v", err)
+				} else {
+					metadata = string(b)
+				}
+			}
 			_ = cw.Write([]string{
 				ev.Time.Format(time.RFC3339), ev.Type, ev.Net, ev.Visitor, ev.Page, ev.Referrer,
 				ev.Browser, ev.OS, ev.Device, ev.Stream, strconv.FormatInt(ev.DurationMs, 10), ev.Detail, strconv.Itoa(ev.Count),
-				ev.State, ev.Group, ev.Name,
+				ev.State, ev.Group, ev.Name, metadata,
 			})
 		})
 	}

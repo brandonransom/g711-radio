@@ -248,7 +248,7 @@ func TestInferenceFormFields(t *testing.T) {
 		"suppress_nst":    "true",
 		"best_of":         "5", // whisper-cli default kept
 		"no_timestamps":   "true",
-		"response_format": "json",
+		"response_format": "verbose_json",
 	}
 	for key, value := range want {
 		if fields[key] != value {
@@ -307,7 +307,7 @@ func TestRemoteTranscriptionSendsInferenceRequest(t *testing.T) {
 	}
 	for key, value := range map[string]string{
 		"beam_size": "5", "prompt": "Forest Service radio",
-		"language": "en", "no_timestamps": "true", "response_format": "json",
+		"language": "en", "no_timestamps": "true", "response_format": "verbose_json",
 	} {
 		if req.form[key] != value {
 			t.Errorf("form %s = %q, want %q", key, req.form[key], value)

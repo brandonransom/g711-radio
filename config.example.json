@@ -15,6 +15,7 @@
   },
   "whisper": {
     "remoteServers": [],
+    "remoteModels": {},
     "serverBinaryPath": "C:\\path\\to\\whisper.cpp\\build\\bin\\Release\\whisper-server.exe",
     "modelPath": "C:\\path\\to\\whisper.cpp\\models\\ggml-medium.bin",
     "workers": 2,
