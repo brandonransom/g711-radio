@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>USDA Forest Service - Land Mobile Radio Streams</title>
+    <title>Radio Streams</title>
     <style>
       :root {
         color-scheme: light;
@@ -1469,7 +1469,7 @@
       function showError(message) {
         pageTitle.textContent = "Not found";
         pageSubtitle.textContent = "";
-        document.title = "Not found - USDA FS Radio Streams";
+        document.title = "Not found - Radio Streams";
         const empty = document.createElement("div");
         empty.className = "empty";
         empty.textContent = message;
@@ -2535,7 +2535,7 @@
         if (favoritesPage) {
           pageTitle.textContent = "My favorites";
           pageSubtitle.textContent = "Your starred streams in one place, with their recordings and transcripts. Tap ☆ on any stream, organizational unit, or state to add it here, or ★ to remove it. Favorites are saved in this browser only.";
-          document.title = "My favorites - USDA FS Radio Streams";
+          document.title = "My favorites - Radio Streams";
 
           const favorites = loadFavorites();
           const streams = [];
@@ -2564,7 +2564,7 @@
         } else if (allStreams) {
           pageTitle.textContent = "All Configured Streams";
           pageSubtitle.textContent = "Every configured stream, grouped by state and organizational unit.";
-          document.title = "All Configured Streams - USDA FS Radio Streams";
+          document.title = "All Configured Streams - Radio Streams";
 
           for (const state of stateGroups || []) {
             const stateSection = document.createElement("section");
@@ -2609,14 +2609,14 @@
             pageTitle.textContent = forest.groupName;
             pageSubtitle.textContent = "";
             pageSubtitle.append(`${forest.unitType} in `, buildLink(sectionPagePath(state.stateName), state.stateName, "Open this state's page"));
-            document.title = `${forest.groupName} / ${state.stateName} - USDA FS Radio Streams`;
+            document.title = `${forest.groupName} / ${state.stateName} - Radio Streams`;
             connectAllBtn.parentElement.append(buildGroupFavoriteToggle(forest.streams, "forest", forest.groupName, true, forest.unitType));
             content.append(renderStreamsGrid(forest.streams));
           } else {
             pageTitle.textContent = state.stateName;
             const streamCount = state.subGroups.reduce((count, group) => count + group.streams.length, 0);
             pageSubtitle.textContent = `${streamCount} ${streamCount === 1 ? "stream" : "streams"} · ${state.unitSummary}`;
-            document.title = `${state.stateName} - USDA FS Radio Streams`;
+            document.title = `${state.stateName} - Radio Streams`;
             connectAllBtn.parentElement.append(buildGroupFavoriteToggle(
               state.subGroups.flatMap((group) => group.streams), "state", state.stateName, true));
 
