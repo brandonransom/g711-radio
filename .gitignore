@@ -1,6 +1,7 @@
 # Machine-specific runtime config (ports, cert paths, stream lists).
 # Each deployment keeps its own; copy config.example.json to create one.
 config.json
+streams.json
 config.secrets.json
 g711-radio
 *.pcapng

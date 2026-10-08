@@ -146,6 +146,44 @@ func (idx *recordingIndex) register(info streamInfo) {
 	idx.mu.Unlock()
 }
 
+// track handles a stream added by a config reload: a new entry is
+// registered and built in the background (history scans its folder until
+// then). A stream that is already indexed needs nothing, since history
+// requests carry their own stream info.
+func (idx *recordingIndex) track(info streamInfo) {
+	if idx == nil {
+		return
+	}
+	key := recordingDirKey(info.StateName, info.GroupName, info.StreamName)
+	idx.mu.RLock()
+	s := idx.streams[key]
+	idx.mu.RUnlock()
+	if s != nil {
+		return
+	}
+	idx.register(info)
+	idx.mu.RLock()
+	s = idx.streams[key]
+	idx.mu.RUnlock()
+	go func() {
+		if n, err := idx.buildStream(s); err != nil {
+			idx.logger.Printf("recording index: %s: %v (history for this stream will scan the folder)", info.StreamName, err)
+		} else {
+			idx.logger.Printf("recording index (%s): %d recordings indexed for added stream %s", idx.mode, n, info.displayName())
+		}
+	}()
+}
+
+// forget drops a stream removed by a config reload.
+func (idx *recordingIndex) forget(info streamInfo) {
+	if idx == nil {
+		return
+	}
+	idx.mu.Lock()
+	delete(idx.streams, recordingDirKey(info.StateName, info.GroupName, info.StreamName))
+	idx.mu.Unlock()
+}
+
 // build indexes every registered stream, one at a time to keep the startup
 // memory and disk load low. Until a stream is ready, history requests for
 // it fall back to scanning its folder.

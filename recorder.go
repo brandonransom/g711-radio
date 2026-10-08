@@ -154,6 +154,14 @@ func (r *recorderState) Push(samples []int16, now time.Time) {
 	})
 }
 
+// Flush finishes any recording in progress now instead of waiting for the
+// gap timer, e.g. when its stream is removed by a config reload.
+func (r *recorderState) Flush() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.finaliseLocked()
+}
+
 // finaliseLocked must be called with mu held.
 func (r *recorderState) finaliseLocked() {
 	if r.timer != nil {

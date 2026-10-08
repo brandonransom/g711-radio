@@ -354,7 +354,7 @@ func (s *webrtcServer) handleTranscriptFeedback(w http.ResponseWriter, r *http.R
 	// is still in it, otherwise the configured stream the page names. The
 	// client's display name is the last resort.
 	var info streamInfo
-	if st, ok := s.streams[strings.TrimSpace(req.StreamID)]; ok && st != nil {
+	if st, ok := s.stationByID(strings.TrimSpace(req.StreamID)); ok && st != nil {
 		info = st.info
 	}
 	if rec.ClipID != "" {

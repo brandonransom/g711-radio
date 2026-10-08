@@ -134,7 +134,16 @@ type appConfig struct {
 	// LegacyRegions is the pre-rename spelling of States, still accepted so
 	// existing config files keep working. Setting both is an error.
 	LegacyRegions map[string]map[string][]streamConfig `json:"regions"`
-	Whisper       *whisperConfig                       `json:"whisper"` // all transcription settings (local and remote); see whisperConfig in whisper.go
+	// StreamsFile, when set, names a separate JSON file (relative paths are
+	// resolved against this config file's folder) holding the "states"
+	// object, so stream edits never touch the server settings. Setting it
+	// together with "states" is an error.
+	StreamsFile string `json:"streamsFile"`
+	// StreamsReloadSeconds is how often the stream definitions (StreamsFile,
+	// or "states" in this file) are checked for changes, which are applied
+	// without a restart. 0 means the default (2s); negative disables it.
+	StreamsReloadSeconds int            `json:"streamsReloadSeconds"`
+	Whisper              *whisperConfig `json:"whisper"` // all transcription settings (local and remote); see whisperConfig in whisper.go
 
 	// AudioLogDir is the primary, user-facing audio archive: every
 	// recorded clip is written here (see saveAudioClip), served over HTTP
@@ -196,6 +205,8 @@ type appConfig struct {
 
 	streamGroups []configuredState
 	totalStreams int
+	streamsPath  string // resolved StreamsFile; empty when streams are inline
+	configFile   string // path this config was loaded from
 }
 
 // iceServerConfig mirrors webrtc.ICEServer for JSON configuration. Without at
@@ -329,6 +340,13 @@ type station struct {
 	// multicast listener (non-nil if using multiple ports/multicast addresses)
 	multicastListener *MulticastListener
 
+	// cfg is the definition this station was started from; a config reload
+	// restarts the station only when it changes. cancel stops the station,
+	// and done is closed once its listeners are released.
+	cfg    streamConfig
+	cancel context.CancelFunc
+	done   chan struct{}
+
 	// packet health tracking (protected by mu)
 	lastPacketAt       time.Time
 	sourceAddr         string // first/expected source IP (no port)
@@ -365,12 +383,22 @@ type offerRequest struct {
 }
 
 type webrtcServer struct {
-	api         *webrtc.API
-	logger      *log.Logger
-	analytics   *analyticsStore
-	streams     map[string]*station
-	stateGroups []stateGroup
-	hub         *transcriptHub
+	api       *webrtc.API
+	logger    *log.Logger
+	analytics *analyticsStore
+	hub       *transcriptHub
+
+	// streams (by ID), streamsByKey (by state/group/name) and stateGroups
+	// change when the stream config is reloaded; guard reads with streamsMu
+	// (see stationByID, stationList, stateGroupList). reloadMu serializes
+	// reloads.
+	streamsMu    sync.RWMutex
+	streams      map[string]*station
+	streamsByKey map[string]*station
+	stateGroups  []stateGroup
+	reloadMu     sync.Mutex
+	runtime      stationRuntime
+
 	clips       map[string]clipRecord
 	clipMu      sync.RWMutex
 	whisperPool *whisperPool
@@ -475,7 +503,7 @@ func (s *webrtcServer) streamForAudioURL(audioURL string) (streamInfo, bool) {
 		return streamInfo{}, false
 	}
 	safe := func(v string) string { return unsafeChars.ReplaceAllString(v, "_") }
-	for _, st := range s.streams {
+	for _, st := range s.stationList() {
 		if safe(st.info.StateName) == parts[0] && safe(st.info.GroupName) == parts[1] && safe(st.info.StreamName) == parts[2] {
 			return st.info, true
 		}
@@ -803,18 +831,19 @@ func main() {
 	}
 
 	server := &webrtcServer{
-		api:         api,
-		logger:      logger,
-		analytics:   analytics,
-		streams:     make(map[string]*station, config.totalStreams),
-		stateGroups: make([]stateGroup, 0, len(config.streamGroups)),
-		hub:         hub,
-		clips:       make(map[string]clipRecord),
-		whisperPool: pool,
-		feedback:    feedback,
-		audioLogDir: config.AudioLogDir,
-		iceServers:  config.webrtcICEServers(),
-		clipJobs:    make(chan func(), 256),
+		api:          api,
+		logger:       logger,
+		analytics:    analytics,
+		streams:      make(map[string]*station, config.totalStreams),
+		streamsByKey: make(map[string]*station, config.totalStreams),
+		stateGroups:  make([]stateGroup, 0, len(config.streamGroups)),
+		hub:          hub,
+		clips:        make(map[string]clipRecord),
+		whisperPool:  pool,
+		feedback:     feedback,
+		audioLogDir:  config.AudioLogDir,
+		iceServers:   config.webrtcICEServers(),
+		clipJobs:     make(chan func(), 256),
 	}
 	server.startClipWorkers(4)
 	if len(config.ICEServers) == 0 {
@@ -848,242 +877,18 @@ func main() {
 		logger.Printf("audio backup directory: %s (every clip is copied here when saved)", dir)
 	}
 
-	for _, state := range config.streamGroups {
-		apiState := stateGroup{
-			StateName: state.StateName,
-			SubGroups: make([]subGroup, 0, len(state.SubGroups)),
-		}
-
-		for _, sg := range state.SubGroups {
-			apiSubGroup := subGroup{
-				GroupName: sg.GroupName,
-				Streams:   make([]streamInfo, 0, len(sg.Streams)),
-			}
-
-			for _, cfg := range sg.Streams {
-				info := streamInfo{
-					StateName:  state.StateName,
-					GroupName:  sg.GroupName,
-					ForestName: sg.GroupName,
-					ID:         nextStreamID(),
-					StreamName: cfg.StreamName,
-					UDPPort:    cfg.UDPPort,
-					TimeZone:   cfg.TimeZone,
-				}
-
-				st := &station{
-					info:           info,
-					codec:          codec,
-					frameDuration:  frameDuration,
-					logger:         logger,
-					debugMulticast: cfg.DebugMulticast,
-					audioLogDir:    config.AudioLogDir,
-					audioDumpDir:   config.AudioDumpDir,
-					subscribers:    make(map[string]*subscriber),
-					whisperPool:    pool,
-					broadcastChan:  make(chan media.Sample, 64),
-				}
-				hub.index.register(info)
-				go st.runBroadcaster()
-
-				if pool != nil || config.AudioLogDir != "" {
-					wCfg := &whisperConfig{}
-					if config.Whisper != nil {
-						wCfg = config.Whisper
-						wCfg.setDefaults()
-					} else {
-						wCfg.setDefaults()
-					}
-					captureInfo := info
-					captureAudioLogDir := config.AudioLogDir
-					captureAudioBackupDirs := audioBackupDirs(&config)
-					autoTranscribe := !cfg.DisableAutoTranscribe
-					if pool != nil && !autoTranscribe {
-						logger.Printf("%s: automatic transcription disabled by config (disableAutoTranscribe)", info.displayName())
-					}
-					st.recorder = newRecorderState(
-						time.Duration(wCfg.GapMs)*time.Millisecond,
-						time.Duration(wCfg.MaxClipMs)*time.Millisecond,
-						func(samples []int16, start time.Time) {
-							// The work below includes synchronous disk I/O
-							// (WAV file write). recorder.Push() calls this
-							// callback inline from the station's ingest
-							// goroutine, so doing that work here would block
-							// UDP packet reads for its duration — letting
-							// packets queue up in the kernel socket buffer
-							// and then get drained/broadcast in a burst,
-							// which live WebRTC playback is much more
-							// sensitive to than a batch-written WAV.
-							// Dispatch it to a background worker instead so
-							// this callback returns immediately.
-							job := func() {
-								var wavPath, audioURL string
-								durationMs := len(samples) * 1000 / recSampleRate
-								server.analytics.Transmission(captureInfo, start, durationMs)
-								if captureAudioLogDir != "" {
-									var err error
-
-									wavPath, audioURL, err = saveAudioClip(captureAudioLogDir, captureAudioBackupDirs, captureInfo, samples, start, logger)
-									if err != nil {
-										logger.Printf("audio log: %v", err)
-									}
-								}
-								// requestWavPath is the file used for on-demand transcription.
-								// Prefer the persisted audio log file; fall back to a temp file.
-								var requestWavPath string
-								if wavPath != "" {
-									requestWavPath = wavPath
-								} else if pool != nil {
-									wav, _ := encodePCM16WAV(samples, recSampleRate)
-									tmp, err := os.CreateTemp("", "g711-whisper-*.wav")
-									if err == nil {
-										if _, err := tmp.Write(wav); err == nil {
-											_ = tmp.Close()
-											requestWavPath = tmp.Name()
-										} else {
-											_ = tmp.Close()
-											_ = os.Remove(tmp.Name())
-										}
-									}
-								}
-								// The WAV filename is the clip's identity, so live
-								// rows and history rows share one key across
-								// restarts. Only unsaved clips need a synthetic ID.
-								clipID := wavBaseName(requestWavPath)
-								if clipID == "" {
-									clipID = nextClipID()
-								}
-								// Publish clip event immediately so the UI shows the recording.
-								hub.Publish(transcriptEvent{
-									Type:        "clip",
-									ClipID:      clipID,
-									StreamID:    captureInfo.ID,
-									StreamName:  captureInfo.StreamName,
-									StateName:   captureInfo.StateName,
-									GroupName:   captureInfo.GroupName,
-									AudioURL:    audioURL,
-									DurationMs:  durationMs,
-									Timestamp:   start,
-									WAVFilename: wavBaseName(requestWavPath),
-								})
-								server.storeClip(clipRecord{
-									clipID:   clipID,
-									info:     captureInfo,
-									wavPath:  requestWavPath,
-									audioURL: audioURL,
-									start:    start,
-									duration: durationMs,
-								})
-								if pool != nil && autoTranscribe && shouldAutoTranscribe(wCfg, durationMs) {
-									if job, _, ok := server.manualTranscriptJob(clipID, ""); ok {
-										pool.Submit(job)
-									}
-								}
-							}
-							select {
-							case server.clipJobs <- job:
-							default:
-								logger.Printf("%s: clip job queue full; dropping clip finalization (disk/whisper backlog)", captureInfo.StreamName)
-								// Still count the transmission, off the ingest goroutine.
-								go server.analytics.Transmission(captureInfo, start, len(samples)*1000/recSampleRate)
-							}
-						},
-					)
-				}
-
-				// Extract ports and addresses from config
-				ports, addresses, err := getListenerConfig(cfg)
-				if err != nil {
-					logger.Fatalf("invalid stream config for %q: %v", cfg.StreamName, err)
-				}
-
-				// Use the multicast listener whenever any configured address is multicast.
-				useMulticast := false
-				for _, addr := range addresses {
-					if addr != "" {
-						useMulticast = true
-						break
-					}
-				}
-
-				if useMulticast {
-					// Use multicast listener for multiple ports
-					ml, err := NewMulticastListener(cfg.StreamName, ports, addresses, 1*time.Second, logger, cfg.DebugMulticast)
-					if err != nil {
-						logger.Fatalf("failed to create multicast listener for %q: %v", cfg.StreamName, err)
-					}
-					st.multicastListener = ml
-
-					server.streams[info.ID] = st
-					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
-
-					logger.Printf(
-						"configured stream %q in state %q, forest %q on UDP ports %v, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
-						info.StreamName,
-						state.StateName,
-						sg.GroupName,
-						ports,
-						frameSizeBytes,
-						skipBytes,
-						frameDuration,
-					)
-
-					ml.Start()
-
-					go func(st *station, ml *MulticastListener) {
-						<-ctx.Done()
-						ml.Close()
-						st.closeSubscribers()
-						close(st.broadcastChan)
-					}(st, ml)
-
-					go func(st *station) {
-						if err := st.ingestMulticast(ctx); err != nil {
-							logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
-							stop()
-						}
-					}(st)
-				} else {
-					// Use single UDP port (original behavior)
-					conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", ports[0]))
-					if err != nil {
-						logger.Fatalf("listen on UDP %d for %q: %v", ports[0], cfg.StreamName, err)
-					}
-
-					server.streams[info.ID] = st
-					apiSubGroup.Streams = append(apiSubGroup.Streams, info)
-
-					logger.Printf(
-						"configured stream %q in state %q, forest %q on UDP %d, codec=PCMU, frame_size=%d bytes, skip_bytes=%d, frame_duration=%s",
-						info.StreamName,
-						state.StateName,
-						sg.GroupName,
-						ports[0],
-						frameSizeBytes,
-						skipBytes,
-						frameDuration,
-					)
-
-					go func(st *station, conn net.PacketConn) {
-						<-ctx.Done()
-						_ = conn.Close()
-						st.closeSubscribers()
-						close(st.broadcastChan)
-					}(st, conn)
-
-					go func(st *station, conn net.PacketConn) {
-						if err := st.ingest(ctx, conn); err != nil {
-							logger.Printf("%s ingest stopped: %v", st.info.StreamName, err)
-							stop()
-						}
-					}(st, conn)
-				}
-			}
-
-			apiState.SubGroups = append(apiState.SubGroups, apiSubGroup)
-		}
-
-		server.stateGroups = append(server.stateGroups, apiState)
+	server.runtime = stationRuntime{
+		ctx:             ctx,
+		stop:            stop,
+		codec:           codec,
+		frameDuration:   frameDuration,
+		audioLogDir:     config.AudioLogDir,
+		audioDumpDir:    config.AudioDumpDir,
+		audioBackupDirs: audioBackupDirs(&config),
+		whisper:         recorderWhisperConfig(config.Whisper),
+	}
+	if failed := server.applyStreams(config.streamGroups, true); failed > 0 {
+		logger.Fatalf("%d stream(s) failed to start; see the errors above", failed)
 	}
 	go hub.index.build()
 
@@ -1110,7 +915,7 @@ func main() {
 			http.Error(w, "streamId required", http.StatusBadRequest)
 			return
 		}
-		st, ok := server.streams[streamID]
+		st, ok := server.stationByID(streamID)
 		if !ok {
 			http.Error(w, "unknown streamId", http.StatusNotFound)
 			return
@@ -1183,7 +988,13 @@ func main() {
 		}
 	}()
 
-	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, configPath)
+	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, config.streamSource().streamsFile())
+	if interval := config.streamsReloadInterval(); interval > 0 {
+		go server.watchStreamConfig(ctx, config.streamSource(), interval)
+		logger.Printf("stream config: watching %s every %s; stream changes apply without a restart", config.streamSource().streamsFile(), interval)
+	} else {
+		logger.Printf("stream config: reload disabled (streamsReloadSeconds < 0); restart to apply stream changes")
+	}
 
 	redirectMux := http.NewServeMux()
 	redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -1404,13 +1215,26 @@ func loadConfig(path string) (appConfig, error) {
 		config.LegacyRegions = nil
 	}
 
-	states, totalStreams, err := normalizeStates(path, config.States)
+	var (
+		states       []configuredState
+		totalStreams int
+	)
+	if strings.TrimSpace(config.StreamsFile) != "" {
+		if len(config.States) > 0 {
+			return appConfig{}, fmt.Errorf("%s sets both \"streamsFile\" and \"states\"; keep the streams in only one place", path)
+		}
+		config.streamsPath = resolveStreamsPath(path, config.StreamsFile)
+		states, totalStreams, err = loadStreamsFile(config.streamsPath)
+	} else {
+		states, totalStreams, err = normalizeStates(path, config.States)
+	}
 	if err != nil {
 		return appConfig{}, err
 	}
 
 	config.streamGroups = states
 	config.totalStreams = totalStreams
+	config.configFile = path
 
 	return config, nil
 }
@@ -1479,12 +1303,20 @@ func normalizeStates(path string, rawStates map[string]map[string][]streamConfig
 				GroupName: groupName,
 				Streams:   make([]streamConfig, 0, len(rawStreams)),
 			}
+			seenStreamNames := make(map[string]struct{}, len(rawStreams))
 
 			for i, stream := range rawStreams {
 				streamName := strings.TrimSpace(stream.StreamName)
 				if streamName == "" {
 					return nil, 0, fmt.Errorf("%s state %q group %q entry %d is missing streamName", path, stateName, groupName, i)
 				}
+				// The name identifies the stream's recording folder and,
+				// across config reloads, which running stream an entry is.
+				if _, exists := seenStreamNames[streamName]; exists {
+					return nil, 0, fmt.Errorf("%s state %q group %q has duplicate streamName %q", path, stateName, groupName, streamName)
+				}
+				seenStreamNames[streamName] = struct{}{}
+				stream.StreamName = streamName
 
 				// Validate ports: UDPPorts (plural) takes precedence
 				stream.TimeZone = strings.TrimSpace(stream.TimeZone)
@@ -1982,7 +1814,7 @@ func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
 // dashboard, in configuration order.
 func (s *webrtcServer) streamInventory() []streamInfo {
 	var out []streamInfo
-	for _, sg := range s.stateGroups {
+	for _, sg := range s.stateGroupList() {
 		for _, g := range sg.SubGroups {
 			out = append(out, g.Streams...)
 		}
@@ -1994,7 +1826,7 @@ func (s *webrtcServer) streamInventory() []streamInfo {
 // analytics dashboard.
 func (s *webrtcServer) liveListenerCounts() map[string]int {
 	out := map[string]int{}
-	for _, st := range s.streams {
+	for _, st := range s.stationList() {
 		st.mu.RLock()
 		n := 0
 		for _, sub := range st.subscribers {
@@ -2114,7 +1946,7 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(s.stateGroups); err != nil {
+	if err := json.NewEncoder(w).Encode(s.stateGroupList()); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}
 }
@@ -2140,8 +1972,9 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 
 	cutoff := time.Now().Add(-24 * time.Hour)
-	statuses := make([]streamStatus, 0, len(s.streams))
-	for id, st := range s.streams {
+	stations := s.stationsByID()
+	statuses := make([]streamStatus, 0, len(stations))
+	for id, st := range stations {
 		st.mu.RLock()
 		last := st.lastPacketAt
 		conflict := st.conflictAddr
@@ -2192,7 +2025,7 @@ func (s *webrtcServer) handleStreamActivity(w http.ResponseWriter, r *http.Reque
 
 	cutoff := time.Now().Add(-streamActivityWindow)
 	active := make([]string, 0)
-	for id, st := range s.streams {
+	for id, st := range s.stationsByID() {
 		st.mu.RLock()
 		last := st.lastPacketAt
 		st.mu.RUnlock()
@@ -2230,7 +2063,7 @@ func (s *webrtcServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	station, ok := s.streams[request.StreamID]
+	station, ok := s.stationByID(request.StreamID)
 	if !ok {
 		http.Error(w, "unknown stream", http.StatusNotFound)
 		return

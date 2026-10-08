@@ -1,0 +1,76 @@
+{
+  "states": {
+    "Puerto Rico": {
+      "El Yunque NF": [
+        { "streamName": "El Yunque Net", "udpPort": 52001, "timeZone": "America/Puerto_Rico" }
+      ]
+    },
+    "North Carolina": {
+      "Pisgah NF": [
+        { "streamName": "Pisgah Net", "udpPort": 52002, "timeZone": "America/New_York" }
+      ]
+    },
+    "Michigan": {
+      "Hiawatha NF": [
+        { "streamName": "Hiawatha Net", "udpPort": 52003, "timeZone": "America/Detroit" }
+      ],
+      "Ottawa NF": [
+        { "streamName": "Watersmeet Net", "udpPort": 52004, "timeZone": "America/Menominee" }
+      ]
+    },
+    "Indiana": {
+      "Hoosier NF": [
+        { "streamName": "Brownstown Net", "udpPort": 52005, "timeZone": "America/Indiana/Indianapolis" },
+        { "streamName": "Tell City Net", "udpPort": 52006, "timeZone": "America/Indiana/Tell_City" }
+      ]
+    },
+    "Texas": {
+      "Sam Houston NF": [
+        { "streamName": "Sam Houston Net", "udpPort": 52007, "timeZone": "America/Chicago" }
+      ]
+    },
+    "South Dakota": {
+      "Black Hills NF": [
+        { "streamName": "Black Hills Net", "udpPort": 52008, "timeZone": "America/Denver" }
+      ]
+    },
+    "Arizona": {
+      "Coconino NF": [
+        { "streamName": "Coconino Net", "udpPort": 52009, "timeZone": "America/Phoenix" }
+      ]
+    },
+    "Idaho": {
+      "Boise NF": [
+        { "streamName": "Boise Net", "udpPort": 52010, "timeZone": "America/Boise" }
+      ],
+      "Idaho Panhandle NFs": [
+        { "streamName": "Coeur d'Alene Net", "udpPort": 52011, "timeZone": "America/Los_Angeles" }
+      ]
+    },
+    "California": {
+      "Plumas NF": [
+        { "streamName": "Admin Net", "udpPort": 51110, "timeZone": "America/Los_Angeles" },
+        { "streamName": "Forest Net", "udpPort": 51160, "timeZone": "America/Los_Angeles" },
+        { "streamName": "Forest Net (Repeater)", "udpPort": 51161, "disableAutoTranscribe": true, "timeZone": "America/Los_Angeles" }
+      ],
+      "Tahoe NF": [
+        { "streamName": "Redundant Ports", "udpPorts": [51740, 51741], "timeZone": "America/Los_Angeles" },
+        { "streamName": "Multicast Net", "udpPorts": [27238, 27288], "multicastAddrs": ["239.7.10.1", ""], "timeZone": "America/Los_Angeles" }
+      ]
+    },
+    "Alaska": {
+      "Chugach NF": [
+        { "streamName": "Glacier Net", "udpPort": 52012, "timeZone": "America/Anchorage" }
+      ],
+      "Tongass NF": [
+        { "streamName": "Juneau Net", "udpPort": 52013, "timeZone": "America/Juneau" },
+        { "streamName": "Sitka Net", "udpPort": 52014, "timeZone": "America/Sitka" }
+      ]
+    },
+    "Hawaii": {
+      "Hawaii Experimental Tropical Forest": [
+        { "streamName": "Hilo Net", "udpPort": 52015, "timeZone": "Pacific/Honolulu" }
+      ]
+    }
+  }
+}
