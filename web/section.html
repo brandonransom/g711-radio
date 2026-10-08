@@ -1553,6 +1553,10 @@
         return new Set(selected.some((o) => o.value === "") ? [] : selected.map((o) => o.value));
       }
 
+      function passesStreamFilter(streamId, selectedStreamIds = getSelectedStreamIds()) {
+        return selectedStreamIds.size === 0 || selectedStreamIds.has(streamId);
+      }
+
       function normalizeStreamFilterSelection() {
         const allOption = historyStreamSelect.options[0];
         const streams = Array.from(historyStreamSelect.options).slice(1);
@@ -2104,12 +2108,12 @@
       }
 
       function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, wav) {
-        // Live clips are shown immediately regardless of the active length
-        // or stream filter, but we still record them into historyEntries so
-        // they aren't lost the next time a filter triggers a re-render.
+        // Keep excluded clips in history so changing the selection reveals them.
         const streamId = key.slice(0, key.indexOf(":"));
         historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text: "", wav });
-        insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, "", wav));
+        if (passesStreamFilter(streamId)) {
+          insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, "", wav));
+        }
       }
 
       // Finds a clip's row under either of its identities (see wavKey).
@@ -2176,7 +2180,9 @@
             const streamId = key.slice(0, key.indexOf(":"));
             historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text, wav });
           }
-          insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text, wav));
+          if (passesStreamFilter(historyEntry ? historyEntry.streamId : key.slice(0, key.indexOf(":")))) {
+            insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text, wav));
+          }
         }
       }
 
@@ -2235,7 +2241,7 @@
         return historyEntries.filter((ev) =>
           passesDurationFilter(ev.durationMs, duration) &&
           (!untranscribedAudioOnly || isUntranscribedAudio(ev)) &&
-          (selectedStreamIds.size === 0 || selectedStreamIds.has(ev.streamId))
+          passesStreamFilter(ev.streamId, selectedStreamIds)
         );
       }
 

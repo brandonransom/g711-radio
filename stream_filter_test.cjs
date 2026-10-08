@@ -31,7 +31,7 @@ function setupFilter(useFullNames = false) {
     ],
   });
   const names = [
-    "formatStreamDisplayName", "getSelectedStreamIds", "normalizeStreamFilterSelection",
+    "formatStreamDisplayName", "getSelectedStreamIds", "passesStreamFilter", "normalizeStreamFilterSelection",
     "populateStreamFilterOptions", "historyDurationFilter", "passesDurationFilter",
     "filteredHistoryEntries", "filteredAudioURLs",
   ];
@@ -89,6 +89,45 @@ test("deselecting the last stream restores All Streams", () => {
   assert.equal(context.getSelectedStreamIds().size, 0);
 });
 
+test("live clips and transcripts honor stream selection without discarding history", () => {
+  const { context, select } = setupFilter();
+  const html = fs.readFileSync(path.join(__dirname, "web", "section.html"), "utf8");
+  const displayed = [];
+  context.historyEntries = [];
+  context.buildTranscriptEntry = (key, streamName, timestamp, audioUrl, durationMs, text, wav) =>
+    ({ key, text });
+  context.insertLiveEntry = (entry) => displayed.push(entry);
+  context.findTranscriptEntry = () => null;
+  context.setTranscriptionPending = () => {};
+  vm.runInContext(
+    ["appendClip", "findHistoryEntry", "updateTranscript"].map((name) => extractFunction(html, name)).join("\n"),
+    context,
+  );
+  select.options[1].selected = true;
+  context.normalizeStreamFilterSelection();
+  context.appendClip("z:clip", "Zulu", "", "/z.wav", 3000, "z:clip.wav");
+  context.updateTranscript("z:clip", "Zulu", "", "/z.wav", 3000, "Excluded transcript", "z:clip.wav");
+  context.updateTranscript("z:missed", "Zulu", "", "/missed.wav", 3000, "Transcript without clip", "z:missed.wav");
+  assert.equal(displayed.length, 0);
+  assert.equal(context.historyEntries.length, 2);
+  assert.equal(context.historyEntries[0].text, "Excluded transcript");
+  context.appendClip("a:clip", "Aardvark", "", "/a.wav", 3000, "a:clip.wav");
+  assert.deepEqual(displayed.map((entry) => entry.key), ["a:clip"]);
+  assert.equal(context.filteredHistoryEntries().length, 1);
+  select.options[0].selected = true;
+  context.normalizeStreamFilterSelection();
+  assert.equal(context.filteredHistoryEntries().length, 3);
+  context.appendClip("z:next", "Zulu", "", "/next.wav", 3000, "");
+  context.updateTranscript("z:new", "Zulu", "", "/new.wav", 3000, "All streams transcript", "");
+  assert.deepEqual(displayed.map((entry) => entry.key), ["a:clip", "z:next", "z:new"]);
+  select.options[1].selected = true;
+  context.normalizeStreamFilterSelection();
+  select.options[2].selected = true;
+  context.normalizeStreamFilterSelection();
+  context.appendClip("z:multi", "Zulu", "", "/multi.wav", 3000, "");
+  assert.equal(displayed.at(-1).key, "z:multi");
+});
+
 for (const page of ["index.html", "section.html"]) {
   test(`${page}: transcript arrival does not duplicate a filtered-out recording`, () => {
     const html = fs.readFileSync(path.join(__dirname, "web", page), "utf8");
@@ -130,7 +169,7 @@ for (const page of ["index.html", "section.html"]) {
       ],
     });
     const names = [
-      "historyDurationFilter", "passesDurationFilter", "filteredHistoryEntries",
+      "historyDurationFilter", "passesDurationFilter", ...(page === "section.html" ? ["passesStreamFilter"] : []), "filteredHistoryEntries",
       "filteredAudioURLs", "isUntranscribedAudio", "toggleUntranscribedAudioFilter",
       "untranscribedFilteredEntries",
     ];
