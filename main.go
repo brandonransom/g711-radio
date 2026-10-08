@@ -1130,17 +1130,14 @@ func buildTLSCertFromPFX(pfxFile, pfxPassword, keyPassword string, logger *log.L
 }
 
 func loadConfig(path string) (appConfig, error) {
-	file, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return appConfig{}, fmt.Errorf("open %s: %w", path, err)
 	}
-	defer file.Close()
 
 	var config appConfig
-	decoder := json.NewDecoder(file)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&config); err != nil {
-		return appConfig{}, fmt.Errorf("decode %s: %w", path, err)
+	if err := decodeJSONFile(path, data, &config, true, true); err != nil {
+		return appConfig{}, err
 	}
 	if config.Whisper != nil {
 		if err := config.Whisper.validate(); err != nil {
@@ -1157,8 +1154,7 @@ func loadConfig(path string) (appConfig, error) {
 	}
 
 	// Overlay config.secrets.json if present (passwords and other sensitive values).
-	if sf, err := os.Open(secretsPath); err == nil {
-		defer sf.Close()
+	if sf, err := os.ReadFile(secretsPath); err == nil {
 		var secrets struct {
 			PFXPassword    string            `json:"pfxPassword"`
 			PFXKeyPassword string            `json:"pfxKeyPassword"`
@@ -1166,8 +1162,9 @@ func loadConfig(path string) (appConfig, error) {
 			KeyFile        string            `json:"keyFile"`
 			ICEServers     []iceServerConfig `json:"iceServers"`
 		}
-		if err := json.NewDecoder(sf).Decode(&secrets); err != nil {
-			return appConfig{}, fmt.Errorf("decode %s: %w", secretsPath, err)
+		// No context snippet for the secrets file so passwords never reach the log.
+		if err := decodeJSONFile(secretsPath, sf, &secrets, false, false); err != nil {
+			return appConfig{}, err
 		}
 		if secrets.PFXPassword != "" {
 			config.PFXPassword = secrets.PFXPassword

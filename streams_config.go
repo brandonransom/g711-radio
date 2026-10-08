@@ -49,10 +49,8 @@ func loadStreamsFile(path string) ([]configuredState, int, error) {
 		return nil, 0, fmt.Errorf("read streams file: %w", err)
 	}
 	var f streamsFileConfig
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&f); err != nil {
-		return nil, 0, fmt.Errorf("decode %s: %w", path, err)
+	if err := decodeJSONFile(path, data, &f, true, true); err != nil {
+		return nil, 0, err
 	}
 	return f.normalize(path)
 }
@@ -65,8 +63,8 @@ func loadInlineStreams(path string) ([]configuredState, int, error) {
 		return nil, 0, fmt.Errorf("read %s: %w", path, err)
 	}
 	var f streamsFileConfig
-	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, 0, fmt.Errorf("decode %s: %w", path, err)
+	if err := decodeJSONFile(path, data, &f, false, true); err != nil {
+		return nil, 0, err
 	}
 	return f.normalize(path)
 }
@@ -122,7 +120,7 @@ func (src streamSource) settingsFingerprint() (string, error) {
 		return "", err
 	}
 	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := decodeJSONFile(src.configFile, data, &raw, false, true); err != nil {
 		return "", err
 	}
 	if src.inline() {
