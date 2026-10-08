@@ -930,7 +930,7 @@
           <strong class="transcript-label">Favorites: recordings &amp; transcripts</strong>
           <p>Star the streams you follow and their latest recordings and transcripts appear right here.</p>
           <ul>
-            <li>Open a state or forest, then tap ☆ next to any stream.</li>
+            <li>Open a state or organizational unit, then tap ☆ next to any stream.</li>
             <li>Favorites are listed first on this page for one-tap access.</li>
             <li>All your favorites share one combined page for live audio.</li>
           </ul>
@@ -2146,7 +2146,7 @@
       }
 
       function getRootStatusText() {
-        return streams.length ? "Choose a state or forest." : "No streams configured.";
+        return streams.length ? "Choose a state or organizational unit." : "No streams configured.";
       }
 
       function formatStreamCount(count) {
@@ -2293,7 +2293,7 @@
         const forestLink = document.createElement("a");
         forestLink.href = sectionPagePath(sharePageStream.stateName, sharePageStream.groupName);
         forestLink.textContent = sharePageStream.groupName;
-        forestLink.title = "Open the forest page";
+        forestLink.title = "Open the organizational unit page";
         eyebrow.append(stateLink, " / ", forestLink);
 
         const titleRow = document.createElement("div");
@@ -2576,7 +2576,7 @@
 
         const intro = document.createElement("p");
         intro.className = "directory-intro";
-        intro.textContent = "Choose a state or forest to listen live and browse recordings and transcripts. Tap ☆ on any stream, forest, or state to add it to your favorites for one-tap access from this page.";
+        intro.textContent = "Choose a state or organizational unit to listen live and browse recordings and transcripts. Tap ☆ on any stream, organizational unit, or state to add it to your favorites for one-tap access from this page.";
         streamsRoot.append(intro);
 
         const favoriteStreams = streams.filter(isFavorite);
@@ -2595,14 +2595,13 @@
 
         for (const state of streamGroups) {
           const stateStreams = state.subGroups.flatMap((group) => group.streams);
-          const forestCount = state.subGroups.length;
           streamsRoot.append(buildDirectoryCard(
             sectionPagePath(state.stateName),
             state.stateName,
-            `${formatStreamCount(stateStreams.length)} · ${forestCount} ${forestCount === 1 ? "forest" : "forests"}`,
+            `${formatStreamCount(stateStreams.length)} · ${state.unitSummary}`,
             "Open state page →",
             state.subGroups.map((group) =>
-              buildDirectoryLink(sectionPagePath(state.stateName, group.groupName), group.groupName, formatStreamCount(group.streams.length),
+              buildDirectoryLink(sectionPagePath(state.stateName, group.groupName), group.groupName, `${formatStreamCount(group.streams.length)} · ${group.unitType}`,
                 group.streams.map((stream) => stream.id), group.streams)),
             stateStreams.map((stream) => stream.id),
             undefined,

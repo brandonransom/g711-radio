@@ -275,12 +275,14 @@ func (s streamInfo) displayName() string {
 
 type subGroup struct {
 	GroupName string       `json:"groupName"`
+	UnitType  string       `json:"unitType"`
 	Streams   []streamInfo `json:"streams"`
 }
 
 type stateGroup struct {
-	StateName string     `json:"stateName"`
-	SubGroups []subGroup `json:"subGroups"`
+	StateName   string     `json:"stateName"`
+	UnitSummary string     `json:"unitSummary"`
+	SubGroups   []subGroup `json:"subGroups"`
 }
 
 type configuredSubGroup struct {
@@ -1943,7 +1945,7 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(s.stateGroupList()); err != nil {
+	if err := json.NewEncoder(w).Encode(describeOrganizationalUnits(s.stateGroupList())); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}
 }

@@ -90,6 +90,87 @@ The server watches the stream list — `streamsFile` if set, otherwise `states` 
 - Open pages pick up added or removed streams when reloaded. Listeners of a changed or removed stream are disconnected.
 - Edits to any other setting are not applied; the log notes that a restart is needed. With `streamsFile`, every edit to `config.json` is such a setting change, which keeps routine stream edits away from the server settings.
 
+### Organizational units and acronym reference
+
+The hierarchy is **state -> named organizational unit -> streams**. `states` is
+the canonical top-level key; the legacy `regions` key resolves to states.
+The next layer accepts any group name, including forests, parks, refuges and
+offices. No additional configuration fields or nesting are required.
+
+The webpage infers the unit type from a standalone acronym or full designation
+in the group name, case-insensitively. For example, `Umatilla NF` and
+`Umatilla National Forest` both count as forests; `Arctic NWR` and
+`Arctic National Wildlife Refuge` both count as wildlife refuges. Names such as
+`Chugach NF - Primary` are recognized too. State summaries show each type
+separately, for example **40 streams · 6 forests · 4 wildlife refuges**.
+Each configured group counts once; separate Primary/Secondary groups count
+separately, even when belonging to the same physical unit. Names without a
+recognized designation (such as `Radio Test`) count as **organizational units**.
+Unit pages use the inferred full type, while preserving the configured name.
+Existing `forest` URLs and favorites remain compatible.
+
+These acronyms are suggested application labels, not a universal federal
+abbreviation standard. Use the agency prefix for office types: `BLM Anchorage FO`,
+`BIA Mescalero Agency`, or `USBR Yuma AO`. Full agency names also work; `BOR` and
+`Reclamation` are accepted alternatives to `USBR`. Shared land designations do
+not identify the managing agency.
+
+#### Primary options
+
+| Agency | Unit type | Suggested acronym | Example group label |
+|---|---|---|---|
+| National Park Service (NPS) | National Park | NP | Yosemite NP |
+| NPS | National Preserve | NPRES | Big Cypress NPRES |
+| NPS or BLM, depending on unit | National Monument | NM | Devils Tower NM |
+| NPS and sometimes other agencies | National Recreation Area | NRA | Lake Mead NRA |
+| U.S. Fish and Wildlife Service (FWS) | National Wildlife Refuge | NWR | Arctic NWR |
+| FWS | Refuge Complex | NWRC | Southeast Louisiana NWRC |
+| FWS | Wetland Management District | WMD | Devils Lake WMD |
+| FWS | National Fish Hatchery | NFH | Leavenworth NFH |
+| Bureau of Land Management (BLM) | District Office | BLM DO | BLM Fairbanks DO |
+| BLM | Field Office | BLM FO | BLM Anchorage FO |
+| BLM | State Office | BLM SO | BLM Alaska SO |
+| Bureau of Indian Affairs (BIA) | Agency | BIA Agency | BIA Mescalero Agency |
+| Bureau of Reclamation | Area Office | USBR AO | USBR Yuma AO |
+| Bureau of Reclamation | Project | USBR Project | USBR Central Valley Project |
+
+#### Additional options
+
+| Agency | Unit type | Suggested acronym |
+|---|---|---|
+| NPS | National Historical Park | NHP |
+| NPS | National Historic Site | NHS |
+| NPS | National Memorial | NMEM |
+| NPS | National Battlefield | NB |
+| NPS | National Battlefield Park | NBP |
+| NPS | National Military Park | NMP |
+| NPS | National Seashore | NS |
+| NPS | National Lakeshore | NL |
+| NPS | Parkway | PKWY |
+| NPS | National Reserve | NRES |
+| Various managing agencies | Wild and Scenic River | WSR |
+| FWS | Waterfowl Production Area | WPA |
+| FWS | Ecological Services Field Office | FWS ESFO |
+| BIA | Regional Office | BIA RO |
+| Bureau of Reclamation | Regional Office | USBR RO |
+| U.S. Geological Survey (USGS) | Science Center | USGS SC |
+| USGS | Water Science Center | USGS WSC |
+| USDA Forest Service | National Forest | NF |
+| USDA Forest Service | National Grassland | NG |
+| USDA Forest Service | Ranger District | RD |
+
+National forests, national grasslands and ranger districts belong to the
+**USDA Forest Service**, not the Department of the Interior. Tribal governments
+and reservations are not automatically BIA organizational units.
+
+References: [NPS designations](https://www.nps.gov/aboutus/national-park-system.htm),
+[FWS refuge system](https://www.fws.gov/program/national-wildlife-refuge-system),
+[FWS fish hatcheries](https://www.fws.gov/program/national-fish-hatchery-system),
+[BLM offices](https://www.blm.gov/about/local-offices),
+[BLM National Conservation Lands](https://www.blm.gov/programs/national-conservation-lands),
+[BIA offices](https://www.bia.gov/regional-offices),
+[Reclamation offices](https://www.usbr.gov/main/offices.html).
+
 ## Analytics
 
 Optional, self-hosted visitor statistics. No cookies, no JavaScript, no third-party services: the server records events as requests arrive and shows them on a private dashboard it serves itself. Add an `analytics` block to `config.json`:

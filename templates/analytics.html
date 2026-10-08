@@ -64,7 +64,7 @@
 <h2 id="radio">Radio activity</h2>
 <div class="cards">
   <div class="card">States<b>{{.Radio.States}}</b></div>
-  <div class="card">Forests / groups<b>{{.Radio.Forests}}</b></div>
+  <div class="card">Organizational units<b>{{.Radio.Forests}}</b></div>
   <div class="card">Streams / nets<b>{{.Radio.Streams}}</b><span class="muted">{{.Radio.ActiveStreams}} with traffic</span></div>
   <div class="card">Transmissions<b>{{.Radio.Count}}</b><span class="muted">{{.Radio.PerDay}}/day</span></div>
   <div class="card">Total airtime<b>{{.Radio.Air}}</b><span class="muted">avg {{.Radio.Avg}} each</span></div>
@@ -100,9 +100,9 @@
   </div>
 </div>
 
-<h3>By forest / group</h3>
+<h3>By organizational unit</h3>
 <table>
-  <tr><th>Forest</th><th>State</th><th></th><th class="n">Streams</th><th class="n">Tx</th><th class="n">Per day</th><th class="n">Airtime</th><th class="n">Average</th><th>Last heard</th></tr>
+  <tr><th>Organizational unit</th><th>State</th><th></th><th class="n">Streams</th><th class="n">Tx</th><th class="n">Per day</th><th class="n">Airtime</th><th class="n">Average</th><th>Last heard</th></tr>
   {{range .Radio.ByForest}}<tr><td>{{.Name}}</td><td>{{.State}}</td><td class="bar" style="width:18%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Active}}/{{.Streams}}</td><td class="n">{{.Count}}</td><td class="n">{{.PerDay}}</td><td class="n">{{.Air}}</td><td class="n">{{.Avg}}</td><td class="muted">{{.Last}}</td></tr>
   {{else}}<tr><td colspan="9" class="muted">No data yet.</td></tr>{{end}}
 </table>
@@ -111,7 +111,7 @@
 <details>
 <summary><b>By stream / net</b> ({{len .Radio.ByStream}})</summary>
 <table>
-  <tr><th>Stream</th><th>Forest</th><th>State</th><th></th><th class="n">Tx</th><th class="n">Per day</th><th class="n">Airtime</th><th class="n">Average</th><th>Last heard</th></tr>
+  <tr><th>Stream</th><th>Organizational unit</th><th>State</th><th></th><th class="n">Tx</th><th class="n">Per day</th><th class="n">Airtime</th><th class="n">Average</th><th>Last heard</th></tr>
   {{range .Radio.ByStream}}<tr><td>{{.Name}}{{if .Retired}} <span class="tag">not configured</span>{{end}}</td><td>{{.Group}}</td><td>{{.State}}</td><td class="bar" style="width:15%"><span style="width:{{printf "%.1f" .Pct}}%"></span></td><td class="n">{{.Count}}</td><td class="n">{{.PerDay}}</td><td class="n">{{.Air}}</td><td class="n">{{.Avg}}</td><td class="muted">{{.Last}}</td></tr>
   {{end}}
 </table>
