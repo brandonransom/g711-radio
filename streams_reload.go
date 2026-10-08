@@ -250,8 +250,8 @@ func (s *webrtcServer) startStation(stateName, groupName string, cfg streamConfi
 		ml   *MulticastListener
 		conn net.PacketConn
 	)
-	if useMulticast {
-		ml, err = NewMulticastListener(cfg.StreamName, ports, addresses, 1*time.Second, logger, cfg.DebugMulticast)
+	if useMulticast || len(ports) > 1 {
+		ml, err = NewMulticastListener(cfg.StreamName, ports, addresses, transmissionGap, logger, cfg.DebugMulticast)
 		if err != nil {
 			return nil, fmt.Errorf("create multicast listener: %w", err)
 		}

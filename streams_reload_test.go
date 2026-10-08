@@ -191,6 +191,32 @@ func stationNamed(s *webrtcServer, name string) *station {
 	return s.streamsByKey[streamKey("Oregon", "Umatilla NF", name)]
 }
 
+func TestApplyStreamsListensOnBothUnicastPorts(t *testing.T) {
+	s, _ := newReloadTestServer(t)
+	ports := freeUDPPorts(t, 2)
+	if failed := s.applyStreams(statesOf(streamConfig{StreamName: "TX/RX", UDPPorts: ports}), true); failed != 0 {
+		t.Fatalf("apply: %d failed", failed)
+	}
+	st := stationNamed(s, "TX/RX")
+	if st == nil || st.multicastListener == nil {
+		t.Fatal("multi-port unicast stream missing multi-port listener")
+	}
+	if st.multicastListener.dropoutTime != 200*time.Millisecond {
+		t.Fatalf("transmission gap = %s, want 200ms", st.multicastListener.dropoutTime)
+	}
+	for _, port := range ports {
+		if !portInUse(port) {
+			t.Fatalf("UDP port %d not bound", port)
+		}
+	}
+	s.applyStreams(nil, false)
+	for _, port := range ports {
+		if portInUse(port) {
+			t.Fatalf("UDP port %d not released", port)
+		}
+	}
+}
+
 func TestApplyStreamsReconciles(t *testing.T) {
 	s, _ := newReloadTestServer(t)
 	p := freeUDPPorts(t, 3)

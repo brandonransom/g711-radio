@@ -207,7 +207,7 @@ Omit the block entirely to disable analytics.
 
 ## Multicast Audio Streaming
 
-Streams support listening on **up to 4 UDP ports simultaneously**, with intelligent port priority and automatic failover. This enables redundant encoder setups, multi-site aggregation, and fallback scenarios.
+Streams support listening on **up to 4 UDP ports simultaneously**, for complementary TX/RX audio or multiple sites. The most recently started transmission supplies both recordings and live WebRTC audio; overlapping older transmissions are dropped, not mixed. This applies to multicast and unicast ports.
 
 ### Configuration
 
@@ -226,7 +226,7 @@ Example:
     "Alaska": {
       "Chugach NF": [
         { "streamName": "Single Port", "udpPort": 5000 },
-        { "streamName": "Redundant", "udpPorts": [5000, 5001] },
+        { "streamName": "TX and RX", "udpPorts": [5000, 5001] },
         { "streamName": "Multicast", "udpPorts": [5000, 5001], "multicastAddrs": ["224.0.0.1", ""] }
       ]
     }
@@ -234,11 +234,12 @@ Example:
 }
 ```
 
-### Port Priority & Failover
+### Transmission Priority
 
-- **Port Priority**: The first port to receive a valid audio packet becomes active; packets from other ports are silently dropped
-- **Dropout Detection**: After ~1 second with no packets on the active port, the stream resets and any port can become active
-- **Use Case**: Seamless failover from primary to backup encoder without manual intervention
+- **New transmission**: The first valid audio packet on a port, or a packet after at least 200 ms without valid audio on that port, starts a transmission and immediately takes precedence.
+- **Overlap**: Subsequent packets from the older transmission are dropped while the newer source remains active. Dropped packets still count toward that port's activity, preventing repeated switching during overlap.
+- **Dropout**: After 200 ms without valid audio on the active port, the next valid packet from any port can become active, including an older transmission still running.
+- **Packet-based detection**: Encoded silence counts as activity; no speech detection or PTT signaling is used. Gaps shorter than 200 ms do not identify a fresh burst on a previously active port. Precedence follows server-observed burst starts, not RTP timestamps or port order.
 
 ### Backward Compatibility
 
@@ -527,7 +528,7 @@ curl http://whisper-host:8080/inference -F file=@clip.wav -F response_format=jso
 ```
 ## Multicast Configuration Examples
 
-### Example 1: Encoder Failover (Redundant Ports)
+### Example 1: Unicast TX and RX
 
 ```json
 {
@@ -544,9 +545,9 @@ curl http://whisper-host:8080/inference -F file=@clip.wav -F response_format=jso
 }
 ```
 
-Primary encoder sends to port 5000; backup sends to port 5001. If primary fails (no packets for 1 second), backup takes over automatically.
+RX audio sends to port 5000; TX audio sends to port 5001. A new transmission on either port takes precedence immediately. A 200 ms gap marks a transmission as inactive.
 
-### Example 2: Multicast with Unicast Fallback
+### Example 2: Multicast RX with Unicast TX
 
 ```json
 {
@@ -556,7 +557,7 @@ Primary encoder sends to port 5000; backup sends to port 5001. If primary fails 
 }
 ```
 
-Primary encoder sends to multicast group 224.0.0.1:5000. Backup (outside the multicast network) sends to unicast port 5001. Primary wins if both are transmitting.
+RX sends to multicast group 224.0.0.1:5000. TX sends to unicast port 5001. If both transmit, the most recently started transmission wins.
 
 ### Example 3: Multi-Site Aggregation
 
@@ -573,7 +574,7 @@ Primary encoder sends to multicast group 224.0.0.1:5000. Backup (outside the mul
 }
 ```
 
-Four regional sites each broadcast to different multicast groups. Audio from all sites is aggregated; port priority ensures one encoder wins at any time.
+Four regional sites each broadcast to different multicast groups. The most recently started transmission supplies the stream; older overlapping traffic is dropped.
 
 ### Testing Multicast
 
@@ -603,7 +604,7 @@ sudo tcpdump -i eth0 -n host 224.0.0.1 and port 5000
 - Every Recordings & Transcripts panel lists the newest recordings at the top by default. A subtle **⇅ Newest at top / Oldest at top** toggle beside the panel title flips the order; the choice is saved in the browser and applies to every page. New live recordings appear at the newest end, and **Load older** sits at the oldest end.
 - On the landing page, a **Favorites: recordings & transcripts** pane (embedding `/section.html?favorites=1&embed=1`) shows recent recordings and transcripts for starred streams — to the right of the directory on windows wider than 1440px, below it otherwise. With no favorites, the pane explains how to star streams. Multi-stream pages show a tip about favorites, or a count of saved favorites with a link to the favorites page.- The client uses non-trickle ICE and is intended for local or LAN use. For internet-facing deployments, add STUN/TURN configuration.
 - Transcription requires Chrome or Edge on the client (SSE is supported in all modern browsers; the panel displays regardless).
-- Multicast streams support up to 4 ports per stream. Port priority ensures seamless failover in redundant encoder scenarios.
+- Streams support up to 4 multicast or unicast ports. The most recently started transmission takes precedence, with a 200 ms inactivity threshold.
 
 ## Test with GStreamer
 

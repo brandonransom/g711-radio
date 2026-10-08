@@ -12,9 +12,10 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-// MulticastListener manages multiple UDP ports and optional multicast groups for a single stream.
-// It binds to all configured endpoints and routes packets from the first active port.
-// If the active source goes quiet long enough, the next packet from any port becomes active.
+const transmissionGap = 200 * time.Millisecond
+
+// MulticastListener routes the newest transmission from multiple UDP ports.
+// A per-port packet gap marks a new transmission, which preempts older traffic.
 type MulticastListener struct {
 	streamName  string
 	ports       []int
@@ -25,13 +26,13 @@ type MulticastListener struct {
 	debug       bool
 	dropoutTime time.Duration
 
-	mu             sync.Mutex
-	activePort     int // -1 = no active port (listening), 0-based index
-	lastPacketTime time.Time
-	portAddr       map[int]string // track which port:addr pair each listener handles
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
+	mu          sync.Mutex
+	activePort  int            // -1 = no active port (listening), 0-based index
+	lastPackets []time.Time    // updated even for suppressed ports to track transmission boundaries
+	portAddr    map[int]string // track which port:addr pair each listener handles
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 type multicastFrame struct {
@@ -52,21 +53,21 @@ func NewMulticastListener(streamName string, ports []int, addresses []string, dr
 		return nil, fmt.Errorf("too many ports (%d); maximum is 4", len(ports))
 	}
 	if dropoutTime < 100*time.Millisecond {
-		dropoutTime = 1 * time.Second
+		dropoutTime = transmissionGap
 	}
 
 	ml := &MulticastListener{
-		streamName:     streamName,
-		ports:          ports,
-		addresses:      addresses,
-		listeners:      make([]net.PacketConn, 0, len(ports)),
-		frameChan:      make(chan multicastFrame, 256), // buffered channel for frames
-		logger:         logger,
-		debug:          debug,
-		dropoutTime:    dropoutTime,
-		activePort:     -1,
-		portAddr:       make(map[int]string),
-		lastPacketTime: time.Now(),
+		streamName:  streamName,
+		ports:       ports,
+		addresses:   addresses,
+		listeners:   make([]net.PacketConn, 0, len(ports)),
+		frameChan:   make(chan multicastFrame, 256), // buffered channel for frames
+		logger:      logger,
+		debug:       debug,
+		dropoutTime: dropoutTime,
+		activePort:  -1,
+		portAddr:    make(map[int]string),
+		lastPackets: make([]time.Time, len(ports)),
 	}
 
 	ml.ctx, ml.cancel = context.WithCancel(context.Background())
@@ -162,7 +163,7 @@ func (ml *MulticastListener) readFrom(listenerIdx int, conn net.PacketConn) {
 
 		default:
 			// Set short read deadline to allow periodic dropout checks
-			_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+			_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 			n, remoteAddr, err := conn.ReadFrom(buffer)
 			if err != nil {
@@ -203,78 +204,52 @@ func (ml *MulticastListener) readFrom(listenerIdx int, conn net.PacketConn) {
 }
 
 // handlePacket is called when a valid frame is received on a listener.
-// It implements port priority: first port to send a packet wins until dropout.
+// Selection and enqueueing share a lock so an older source cannot enqueue
+// a frame after a newer transmission has taken over.
 func (ml *MulticastListener) handlePacket(listenerIdx int, remoteAddr net.Addr, af audioFrame) {
 	ml.mu.Lock()
-	now := time.Now()
-	prevActive := ml.activePort
-
-	// Check for dropout on the active port
-	if ml.activePort >= 0 {
-		if now.Sub(ml.lastPacketTime) > ml.dropoutTime {
-			// Stream dropped — accept from any port
-			if ml.debug {
-				ml.logger.Printf("%s: active listener %d (%s) timed out after %s; accepting any port again",
-					ml.streamName, ml.activePort, ml.portAddr[ml.activePort], ml.dropoutTime)
-			}
-			ml.activePort = -1
-		}
-	}
-
-	// If no active port or this packet is from the active port, process it
-	if ml.activePort < 0 {
-		// No active port — this packet wins
-		ml.activePort = listenerIdx
-		ml.lastPacketTime = now
-		if ml.debug {
-			ml.logger.Printf("%s: listener %d (%s) became active (previous=%d)",
-				ml.streamName, listenerIdx, ml.portAddr[listenerIdx], prevActive)
-		}
-		ml.mu.Unlock()
-
-		// Make a copy of frame and send it (non-blocking)
-		frameCopy := make([]byte, len(af.data))
-		copy(frameCopy, af.data)
-		sourceIP := ""
-		if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
-			sourceIP = udpAddr.IP.String()
-		}
-
-		select {
-		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: af.headerBytes, codec: af.codec}:
-		case <-ml.ctx.Done():
-		default:
-			ml.logger.Printf("%s: frame queue full on listener %d", ml.streamName, listenerIdx)
-		}
-	} else if ml.activePort == listenerIdx {
-		// Packet from active port — process it
-		ml.lastPacketTime = now
-		if ml.debug {
-			ml.logger.Printf("%s: packet accepted from active listener %d (%s)",
-				ml.streamName, listenerIdx, ml.portAddr[listenerIdx])
-		}
-		ml.mu.Unlock()
-
-		frameCopy := make([]byte, len(af.data))
-		copy(frameCopy, af.data)
-		sourceIP := ""
-		if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
-			sourceIP = udpAddr.IP.String()
-		}
-
-		select {
-		case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: af.headerBytes, codec: af.codec}:
-		case <-ml.ctx.Done():
-		default:
-			ml.logger.Printf("%s: frame queue full on active listener %d", ml.streamName, listenerIdx)
-		}
-	} else {
+	defer ml.mu.Unlock()
+	if !ml.selectPort(listenerIdx, time.Now()) {
 		if ml.debug {
 			ml.logger.Printf("%s: packet ignored from listener %d (%s); active listener is %d (%s)",
 				ml.streamName, listenerIdx, ml.portAddr[listenerIdx], ml.activePort, ml.portAddr[ml.activePort])
 		}
-		ml.mu.Unlock()
+		return
 	}
+
+	frameCopy := make([]byte, len(af.data))
+	copy(frameCopy, af.data)
+	sourceIP := ""
+	if udpAddr, ok := remoteAddr.(*net.UDPAddr); ok && udpAddr != nil {
+		sourceIP = udpAddr.IP.String()
+	}
+
+	select {
+	case ml.frameChan <- multicastFrame{data: frameCopy, sourceIP: sourceIP, headerBytes: af.headerBytes, codec: af.codec}:
+	case <-ml.ctx.Done():
+	default:
+		ml.logger.Printf("%s: frame queue full on listener %d", ml.streamName, listenerIdx)
+	}
+}
+
+// selectPort requires ml.mu. Suppressed traffic still updates lastPackets;
+// otherwise every packet from the older transmission would look like a new burst.
+func (ml *MulticastListener) selectPort(listenerIdx int, now time.Time) bool {
+	prevActive := ml.activePort
+	if ml.activePort >= 0 && now.Sub(ml.lastPackets[ml.activePort]) >= ml.dropoutTime {
+		ml.activePort = -1
+	}
+	last := ml.lastPackets[listenerIdx]
+	newTransmission := last.IsZero() || now.Sub(last) >= ml.dropoutTime
+	ml.lastPackets[listenerIdx] = now
+	if ml.activePort < 0 || newTransmission {
+		ml.activePort = listenerIdx
+	}
+	if ml.debug && ml.activePort != prevActive {
+		ml.logger.Printf("%s: listener %d (%s) became active (previous=%d, new transmission=%t)",
+			ml.streamName, listenerIdx, ml.portAddr[listenerIdx], prevActive, newTransmission)
+	}
+	return ml.activePort == listenerIdx
 }
 
 // checkDropout is called periodically to detect stream silence.
@@ -282,7 +257,7 @@ func (ml *MulticastListener) checkDropout() {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 
-	if ml.activePort >= 0 && time.Now().Sub(ml.lastPacketTime) > ml.dropoutTime {
+	if ml.activePort >= 0 && time.Now().Sub(ml.lastPackets[ml.activePort]) >= ml.dropoutTime {
 		if ml.debug {
 			ml.logger.Printf("%s: dropout check cleared active listener %d (%s)",
 				ml.streamName, ml.activePort, ml.portAddr[ml.activePort])
