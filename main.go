@@ -203,6 +203,21 @@ type appConfig struct {
 	// Leave empty in normal operation — this is a diagnostic-only feature.
 	AudioDumpDir string `json:"audioDumpDir"`
 
+	// WebRTCUDPPort, when non-zero, makes every listener's WebRTC media
+	// share this one UDP port instead of a random ephemeral port each, so a
+	// cloud firewall (e.g. an Azure NSG) needs only one inbound UDP rule.
+	WebRTCUDPPort int `json:"webrtcUdpPort"`
+	// WebRTCPublicIPs replaces the host's private address in WebRTC
+	// candidates — for a VM behind 1:1 NAT, such as an Azure public IP.
+	WebRTCPublicIPs []string `json:"webrtcPublicIps"`
+
+	// Uplinks lists edge servers this (origin) server connects out to; see
+	// uplink.go. Tokens may live in config.secrets.json instead.
+	Uplinks []uplinkConfig `json:"uplinks"`
+	// Edge, when set, runs this process as an edge server instead of an
+	// origin: no streams, recording or transcription of its own; see edge.go.
+	Edge *edgeConfig `json:"edge"`
+
 	streamGroups []configuredState
 	totalStreams int
 	streamsPath  string // resolved StreamsFile; empty when streams are inline
@@ -334,6 +349,16 @@ type station struct {
 	nextID      atomic.Uint64
 	mu          sync.RWMutex
 	subscribers map[string]*subscriber
+
+	// taps receive a copy of every broadcast frame for edge live feeds (see
+	// handleEdgeLive and edgeServer.runFeed). Guarded by mu. Tap channels
+	// are never closed; readers stop on their own context or on done.
+	taps    map[uint64]chan []byte
+	nextTap atomic.Uint64
+	// subsChanged, when non-nil (edge stations only), is signaled whenever a
+	// subscriber is added or removed so the edge can start or stop pulling
+	// the stream's live audio from the origin.
+	subsChanged chan struct{}
 
 	// broadcastChan decouples subscriber RTP writes from packet ingest; see
 	// enqueueBroadcast/runBroadcaster.
@@ -756,12 +781,38 @@ func main() {
 
 	frameDuration := time.Second * frameSizeBytes / sampleRateHz
 
-	mediaEngine := &webrtc.MediaEngine{}
-	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
+	api, err := newWebRTCAPI(config, logger)
+	if err != nil {
 		logger.Fatal(err)
 	}
 
-	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Background cleanup: prune only the server's own diagnostic log file
+	// (entries older than 90 days). Audio clips and transcripts (both the
+	// per-stream JSON logs and the permanent whisper CSV archive) are kept
+	// indefinitely — nothing in this codebase ever deletes them.
+	const logRetentionPeriod = 90 * 24 * time.Hour
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if logFileErr == nil {
+					pruneLogFile(logFilePath, logRetentionPeriod, logger)
+				}
+			}
+		}
+	}()
+
+	if config.Edge != nil {
+		runEdge(ctx, config, api, codec, frameDuration, analytics, logger)
+		return
+	}
 
 	// The permanent, whisper-only transcript CSV lives inside the primary
 	// audio archive directory itself (see AudioLogDir's doc comment) —
@@ -850,20 +901,7 @@ func main() {
 		clipJobs:     make(chan func(), 256),
 	}
 	server.startClipWorkers(4)
-	if len(config.ICEServers) == 0 {
-		logger.Printf("no iceServers configured; using default STUN server (%s) for NAT traversal", defaultICEServers[0].URLs[0])
-	} else {
-		for _, ice := range server.iceServers {
-			if ice.Username != "" {
-				logger.Printf("ICE server configured: %v (username=%s)", ice.URLs, ice.Username)
-			} else {
-				logger.Printf("ICE server configured: %v", ice.URLs)
-			}
-		}
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	logICEServers(config, server.iceServers, logger)
 
 	if analytics != nil {
 		// Before any recorder starts, so archive and live counts can't overlap.
@@ -957,41 +995,6 @@ func main() {
 		}
 	}
 
-	httpServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.HTTPPort),
-		Handler: mux,
-	}
-
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = httpServer.Shutdown(shutdownCtx)
-		if pool != nil {
-			pool.Close()
-		}
-	}()
-
-	// Background cleanup: prune only the server's own diagnostic log file
-	// (entries older than 90 days). Audio clips and transcripts (both the
-	// per-stream JSON logs and the permanent whisper CSV archive) are kept
-	// indefinitely — nothing in this codebase ever deletes them.
-	const logRetentionPeriod = 90 * 24 * time.Hour
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if logFileErr == nil {
-					pruneLogFile(logFilePath, logRetentionPeriod, logger)
-				}
-			}
-		}
-	}()
-
 	logger.Printf("loaded %d stream(s) from %s", config.totalStreams, config.streamSource().streamsFile())
 	if interval := config.streamsReloadInterval(); interval > 0 {
 		go server.watchStreamConfig(ctx, config.streamSource(), interval)
@@ -999,6 +1002,38 @@ func main() {
 	} else {
 		logger.Printf("stream config: reload disabled (streamsReloadSeconds < 0); restart to apply stream changes")
 	}
+
+	if len(config.Uplinks) > 0 {
+		edgeHandler := server.edgeHandler(mux)
+		for _, u := range config.Uplinks {
+			go runUplink(ctx, u, edgeHandler, logger)
+		}
+	}
+
+	serveHTTPS(ctx, config, mux, logger, func() {
+		if pool != nil {
+			pool.Close()
+		}
+	})
+}
+
+// serveHTTPS serves handler over HTTPS (plus the optional HTTP→HTTPS
+// redirect) until ctx ends, then runs onShutdown. Shared by origin and edge.
+func serveHTTPS(ctx context.Context, config appConfig, handler http.Handler, logger *log.Logger, onShutdown func()) {
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", config.HTTPPort),
+		Handler: handler,
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = httpServer.Shutdown(shutdownCtx)
+		if onShutdown != nil {
+			onShutdown()
+		}
+	}()
 
 	redirectMux := http.NewServeMux()
 	redirectMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -1046,6 +1081,73 @@ func main() {
 		}
 	} else {
 		logger.Fatal("HTTPS is required but no certificate configuration was provided")
+	}
+}
+
+// newWebRTCAPI builds the WebRTC API, optionally pinning all listener media
+// to one UDP port and advertising public IPs (see appConfig.WebRTCUDPPort
+// and WebRTCPublicIPs).
+func newWebRTCAPI(config appConfig, logger *log.Logger) (*webrtc.API, error) {
+	mediaEngine := &webrtc.MediaEngine{}
+	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
+		return nil, err
+	}
+	settings := webrtc.SettingEngine{}
+	if config.WebRTCUDPPort != 0 {
+		conn, err := net.ListenUDP("udp", &net.UDPAddr{Port: config.WebRTCUDPPort})
+		if err != nil {
+			return nil, fmt.Errorf("webrtcUdpPort %d: %w", config.WebRTCUDPPort, err)
+		}
+		settings.SetICEUDPMux(webrtc.NewICEUDPMux(nil, conn))
+		logger.Printf("WebRTC media for all listeners on UDP port %d", config.WebRTCUDPPort)
+	}
+	if len(config.WebRTCPublicIPs) > 0 {
+		var v4, v6 []string
+		for _, s := range config.WebRTCPublicIPs {
+			if net.ParseIP(s).To4() != nil {
+				v4 = append(v4, s)
+			} else {
+				v6 = append(v6, s)
+			}
+		}
+		var rules []webrtc.ICEAddressRewriteRule
+		if len(v4) > 0 {
+			rules = append(rules, webrtc.ICEAddressRewriteRule{External: v4, AsCandidateType: webrtc.ICECandidateTypeHost, Networks: []webrtc.NetworkType{webrtc.NetworkTypeUDP4, webrtc.NetworkTypeTCP4}})
+		}
+		if len(v6) > 0 {
+			rules = append(rules, webrtc.ICEAddressRewriteRule{External: v6, AsCandidateType: webrtc.ICECandidateTypeHost, Networks: []webrtc.NetworkType{webrtc.NetworkTypeUDP6, webrtc.NetworkTypeTCP6}})
+		}
+		if err := settings.SetICEAddressRewriteRules(rules...); err != nil {
+			return nil, fmt.Errorf("webrtcPublicIps: %w", err)
+		}
+		logger.Printf("WebRTC candidates advertise public IP(s) %v", config.WebRTCPublicIPs)
+	}
+	return webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine), webrtc.WithSettingEngine(settings)), nil
+}
+
+func validateWebRTCNetwork(config appConfig) error {
+	if config.WebRTCUDPPort < 0 || config.WebRTCUDPPort > 65535 {
+		return fmt.Errorf("invalid webrtcUdpPort %d", config.WebRTCUDPPort)
+	}
+	for _, s := range config.WebRTCPublicIPs {
+		if net.ParseIP(s) == nil {
+			return fmt.Errorf("webrtcPublicIps: %q is not an IP address", s)
+		}
+	}
+	return nil
+}
+
+func logICEServers(config appConfig, servers []webrtc.ICEServer, logger *log.Logger) {
+	if len(config.ICEServers) == 0 {
+		logger.Printf("no iceServers configured; using default STUN server (%s) for NAT traversal", defaultICEServers[0].URLs[0])
+		return
+	}
+	for _, ice := range servers {
+		if ice.Username != "" {
+			logger.Printf("ICE server configured: %v (username=%s)", ice.URLs, ice.Username)
+		} else {
+			logger.Printf("ICE server configured: %v", ice.URLs)
+		}
 	}
 }
 
@@ -1165,6 +1267,8 @@ func loadConfig(path string) (appConfig, error) {
 			CertFile       string            `json:"certFile"`
 			KeyFile        string            `json:"keyFile"`
 			ICEServers     []iceServerConfig `json:"iceServers"`
+			Uplinks        []uplinkConfig    `json:"uplinks"`
+			EdgeToken      string            `json:"edgeToken"`
 		}
 		// No context snippet for the secrets file so passwords never reach the log.
 		if err := decodeJSONFile(secretsPath, sf, &secrets, false, false); err != nil {
@@ -1187,6 +1291,14 @@ func loadConfig(path string) (appConfig, error) {
 			// replace the (public, non-secret) STUN-only list from config.json.
 			config.ICEServers = secrets.ICEServers
 		}
+		if len(secrets.Uplinks) > 0 {
+			// Uplink tokens are secrets; the secrets file's list replaces
+			// any in config.json, like iceServers.
+			config.Uplinks = secrets.Uplinks
+		}
+		if secrets.EdgeToken != "" && config.Edge != nil {
+			config.Edge.Token = secrets.EdgeToken
+		}
 	}
 	// Default to enabled for backward compatibility with existing configs.
 	// If enableHttp is omitted from config, it decodes as false; treat omission as true.
@@ -1206,6 +1318,22 @@ func loadConfig(path string) (appConfig, error) {
 
 	if config.HTTPPort < 1 || config.HTTPPort > 65535 {
 		return appConfig{}, fmt.Errorf("%s has invalid httpPort %d", path, config.HTTPPort)
+	}
+	if err := validateWebRTCNetwork(config); err != nil {
+		return appConfig{}, fmt.Errorf("%s: %w", path, err)
+	}
+
+	if config.Edge != nil {
+		if err := validateEdgeConfig(&config); err != nil {
+			return appConfig{}, fmt.Errorf("%s: %w", path, err)
+		}
+		config.configFile = path
+		return config, nil
+	}
+	for i := range config.Uplinks {
+		if err := config.Uplinks[i].validate(); err != nil {
+			return appConfig{}, fmt.Errorf("%s: uplinks[%d]: %w", path, i, err)
+		}
 	}
 
 	if len(config.LegacyRegions) > 0 {
@@ -1807,8 +1935,47 @@ func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {
 		track: track,
 	}
 	s.mu.Unlock()
+	s.notifySubscribersChanged()
 
 	return id, nil
+}
+
+// notifySubscribersChanged wakes an edge station's feed supervisor; a no-op
+// on origin stations.
+func (s *station) notifySubscribersChanged() {
+	if s.subsChanged == nil {
+		return
+	}
+	select {
+	case s.subsChanged <- struct{}{}:
+	default:
+	}
+}
+
+func (s *station) subscriberCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.subscribers)
+}
+
+// addTap registers a receiver for copies of every broadcast frame. Frames
+// are dropped rather than blocking the broadcaster when the tap falls behind.
+func (s *station) addTap() (uint64, <-chan []byte) {
+	id := s.nextTap.Add(1)
+	ch := make(chan []byte, 256)
+	s.mu.Lock()
+	if s.taps == nil {
+		s.taps = make(map[uint64]chan []byte)
+	}
+	s.taps[id] = ch
+	s.mu.Unlock()
+	return id, ch
+}
+
+func (s *station) removeTap(id uint64) {
+	s.mu.Lock()
+	delete(s.taps, id)
+	s.mu.Unlock()
 }
 
 // streamInventory lists the configured radio streams for the analytics
@@ -1850,6 +2017,9 @@ func (s *station) removeSubscriber(id string) {
 		delete(s.subscribers, id)
 	}
 	s.mu.Unlock()
+	if ok {
+		s.notifySubscribersChanged()
+	}
 
 	if ok && sub.pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
 		_ = sub.pc.Close()
@@ -1861,6 +2031,7 @@ func (s *station) closeSubscribers() {
 	subscribers := s.subscribers
 	s.subscribers = make(map[string]*subscriber)
 	s.mu.Unlock()
+	s.notifySubscribersChanged()
 
 	for _, sub := range subscribers {
 		if sub.pc.ConnectionState() != webrtc.PeerConnectionStateClosed {
@@ -1883,7 +2054,18 @@ func (s *station) broadcast(sample media.Sample) {
 			targets[id] = sub
 		}
 	}
+	taps := make([]chan []byte, 0, len(s.taps))
+	for _, ch := range s.taps {
+		taps = append(taps, ch)
+	}
 	s.mu.RUnlock()
+
+	for _, ch := range taps {
+		select {
+		case ch <- sample.Data:
+		default:
+		}
+	}
 
 	for id, sub := range targets {
 		if err := sub.track.WriteSample(sample); err != nil {
@@ -1975,6 +2157,9 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 	cutoff := time.Now().Add(-24 * time.Hour)
 	stations := s.stationsByID()
 	statuses := make([]streamStatus, 0, len(stations))
+	// Radio gateway addresses are internal network details; never publish
+	// them to the internet through an edge.
+	public := viaEdge(r)
 	for id, st := range stations {
 		st.mu.RLock()
 		last := st.lastPacketAt
@@ -2003,6 +2188,9 @@ func (s *webrtcServer) handleStreamStatus(w http.ResponseWriter, r *http.Request
 			ConflictAddr:  conflict,
 			StatusMessage: statusMessage,
 		})
+		if public {
+			statuses[len(statuses)-1].ConflictAddr = ""
+		}
 	}
 
 	json.NewEncoder(w).Encode(statuses)

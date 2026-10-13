@@ -1,0 +1,18 @@
+{
+  "httpPort": 443,
+  "httpRedirectPort": 80,
+  "pfxFile": "C:\\Certs\\radio-edge.pfx",
+  "webrtcUdpPort": 3478,
+  "webrtcPublicIps": ["203.0.113.10"],
+  "analytics": {
+    "dashboardPath": "",
+    "dir": "analytics",
+    "retentionDays": 90,
+    "geoipDatabase": "",
+    "locationOverridesFile": ""
+  },
+  "edge": {
+    "streamsRefreshSeconds": 15,
+    "feedLingerSeconds": 30
+  }
+}

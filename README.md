@@ -526,6 +526,77 @@ To test an instance by hand:
 ```bash
 curl http://whisper-host:8080/inference -F file=@clip.wav -F response_format=json
 ```
+
+## Edge Server (public WebRTC host, e.g. Azure Government)
+
+An edge is a second, internet-facing copy of the web page that runs the same binary with no radios of its own. The internal server stays the **origin**: it alone receives UDP radio audio, records clips, transcribes, and stores history. The origin connects **out** to each edge over HTTPS (port 443), so the internal network needs no inbound firewall rule.
+
+```
+radios ──UDP──▶ origin (internal) ──HTTPS 443, outbound──▶ edge (Azure VM) ◀──HTTPS + WebRTC── internet listeners
+```
+
+Over that single connection the edge:
+
+- mirrors the origin's stream list (every `streamsRefreshSeconds`, and on every reconnect);
+- pulls a stream's live audio only while at least one edge listener is tuned in (kept open `feedLingerSeconds` after the last one leaves), then sends it to its own listeners over WebRTC — one uplink feed per stream no matter how many edge listeners;
+- relays live clip/transcript events, so all edge pages share one upstream event stream;
+- answers stream status/activity polls from a short cache;
+- proxies history, recordings, downloads, transcription requests and corrections to the origin.
+
+The origin only exposes those endpoints through the uplink; the analytics dashboard and anything else stay internal. Radio gateway addresses are removed from stream status sent to an edge.
+
+### 1. Edge VM
+
+Use a VM with a public IP (WebRTC media is UDP, so App Service and HTTP-only gateways do not work). Allow inbound **TCP 443** (page, API and the origin's uplink), **UDP `webrtcUdpPort`** (listener audio) and optionally TCP 80 (redirect). Give it a certificate for its public name, as for any g711-radio host.
+
+`config.json` on the edge (see `config.edge.example.json`):
+
+```json
+{
+  "httpPort": 443,
+  "httpRedirectPort": 80,
+  "pfxFile": "C:\\Certs\\radio-edge.pfx",
+  "webrtcUdpPort": 3478,
+  "webrtcPublicIps": ["203.0.113.10"],
+  "edge": { "streamsRefreshSeconds": 15, "feedLingerSeconds": 30 }
+}
+```
+
+`config.secrets.json` on the edge:
+
+```json
+{ "pfxPassword": "…", "edgeToken": "a long random secret shared with the origin" }
+```
+
+- `edge` turns the process into an edge. Origin-only settings (`states`, `streamsFile`, `whisper`, `audioLogDir`, backup/dump dirs, `uplinks`) are rejected.
+- `edgeToken` (or `edge.token`) must be at least 24 characters.
+- `webrtcUdpPort` puts every listener's audio on one UDP port, so one firewall/NSG rule covers it. Without it, each listener uses a random port.
+- `webrtcPublicIps` advertises the VM's public IP in WebRTC candidates; needed on Azure, where the VM itself only sees its private address.
+- `analytics` works as usual but counts only this edge's page views and listeners; plays/downloads made through the edge are counted by the origin, with the visitor's real address.
+
+### 2. Origin
+
+Add the edge to the origin's `config.secrets.json` (tokens are secrets, so the list belongs there; it replaces any `uplinks` in `config.json`):
+
+```json
+{
+  "uplinks": [
+    { "url": "https://radio-edge.example.gov", "token": "the same secret as the edge's edgeToken" }
+  ]
+}
+```
+
+Optional per-uplink fields: `caFile` (PEM bundle to trust instead of the system roots), `serverName` (certificate name to check, if it differs from the URL host) and `proxy` (`http://[user:pass@]host:port` forward proxy using CONNECT; when unset, `HTTPS_PROXY`/`NO_PROXY` are honored). Several edges can be listed. Restart the origin to apply.
+
+The origin logs `uplink <url>: connected`, and reconnects automatically (backing off to once a minute) if the edge or the network goes away. The edge logs `edge: origin connected from …`; `https://<edge>/healthz` returns `{"originConnected":true,…}` (HTTP 503 while no origin is connected).
+
+### Notes
+
+- One origin per edge: a new origin connection replaces the previous one.
+- Stream IDs are assigned when the origin starts, so after an origin restart edge pages reload their stream list like origin pages do.
+- While the origin is unreachable the edge still serves the page, but streams, history and recordings are unavailable until it reconnects; connected listeners hear silence and resume automatically.
+- Live audio crosses the uplink over TCP, so a lossy path between origin and edge shows up as brief delay rather than dropouts; the browser's jitter buffer absorbs normal variation.
+
 ## Multicast Configuration Examples
 
 ### Example 1: Unicast TX and RX
