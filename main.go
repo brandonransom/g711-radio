@@ -180,6 +180,11 @@ type appConfig struct {
 	// the default, 600s / 10m).
 	ArchiveSyncBusySeconds int `json:"archiveSyncBusySeconds"`
 
+	// DisableTranscriptBackfill turns off the background task that queues
+	// archived clips with no transcript whenever the transcription queue is
+	// empty (see backfill.go).
+	DisableTranscriptBackfill bool `json:"disableTranscriptBackfill"`
+
 	// RecordingIndex controls how the Recordings & Transcripts history is
 	// served; see recordingIndexConfig in recording_index.go. Omit for the
 	// default ("full").
@@ -1024,6 +1029,11 @@ func main() {
 		idleInterval := time.Duration(config.ArchiveSyncIdleSeconds) * time.Second
 		busyInterval := time.Duration(config.ArchiveSyncBusySeconds) * time.Second
 		startArchiveSync(ctx, archiveDirs, idleInterval, busyInterval, server.isBusy, logger)
+	}
+
+	if pool != nil && config.AudioLogDir != "" && !config.DisableTranscriptBackfill {
+		startTranscriptBackfill(ctx, newTranscriptBackfill(server.stationList, pool,
+			config.AudioLogDir, hub.logDir, server.runtime.whisper, logger))
 	}
 
 	serveHTTPS(ctx, config, mux, logger, func() {

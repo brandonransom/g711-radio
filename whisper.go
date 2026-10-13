@@ -34,7 +34,17 @@ type transcriptJob struct {
 	// retries counts how many times this job was handed back to the queue
 	// because its server was unreachable (see maxJobRetries).
 	retries int
+	// sizeBytes is the WAV size at submit time, used to run shorter clips
+	// first (see pickLiveJobLocked).
+	sizeBytes int64
+	// backfill marks jobs queued by the archive backfill (see backfill.go).
+	backfill bool
 }
+
+// liveJobMaxReorderWait bounds shortest-first scheduling: once the oldest
+// waiting clip has waited this long it runs next regardless of length, so
+// long clips are never starved by a stream of short ones.
+const liveJobMaxReorderWait = 60 * time.Second
 
 // maxJobRetries bounds how often one clip is requeued after a connection
 // failure, so a clip that crashes a whisper-server can't crash-loop it.
@@ -343,20 +353,25 @@ type whisperPool struct {
 	// queued is the set of WAV paths waiting in either queue, so the same
 	// clip requested twice (e.g. a bulk request overlapping an earlier one)
 	// is only transcribed once.
-	queued     map[string]struct{}
-	ready      chan struct{}
-	hub        *transcriptHub
-	logger     *log.Logger
-	done       chan struct{}
-	closeOnce  sync.Once
-	ctx        context.Context // cancelled by Close; kills local instances
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup // workers, health monitors and local supervisors
-	httpClient *http.Client
-	endpoints  []*whisperEndpoint
-	formFields map[string]string
-	filter     *hallucinationFilter
-	analytics  *analyticsStore
+	queued map[string]struct{}
+	// inFlight is the set of WAV paths a worker is transcribing right now;
+	// backfillRunning counts how many of those are backfill jobs.
+	inFlight        map[string]struct{}
+	running         int
+	backfillRunning int
+	ready           chan struct{}
+	hub             *transcriptHub
+	logger          *log.Logger
+	done            chan struct{}
+	closeOnce       sync.Once
+	ctx             context.Context // cancelled by Close; kills local instances
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup // workers, health monitors and local supervisors
+	httpClient      *http.Client
+	endpoints       []*whisperEndpoint
+	formFields      map[string]string
+	filter          *hallucinationFilter
+	analytics       *analyticsStore
 }
 
 func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *whisperPool {
@@ -514,12 +529,7 @@ func (p *whisperPool) markQueuedLocked(job transcriptJob) bool {
 // waiting is not queued twice; it reports false in that case, and the
 // waiting job's transcript will still be published to every listener.
 func (p *whisperPool) Submit(job transcriptJob) bool {
-	if job.queuedAt.IsZero() {
-		job.queuedAt = time.Now()
-	}
-	if job.capturedAt.IsZero() {
-		job.capturedAt = job.queuedAt
-	}
+	job = prepareJob(job)
 	p.mu.Lock()
 	if !p.markQueuedLocked(job) {
 		// A clip waiting in the low-priority bulk queue is promoted, so a
@@ -546,12 +556,7 @@ func (p *whisperPool) Submit(job transcriptJob) bool {
 
 // SubmitBulk queues a clip at low priority (see bulkQueue).
 func (p *whisperPool) SubmitBulk(job transcriptJob) bulkSubmitResult {
-	if job.queuedAt.IsZero() {
-		job.queuedAt = time.Now()
-	}
-	if job.capturedAt.IsZero() {
-		job.capturedAt = job.queuedAt
-	}
+	job = prepareJob(job)
 	p.mu.Lock()
 	if len(p.bulkQueue) >= maxBulkQueue {
 		p.mu.Unlock()
@@ -567,6 +572,23 @@ func (p *whisperPool) SubmitBulk(job transcriptJob) bulkSubmitResult {
 	return bulkQueued
 }
 
+// prepareJob fills in submit-time defaults: the queue timestamps and the WAV
+// size used for shortest-first scheduling.
+func prepareJob(job transcriptJob) transcriptJob {
+	if job.queuedAt.IsZero() {
+		job.queuedAt = time.Now()
+	}
+	if job.capturedAt.IsZero() {
+		job.capturedAt = job.queuedAt
+	}
+	if job.sizeBytes == 0 && job.wavPath != "" {
+		if fi, err := os.Stat(job.wavPath); err == nil {
+			job.sizeBytes = fi.Size()
+		}
+	}
+	return job
+}
+
 // queueDepth reports how many clips are waiting for a free server.
 func (p *whisperPool) queueDepth() int {
 	p.mu.Lock()
@@ -574,38 +596,69 @@ func (p *whisperPool) queueDepth() int {
 	return len(p.queue) + len(p.bulkQueue)
 }
 
-// isBusy reports whether any transcription jobs are queued or actively running.
+// isBusy reports whether any transcription jobs are queued or actively
+// running. Archive backfill work alone does not count: it only runs while the
+// pool is otherwise idle.
 func (p *whisperPool) isBusy() bool {
 	if p == nil {
 		return false
 	}
 	p.mu.Lock()
-	if len(p.queue)+len(p.bulkQueue) > 0 {
-		p.mu.Unlock()
+	defer p.mu.Unlock()
+	if len(p.queue) > 0 || p.running > p.backfillRunning {
 		return true
 	}
-	endpoints := make([]*whisperEndpoint, len(p.endpoints))
-	copy(endpoints, p.endpoints)
-	p.mu.Unlock()
-
-	for _, ep := range endpoints {
-		ep.mu.Lock()
-		busy := ep.busy
-		ep.mu.Unlock()
-		if busy {
+	for _, job := range p.bulkQueue {
+		if !job.backfill {
 			return true
 		}
 	}
 	return false
 }
 
-// requeueFront puts a job back at the head of the queue so another endpoint
+// isPending reports whether wavPath is queued or being transcribed.
+func (p *whisperPool) isPending(wavPath string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	_, queued := p.queued[wavPath]
+	_, running := p.inFlight[wavPath]
+	return queued || running
+}
+
+// backfillState reports how many non-backfill jobs are queued, and how many
+// backfill jobs are queued and running.
+func (p *whisperPool) backfillState() (otherQueued, backfillQueued, backfillRunning int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	otherQueued = len(p.queue)
+	for _, job := range p.bulkQueue {
+		if job.backfill {
+			backfillQueued++
+		} else {
+			otherQueued++
+		}
+	}
+	return otherQueued, backfillQueued, p.backfillRunning
+}
+
+// backfillSlots is how many backfill jobs may run at once. With more than
+// one server, one is always left free so a live clip never waits behind a
+// long archive clip.
+func (p *whisperPool) backfillSlots() int {
+	return max(1, len(p.endpoints)-1)
+}
+
+// requeueFront puts a job back at the head of its queue so another endpoint
 // can pick it up without losing its place in line.
 func (p *whisperPool) requeueFront(job transcriptJob) {
 	job.queuedAt = time.Now()
 	p.mu.Lock()
 	p.markQueuedLocked(job)
-	p.queue = append([]transcriptJob{job}, p.queue...)
+	if job.backfill {
+		p.bulkQueue = append([]transcriptJob{job}, p.bulkQueue...)
+	} else {
+		p.queue = append([]transcriptJob{job}, p.queue...)
+	}
 	p.mu.Unlock()
 	p.signal()
 }
@@ -617,9 +670,69 @@ func (p *whisperPool) signal() {
 	}
 }
 
+// pickLiveJobLocked chooses which normal-priority job runs next. Retried
+// jobs and any clip that has waited liveJobMaxReorderWait go first, in queue
+// order; otherwise the shortest clip runs first. Shortest-first lowers the
+// average wait during bursts (a 2s clip no longer sits behind a 60s one)
+// without changing how much work the servers do. Callers hold p.mu.
+func (p *whisperPool) pickLiveJobLocked(now time.Time) int {
+	best := 0
+	for i, job := range p.queue {
+		if job.retries > 0 || now.Sub(job.queuedAt) >= liveJobMaxReorderWait {
+			return i
+		}
+		if job.sizeBytes < p.queue[best].sizeBytes {
+			best = i
+		}
+	}
+	return best
+}
+
+// takeJobLocked removes and returns the next runnable job. Callers hold p.mu.
+func (p *whisperPool) takeJobLocked() (transcriptJob, bool) {
+	if len(p.queue) > 0 {
+		i := p.pickLiveJobLocked(time.Now())
+		job := p.queue[i]
+		if i == 0 {
+			p.queue = p.queue[1:]
+		} else {
+			p.queue = append(p.queue[:i], p.queue[i+1:]...)
+		}
+		return job, true
+	}
+	for i, job := range p.bulkQueue {
+		if job.backfill && p.backfillRunning >= p.backfillSlots() {
+			continue
+		}
+		if i == 0 {
+			p.bulkQueue = p.bulkQueue[1:]
+		} else {
+			p.bulkQueue = append(p.bulkQueue[:i], p.bulkQueue[i+1:]...)
+		}
+		return job, true
+	}
+	return transcriptJob{}, false
+}
+
+// finishJob marks a job taken by nextJob as no longer running.
+func (p *whisperPool) finishJob(job transcriptJob) {
+	p.mu.Lock()
+	delete(p.inFlight, job.wavPath)
+	p.running--
+	if job.backfill {
+		p.backfillRunning--
+	}
+	p.mu.Unlock()
+	if job.backfill {
+		// A backfill slot opened up.
+		p.signal()
+	}
+}
+
 // nextJob blocks until a job is available or the pool is closed. It also
 // reports the queue depth left behind after this job was taken. Normal jobs
-// always go first; bulk jobs only run when nothing else is waiting.
+// always go first; bulk jobs only run when nothing else is waiting. Every job
+// returned must be passed to finishJob once the attempt ends.
 func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
 	for {
 		select {
@@ -628,20 +741,19 @@ func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
 		default:
 		}
 		p.mu.Lock()
-		var job transcriptJob
-		found := true
-		switch {
-		case len(p.queue) > 0:
-			job = p.queue[0]
-			p.queue = p.queue[1:]
-		case len(p.bulkQueue) > 0:
-			job = p.bulkQueue[0]
-			p.bulkQueue = p.bulkQueue[1:]
-		default:
-			found = false
-		}
+		job, found := p.takeJobLocked()
 		if found {
 			delete(p.queued, job.wavPath)
+			if job.wavPath != "" {
+				if p.inFlight == nil {
+					p.inFlight = make(map[string]struct{})
+				}
+				p.inFlight[job.wavPath] = struct{}{}
+			}
+			p.running++
+			if job.backfill {
+				p.backfillRunning++
+			}
 			remaining := len(p.queue) + len(p.bulkQueue)
 			p.mu.Unlock()
 			if remaining > 0 {
@@ -736,6 +848,7 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		})
 		result, err := p.transcribe(ep, job.wavPath, job.info.StreamName)
 		elapsed := time.Since(started)
+		p.finishJob(job)
 		ep.mu.Lock()
 		ep.busy = false
 		if err == nil && result.Model != "" {
