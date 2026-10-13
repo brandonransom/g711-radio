@@ -162,6 +162,16 @@ func (r *recorderState) Flush() {
 	r.finaliseLocked()
 }
 
+// isRecording reports whether an audio recording is currently in progress.
+func (r *recorderState) isRecording() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.recording
+}
+
 // finaliseLocked must be called with mu held.
 func (r *recorderState) finaliseLocked() {
 	if r.timer != nil {

@@ -15,3 +15,4 @@ usage.csv
 g711-radio.log
 *.pem
 *.pfx
+edge/

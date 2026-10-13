@@ -574,6 +574,31 @@ func (p *whisperPool) queueDepth() int {
 	return len(p.queue) + len(p.bulkQueue)
 }
 
+// isBusy reports whether any transcription jobs are queued or actively running.
+func (p *whisperPool) isBusy() bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	if len(p.queue)+len(p.bulkQueue) > 0 {
+		p.mu.Unlock()
+		return true
+	}
+	endpoints := make([]*whisperEndpoint, len(p.endpoints))
+	copy(endpoints, p.endpoints)
+	p.mu.Unlock()
+
+	for _, ep := range endpoints {
+		ep.mu.Lock()
+		busy := ep.busy
+		ep.mu.Unlock()
+		if busy {
+			return true
+		}
+	}
+	return false
+}
+
 // requeueFront puts a job back at the head of the queue so another endpoint
 // can pick it up without losing its place in line.
 func (p *whisperPool) requeueFront(job transcriptJob) {

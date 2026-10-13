@@ -171,6 +171,15 @@ type appConfig struct {
 	// AudioBackupDir. Either backup may be set without the other.
 	AudioBackupDir2 string `json:"audioBackupDir2"`
 
+	// ArchiveSyncIdleSeconds is how often the periodic archive sync routine
+	// checks audio and transcript folders during quiet/slow periods (0 means
+	// the default, 60s; negative disables periodic sync).
+	ArchiveSyncIdleSeconds int `json:"archiveSyncIdleSeconds"`
+	// ArchiveSyncBusySeconds is how often the periodic archive sync checks
+	// when the system is busy with active radio audio or transcription (0 means
+	// the default, 600s / 10m).
+	ArchiveSyncBusySeconds int `json:"archiveSyncBusySeconds"`
+
 	// RecordingIndex controls how the Recordings & Transcripts history is
 	// served; see recordingIndexConfig in recording_index.go. Omit for the
 	// default ("full").
@@ -1010,6 +1019,13 @@ func main() {
 		}
 	}
 
+	archiveDirs := audioArchiveDirs(&config)
+	if len(archiveDirs) >= 2 && config.ArchiveSyncIdleSeconds >= 0 {
+		idleInterval := time.Duration(config.ArchiveSyncIdleSeconds) * time.Second
+		busyInterval := time.Duration(config.ArchiveSyncBusySeconds) * time.Second
+		startArchiveSync(ctx, archiveDirs, idleInterval, busyInterval, server.isBusy, logger)
+	}
+
 	serveHTTPS(ctx, config, mux, logger, func() {
 		if pool != nil {
 			pool.Close()
@@ -1646,6 +1662,28 @@ func audioBackupDirs(config *appConfig) []string {
 	return dirs
 }
 
+// audioArchiveDirs returns the list of unique audio/transcript directories
+// configured on the server (AudioLogDir, AudioBackupDir, AudioBackupDir2).
+func audioArchiveDirs(config *appConfig) []string {
+	seen := make(map[string]bool)
+	var dirs []string
+	add := func(d string) {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			return
+		}
+		clean := filepath.Clean(d)
+		if !seen[clean] {
+			seen[clean] = true
+			dirs = append(dirs, clean)
+		}
+	}
+	add(config.AudioLogDir)
+	add(config.AudioBackupDir)
+	add(config.AudioBackupDir2)
+	return dirs
+}
+
 // saveAudioClip writes a recorded clip as an 8kHz mono WAV file under
 // audioLogDir (the primary, user-facing archive — served over HTTP and
 // referenced by clip playback). Returns the absolute file path and the
@@ -1958,6 +1996,24 @@ func (s *station) subscriberCount() int {
 	return len(s.subscribers)
 }
 
+// isBusy reports whether this station has received packets within window
+// or is currently recording an active audio clip.
+func (s *station) isBusy(window time.Duration) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	last := s.lastPacketAt
+	s.mu.RUnlock()
+	if !last.IsZero() && time.Since(last) < window {
+		return true
+	}
+	if s.recorder != nil && s.recorder.isRecording() {
+		return true
+	}
+	return false
+}
+
 // addTap registers a receiver for copies of every broadcast frame. Frames
 // are dropped rather than blocking the broadcaster when the tap falls behind.
 func (s *station) addTap() (uint64, <-chan []byte) {
@@ -2008,6 +2064,26 @@ func (s *webrtcServer) liveListenerCounts() map[string]int {
 		}
 	}
 	return out
+}
+
+// isBusy reports whether the server is actively handling radio audio,
+// processing clip finalizations, or running transcriptions.
+func (s *webrtcServer) isBusy() bool {
+	if s == nil {
+		return false
+	}
+	if s.whisperPool != nil && s.whisperPool.isBusy() {
+		return true
+	}
+	if len(s.clipJobs) > 0 {
+		return true
+	}
+	for _, st := range s.stationsByID() {
+		if st.isBusy(10 * time.Second) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *station) removeSubscriber(id string) {

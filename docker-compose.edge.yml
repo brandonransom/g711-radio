@@ -1,0 +1,16 @@
+# Runs g711-radio as an edge server. Put config.json, config.secrets.json and
+# the certificate in ./edge (see README "Run the edge in Docker").
+#   docker compose -f docker-compose.edge.yml up -d --build
+services:
+  g711-edge:
+    build: .
+    image: g711-radio
+    restart: unless-stopped
+    ports:
+      - "443:8443/tcp"
+      - "80:8080/tcp"
+      # Must be the same number on both sides and equal to webrtcUdpPort:
+      # it is the port advertised to listeners' browsers.
+      - "3478:3478/udp"
+    volumes:
+      - ./edge:/data

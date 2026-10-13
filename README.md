@@ -590,7 +590,42 @@ Optional per-uplink fields: `caFile` (PEM bundle to trust instead of the system 
 
 The origin logs `uplink <url>: connected`, and reconnects automatically (backing off to once a minute) if the edge or the network goes away. The edge logs `edge: origin connected from …`; `https://<edge>/healthz` returns `{"originConnected":true,…}` (HTTP 503 while no origin is connected).
 
-### Notes
+### Run the edge in Docker (AWS, Azure or any Linux VM)
+
+The same steps work on an AWS EC2 instance or an Azure VM: both put the VM behind 1:1 NAT, so give it a static public IP (AWS **Elastic IP**, Azure static public IP) and put that IP in `webrtcPublicIps`. Open inbound TCP 443, UDP 3478 and optionally TCP 80 in the security group / NSG. Use a plain VM, not Fargate/App Service behind an HTTP load balancer, because listener audio is UDP.
+
+1. Install Docker and the compose plugin on the VM, then clone this repo there (building on the VM also picks the right CPU type, e.g. Graviton/arm64).
+2. Create `edge/` next to `docker-compose.edge.yml` holding:
+   - `config.json` — `config.edge.example.json` with these container ports (Docker maps 443→8443 and 80→8080) and a PEM certificate:
+     ```json
+     {
+       "httpPort": 8443,
+       "httpRedirectPort": 8080,
+       "certFile": "/data/fullchain.pem",
+       "keyFile": "/data/privkey.pem",
+       "webrtcUdpPort": 3478,
+       "webrtcPublicIps": ["<elastic or static public IP>"],
+       "edge": {}
+     }
+     ```
+   - `config.secrets.json` — `{ "edgeToken": "<shared secret>" }`
+   - `fullchain.pem` and `privkey.pem` (or a `.pfx` with `pfxFile`/`pfxPassword`).
+3. The container runs as a non-root user (uid 65532) and writes its log (and analytics, if enabled) to `/data`:
+   ```bash
+   sudo chown -R 65532:65532 edge && sudo chmod 600 edge/config.secrets.json edge/privkey.pem
+   ```
+4. Start it, and follow the log:
+   ```bash
+   docker compose -f docker-compose.edge.yml up -d --build
+   docker compose -f docker-compose.edge.yml logs -f
+   ```
+5. Add the edge to the origin's `uplinks` and restart the origin; `https://<edge name>/healthz` should then report `"originConnected": true`.
+
+Keep the UDP mapping the same number on both sides (`3478:3478/udp`) and equal to `webrtcUdpPort`; that port is what listeners' browsers are told to send to. To update, `git pull` and re-run step 4.
+
+For a quick sandbox test without a domain, a self-signed certificate works for the uplink if the origin trusts it with `caFile` (and `serverName` if the certificate name differs from the URL host); browsers will show a warning until a real certificate is used.
+
+### Notes: a new origin connection replaces the previous one.
 
 - One origin per edge: a new origin connection replaces the previous one.
 - Stream IDs are assigned when the origin starts, so after an origin restart edge pages reload their stream list like origin pages do.

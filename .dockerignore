@@ -1,0 +1,21 @@
+.git
+.github
+Dockerfile
+docker-compose*.yml
+edge/
+
+# Runtime config, secrets and output must never end up in the image.
+config.json
+config.secrets.json
+streams.json
+*.pem
+*.pfx
+*.key
+audio/
+transcripts/
+analytics/
+*.log
+usage.csv
+*.pcapng
+g711-radio
+g711-radio.exe
