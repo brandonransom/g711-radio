@@ -358,12 +358,13 @@ type station struct {
 }
 
 type clipRecord struct {
-	clipID   string
-	info     streamInfo
-	wavPath  string
-	audioURL string
-	start    time.Time
-	duration int
+	clipID     string
+	info       streamInfo
+	wavPath    string
+	audioURL   string
+	start      time.Time
+	duration   int
+	capturedAt time.Time
 }
 
 type subscriber struct {
@@ -454,12 +455,13 @@ func (s *webrtcServer) manualTranscriptJob(clipID, audioURL string) (job transcr
 	s.clipMu.RUnlock()
 	if found && rec.wavPath != "" {
 		return transcriptJob{
-			info:     rec.info,
-			clipID:   rec.clipID,
-			wavPath:  rec.wavPath,
-			audioURL: rec.audioURL,
-			start:    rec.start,
-			manual:   true,
+			info:       rec.info,
+			clipID:     rec.clipID,
+			wavPath:    rec.wavPath,
+			audioURL:   rec.audioURL,
+			start:      rec.start,
+			manual:     true,
+			capturedAt: rec.capturedAt,
 		}, "registry", true
 	}
 	if audioURL == "" || s.audioLogDir == "" {

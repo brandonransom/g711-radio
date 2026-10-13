@@ -300,6 +300,7 @@ func (s *webrtcServer) startStation(stateName, groupName string, cfg streamConfi
 				// is much more sensitive to than a batch-written WAV.
 				// Dispatch it to a background worker instead so this
 				// callback returns immediately.
+				capturedAt := time.Now()
 				job := func() {
 					var wavPath, audioURL string
 					durationMs := len(samples) * 1000 / recSampleRate
@@ -350,12 +351,13 @@ func (s *webrtcServer) startStation(stateName, groupName string, cfg streamConfi
 						WAVFilename: wavBaseName(requestWavPath),
 					})
 					s.storeClip(clipRecord{
-						clipID:   clipID,
-						info:     info,
-						wavPath:  requestWavPath,
-						audioURL: audioURL,
-						start:    start,
-						duration: durationMs,
+						clipID:     clipID,
+						info:       info,
+						wavPath:    requestWavPath,
+						audioURL:   audioURL,
+						start:      start,
+						duration:   durationMs,
+						capturedAt: capturedAt,
 					})
 					if pool != nil && autoTranscribe && shouldAutoTranscribe(wCfg, durationMs) {
 						if job, _, ok := s.manualTranscriptJob(clipID, ""); ok {

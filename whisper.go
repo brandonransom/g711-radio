@@ -23,13 +23,14 @@ import (
 
 // transcriptJob is submitted when a recorded clip is ready.
 type transcriptJob struct {
-	info     streamInfo
-	clipID   string // unique ID correlating the clip event with its later transcript
-	wavPath  string // path to the already-saved 8kHz WAV file on disk
-	audioURL string // relative URL served to browsers (e.g. /audio/...)
-	start    time.Time
-	manual   bool
-	queuedAt time.Time
+	info       streamInfo
+	clipID     string // unique ID correlating the clip event with its later transcript
+	wavPath    string // path to the already-saved 8kHz WAV file on disk
+	audioURL   string // relative URL served to browsers (e.g. /audio/...)
+	start      time.Time
+	manual     bool
+	queuedAt   time.Time
+	capturedAt time.Time
 	// retries counts how many times this job was handed back to the queue
 	// because its server was unreachable (see maxJobRetries).
 	retries int
@@ -516,6 +517,9 @@ func (p *whisperPool) Submit(job transcriptJob) bool {
 	if job.queuedAt.IsZero() {
 		job.queuedAt = time.Now()
 	}
+	if job.capturedAt.IsZero() {
+		job.capturedAt = job.queuedAt
+	}
 	p.mu.Lock()
 	if !p.markQueuedLocked(job) {
 		// A clip waiting in the low-priority bulk queue is promoted, so a
@@ -544,6 +548,9 @@ func (p *whisperPool) Submit(job transcriptJob) bool {
 func (p *whisperPool) SubmitBulk(job transcriptJob) bulkSubmitResult {
 	if job.queuedAt.IsZero() {
 		job.queuedAt = time.Now()
+	}
+	if job.capturedAt.IsZero() {
+		job.capturedAt = job.queuedAt
 	}
 	p.mu.Lock()
 	if len(p.bulkQueue) >= maxBulkQueue {
@@ -763,6 +770,9 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		}
 		attempt.Outcome = "success"
 		attempt.NoSpeech = text == "" || text == noSpeechMarker
+		if !job.capturedAt.IsZero() {
+			attempt.CaptureToDoneMs = max(0, time.Since(job.capturedAt).Milliseconds())
+		}
 		p.analytics.TranscriptionAttempt(attempt)
 		if text == "" {
 			// No speech detected — a normal outcome (e.g. a keyed-up but

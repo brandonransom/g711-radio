@@ -313,6 +313,113 @@ func TestWhisperAvailabilityTracksHealthWithoutJobs(t *testing.T) {
 	check(false)
 }
 
+func TestTranscriptionCaptureToDoneMetrics(t *testing.T) {
+	// Test aggregation and metric formatting
+	var agg transcriptionAgg
+	agg.add(transcriptionAttempt{
+		Outcome:         "success",
+		Ms:              1500,
+		QueueMs:         5000,
+		CaptureToDoneMs: 6500,
+	})
+	agg.add(transcriptionAttempt{
+		Outcome:         "success",
+		Ms:              2500,
+		QueueMs:         3000,
+		CaptureToDoneMs: 5500,
+	})
+	agg.add(transcriptionAttempt{
+		Outcome:         "failed",
+		Ms:              1000,
+		QueueMs:         2000,
+		CaptureToDoneMs: 3000, // failed attempt should not count in capture-to-done average
+	})
+
+	if agg.CaptureToDoneN != 2 || agg.CaptureToDoneMs != 12000 {
+		t.Fatalf("agg capture to done = %d ms over %d clips", agg.CaptureToDoneMs, agg.CaptureToDoneN)
+	}
+
+	row := transcriptionMetrics("http://host", &agg)
+	if row.CaptureAverage != "6.00s" {
+		t.Fatalf("CaptureAverage = %q, want 6.00s", row.CaptureAverage)
+	}
+
+	var other transcriptionAgg
+	other.add(transcriptionAttempt{
+		Outcome:         "success",
+		Ms:              1000,
+		CaptureToDoneMs: 3000,
+	})
+	agg.merge(&other)
+	if agg.CaptureToDoneN != 3 || agg.CaptureToDoneMs != 15000 {
+		t.Fatalf("merged capture to done = %d ms over %d clips", agg.CaptureToDoneMs, agg.CaptureToDoneN)
+	}
+
+	// Test dashboard rendering
+	a := newTestStore(t, t.TempDir(), &fakeClock{t: time.Now()})
+	a.TranscriptionAttempt(transcriptionAttempt{
+		Host:            "http://host",
+		Outcome:         "success",
+		Ms:              1500,
+		QueueMs:         4000,
+		CaptureToDoneMs: 5500,
+		AudioMs:         10000,
+	})
+	mux := http.NewServeMux()
+	a.RegisterDashboard(mux, "/private123456", nil, nil, (*whisperPool)(nil).transcriptionSnapshot)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/private123456?days=1", nil))
+	body := w.Body.String()
+	for _, want := range []string{
+		"Average capture to done",
+		"Avg capture to done",
+		"5.50s",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dashboard missing %q", want)
+		}
+	}
+
+	// Test whisper pool job timing & worker integration
+	now := time.Now()
+	captured := now.Add(-10 * time.Second)
+	queued := now.Add(-5 * time.Second)
+
+	job := transcriptJob{
+		clipID:     "c1",
+		wavPath:    "dummy.wav",
+		capturedAt: captured,
+		queuedAt:   queued,
+	}
+
+	// Verify requeueFront preserves capturedAt
+	p := &whisperPool{logger: log.New(io.Discard, "", 0)}
+	p.requeueFront(job)
+	if len(p.queue) != 1 {
+		t.Fatalf("queue len = %d, want 1", len(p.queue))
+	}
+	requeued := p.queue[0]
+	if !requeued.capturedAt.Equal(captured) {
+		t.Fatalf("requeued capturedAt = %v, want %v", requeued.capturedAt, captured)
+	}
+	if requeued.queuedAt.Before(now) {
+		t.Fatalf("requeued queuedAt = %v should be updated to now", requeued.queuedAt)
+	}
+
+	// Verify Submit with zero capturedAt falls back to queuedAt
+	p2 := &whisperPool{ready: make(chan struct{}, 1), logger: log.New(io.Discard, "", 0)}
+	job2 := transcriptJob{clipID: "c2", wavPath: "dummy2.wav"}
+	p2.Submit(job2)
+	if len(p2.queue) != 1 {
+		t.Fatalf("p2 queue len = %d, want 1", len(p2.queue))
+	}
+	sub := p2.queue[0]
+	if sub.queuedAt.IsZero() || sub.capturedAt.IsZero() || !sub.capturedAt.Equal(sub.queuedAt) {
+		t.Fatalf("sub capturedAt (%v) should equal queuedAt (%v)", sub.capturedAt, sub.queuedAt)
+	}
+}
+
+
 type failedInferenceTransport struct{ entered chan struct{} }
 
 func (f failedInferenceTransport) RoundTrip(*http.Request) (*http.Response, error) {

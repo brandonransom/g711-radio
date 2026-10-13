@@ -71,6 +71,7 @@ type transcriptionAttempt struct {
 	Outcome          string   `json:"outcome"`
 	Ms               int64    `json:"ms"`
 	QueueMs          int64    `json:"queueMs"`
+	CaptureToDoneMs  int64    `json:"captureToDoneMs,omitempty"`
 	AudioMs          int64    `json:"audioMs,omitempty"`
 	NoSpeech         bool     `json:"noSpeech,omitempty"`
 	Filtered         bool     `json:"filtered,omitempty"`
@@ -88,6 +89,8 @@ type transcriptionAgg struct {
 	Filtered            int            `json:"filtered"`
 	Ms                  int64          `json:"ms"`
 	QueueMs             int64          `json:"queueMs"`
+	CaptureToDoneMs     int64          `json:"captureToDoneMs"`
+	CaptureToDoneN      int            `json:"captureToDoneN"`
 	AudioMs             int64          `json:"audioMs"`
 	AudioWorkMs         int64          `json:"audioWorkMs"`
 	ConfidenceSum       float64        `json:"confidenceSum"`
@@ -116,6 +119,10 @@ func (a *transcriptionAgg) add(t transcriptionAttempt) {
 	case "success":
 		a.Succeeded++
 		a.Ms += t.Ms
+		if t.CaptureToDoneMs > 0 {
+			a.CaptureToDoneMs += t.CaptureToDoneMs
+			a.CaptureToDoneN++
+		}
 		if t.AudioMs > 0 {
 			a.AudioMs += t.AudioMs
 			a.AudioWorkMs += t.Ms
@@ -150,6 +157,8 @@ func (a *transcriptionAgg) merge(b *transcriptionAgg) {
 	a.Filtered += b.Filtered
 	a.Ms += b.Ms
 	a.QueueMs += b.QueueMs
+	a.CaptureToDoneMs += b.CaptureToDoneMs
+	a.CaptureToDoneN += b.CaptureToDoneN
 	a.AudioMs += b.AudioMs
 	a.AudioWorkMs += b.AudioWorkMs
 	a.ConfidenceSum += b.ConfidenceSum
@@ -237,9 +246,9 @@ func (p *whisperPool) transcriptionSnapshot() transcriptionSnapshot {
 }
 
 type transcriptionRow struct {
-	Host, Status, Model, RangeModels, Checked                                          string
-	Attempts, Succeeded, Failed, Retries, NoSpeech, Filtered                           int
-	Average, QueueAverage, RTF, Confidence, TokenProbability, Logprob, Share, Relative string
+	Host, Status, Model, RangeModels, Checked                                                           string
+	Attempts, Succeeded, Failed, Retries, NoSpeech, Filtered                                            int
+	Average, QueueAverage, CaptureAverage, RTF, Confidence, TokenProbability, Logprob, Share, Relative string
 }
 
 type transcriptionData struct {
@@ -253,7 +262,7 @@ func transcriptionMetrics(host string, a *transcriptionAgg) transcriptionRow {
 	r := transcriptionRow{
 		Host: host, Attempts: a.Attempts, Succeeded: a.Succeeded, Failed: a.Failed,
 		Retries: a.Retries, NoSpeech: a.NoSpeech, Filtered: a.Filtered,
-		Average: "-", QueueAverage: "-", RTF: "-", Relative: "-",
+		Average: "-", QueueAverage: "-", CaptureAverage: "-", RTF: "-", Relative: "-",
 		Confidence: "not reported", Logprob: "not reported", Share: "-",
 		TokenProbability: "not reported",
 		Model:            "not reported", Status: "not configured", Checked: "-",
@@ -263,6 +272,9 @@ func transcriptionMetrics(host string, a *transcriptionAgg) transcriptionRow {
 	}
 	if a.Attempts > 0 {
 		r.QueueAverage = fmt.Sprintf("%.2fs", float64(a.QueueMs)/float64(a.Attempts)/1000)
+	}
+	if a.CaptureToDoneN > 0 {
+		r.CaptureAverage = fmt.Sprintf("%.2fs", float64(a.CaptureToDoneMs)/float64(a.CaptureToDoneN)/1000)
 	}
 	if a.AudioMs > 0 {
 		r.RTF = fmt.Sprintf("%.3f", float64(a.AudioWorkMs)/float64(a.AudioMs))
