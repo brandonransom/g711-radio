@@ -204,7 +204,11 @@ type dayAgg struct {
 	// starting hour, airtime per hour, and a length histogram.
 	Radio         map[string]*txAgg            `json:"radio"`
 	Transcription map[string]*transcriptionAgg `json:"transcription,omitempty"`
-	TxHour        [24]int                      `json:"txHour"`
+	// TranscriptionSince holds the part of Transcription recorded after the
+	// latest reset marker. It is only meaningful for days on or after the
+	// marker's date; earlier days may carry stale values from older markers.
+	TranscriptionSince map[string]*transcriptionAgg `json:"transcriptionSince,omitempty"`
+	TxHour             [24]int                      `json:"txHour"`
 	TxHourMs      [24]int64                    `json:"txHourMs"`
 	TxLengths     [txLengthBuckets]int         `json:"txLengths"`
 
@@ -242,6 +246,9 @@ func (d *dayAgg) init() {
 	if d.Transcription == nil {
 		d.Transcription = map[string]*transcriptionAgg{}
 	}
+	if d.TranscriptionSince == nil {
+		d.TranscriptionSince = map[string]*transcriptionAgg{}
+	}
 	if d.visitors == nil {
 		d.visitors = map[string]struct{}{}
 	}
@@ -262,6 +269,11 @@ type analyticsStore struct {
 	eventsDir string
 	dailyDir  string
 	saltPath  string
+
+	// txResetAt marks the last transcription-statistics reset; the zero
+	// value means never reset. It is persisted in txResetPath.
+	txResetAt   time.Time
+	txResetPath string
 
 	mu         sync.Mutex
 	file       *os.File
@@ -300,6 +312,8 @@ func openAnalyticsStoreAt(cfg analyticsConfig, logger *log.Logger, now func() ti
 		saltPath:  filepath.Join(cfg.Dir, "salt.json"),
 		days:      map[string]*dayAgg{},
 		peers:     map[string]*peerTrack{},
+
+		txResetPath: filepath.Join(cfg.Dir, "transcription_reset.json"),
 	}
 	for _, d := range []string{a.eventsDir, a.dailyDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -308,6 +322,7 @@ func openAnalyticsStoreAt(cfg analyticsConfig, logger *log.Logger, now func() ti
 	}
 	a.geo = newGeoLocator(cfg.GeoIPDatabase, cfg.LocationOverridesFile, logger)
 	a.today = now().Format(dateLayout)
+	a.loadTranscriptionReset()
 	if err := a.load(); err != nil {
 		return nil, err
 	}
@@ -403,81 +418,44 @@ func (a *analyticsStore) saveDay(d *dayAgg) {
 	}
 }
 
-// ResetTranscription discards all recorded transcription metrics: the
-// transcription events in the raw files and the per-day totals. Visitor and
-// radio statistics are untouched. It returns the number of events removed.
-func (a *analyticsStore) ResetTranscription() (int, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.file != nil {
-		_ = a.file.Close()
-		a.file, a.fileDate = nil, ""
-	}
-	removed := 0
-	for _, date := range a.rawDates() {
-		n, err := a.stripTranscriptionEvents(date)
-		removed += n
-		if err != nil {
-			return removed, err
-		}
-	}
-	for date, d := range a.days {
-		if len(d.Transcription) == 0 {
-			continue
-		}
-		d.Transcription = map[string]*transcriptionAgg{}
-		if date != a.today {
-			a.saveDay(d)
-		}
-	}
-	return removed, nil
+type txResetFile struct {
+	ResetAt time.Time `json:"resetAt"`
 }
 
-// stripTranscriptionEvents rewrites one raw event file without its
-// transcription events.
-func (a *analyticsStore) stripTranscriptionEvents(date string) (int, error) {
-	path := filepath.Join(a.eventsDir, date+".jsonl")
-	in, err := os.Open(path)
+func (a *analyticsStore) loadTranscriptionReset() {
+	b, err := os.ReadFile(a.txResetPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return 0, nil
-		}
-		return 0, err
+		return
 	}
-	tmp := path + ".tmp"
-	out, err := os.Create(tmp)
+	var f txResetFile
+	if json.Unmarshal(b, &f) == nil {
+		a.txResetAt = f.ResetAt
+	}
+}
+
+// ResetTranscription starts a new "since reset" period for transcription
+// statistics. Nothing is deleted: lifetime totals and raw events are kept, and
+// only the marker and the since-reset totals change.
+func (a *analyticsStore) ResetTranscription() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := a.now()
+	b, err := json.Marshal(txResetFile{ResetAt: now})
 	if err != nil {
-		in.Close()
-		return 0, err
+		return err
 	}
-	removed := 0
-	w := bufio.NewWriter(out)
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 64*1024), 1024*1024)
-	for sc.Scan() {
-		var ev analyticsEvent
-		if json.Unmarshal(sc.Bytes(), &ev) == nil && ev.Type == evTranscription {
-			removed++
-			continue
-		}
-		w.Write(sc.Bytes())
-		w.WriteByte('\n')
+	tmp := a.txResetPath + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return err
 	}
-	err = sc.Err()
-	in.Close()
-	if err == nil {
-		err = w.Flush()
+	if err := os.Rename(tmp, a.txResetPath); err != nil {
+		return err
 	}
-	if cerr := out.Close(); err == nil {
-		err = cerr
+	a.txResetAt = now
+	for _, d := range a.days {
+		d.TranscriptionSince = map[string]*transcriptionAgg{}
 	}
-	if err == nil && removed > 0 {
-		err = os.Rename(tmp, path)
-	}
-	if err != nil || removed == 0 {
-		os.Remove(tmp)
-	}
-	return removed, err
+	return nil
 }
 
 type saltFile struct {
@@ -645,6 +623,15 @@ func (a *analyticsStore) apply(ev analyticsEvent) {
 				d.Transcription[t.Host] = &transcriptionAgg{}
 			}
 			d.Transcription[t.Host].add(*t)
+			if !a.txResetAt.IsZero() && !ev.Time.Before(a.txResetAt) {
+				if d.TranscriptionSince == nil {
+					d.TranscriptionSince = map[string]*transcriptionAgg{}
+				}
+				if d.TranscriptionSince[t.Host] == nil {
+					d.TranscriptionSince[t.Host] = &transcriptionAgg{}
+				}
+				d.TranscriptionSince[t.Host].add(*t)
+			}
 		}
 	case evPageview:
 		d.Pageviews++

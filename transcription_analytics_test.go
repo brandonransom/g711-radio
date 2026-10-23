@@ -46,40 +46,63 @@ func TestWhisperResultMetadata(t *testing.T) {
 
 func floatPtr(v float64) *float64 { return &v }
 
-func TestResetTranscriptionStats(t *testing.T) {
+func TestTranscriptionResetKeepsLifetime(t *testing.T) {
 	dir := t.TempDir()
 	clock := &fakeClock{t: time.Date(2026, 10, 1, 10, 0, 0, 0, time.Local)}
 	a := newTestStore(t, dir, clock)
-	a.TranscriptionAttempt(transcriptionAttempt{Host: "http://h", Outcome: "success", Ms: 1000, AudioMs: 10000})
+	attempt := transcriptionAttempt{Host: "http://h", Outcome: "success", Ms: 1000, AudioMs: 10000}
+	a.TranscriptionAttempt(attempt)
 	clock.t = clock.t.AddDate(0, 0, 1)
-	a.TranscriptionAttempt(transcriptionAttempt{Host: "http://h", Outcome: "failed", Ms: 1000})
-	a.Close()
-	a = newTestStore(t, dir, clock)
+	a.TranscriptionAttempt(attempt)
 
 	mux := http.NewServeMux()
 	a.RegisterDashboard(mux, "/private123456", nil, nil)
+	d := a.dashboard(0, nil, nil)
+	if d.TxHasReset || d.Transcription.Total.Attempts != 2 {
+		t.Fatalf("before reset: hasReset=%v attempts=%d", d.TxHasReset, d.Transcription.Total.Attempts)
+	}
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/private123456/reset-transcription", nil))
-	if w.Code != http.StatusMethodNotAllowed || a.dashboard(0, nil, nil).Transcription.Total.Attempts != 2 {
+	if w.Code != http.StatusMethodNotAllowed || a.dashboard(0, nil, nil).TxHasReset {
 		t.Fatalf("GET must not reset: code %d", w.Code)
 	}
+	clock.t = clock.t.Add(time.Hour)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/private123456/reset-transcription", nil))
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("POST code = %d", w.Code)
 	}
-	if got := a.dashboard(0, nil, nil).Transcription.Total.Attempts; got != 0 {
-		t.Fatalf("attempts after reset = %d", got)
+	check := func(a *analyticsStore, lifetime, since int) {
+		t.Helper()
+		d := a.dashboard(0, nil, nil)
+		if !d.TxHasReset || d.TxLifetime.Total.Attempts != lifetime || d.TxSince.Total.Attempts != since {
+			t.Fatalf("lifetime/since = %d/%d, want %d/%d", d.TxLifetime.Total.Attempts, d.TxSince.Total.Attempts, lifetime, since)
+		}
 	}
+	check(a, 2, 0)
 
-	a.TranscriptionAttempt(transcriptionAttempt{Host: "http://h", Outcome: "success", Ms: 1000})
+	clock.t = clock.t.Add(time.Minute)
+	a.TranscriptionAttempt(attempt)
+	check(a, 3, 1)
 	a.Close()
 	a = newTestStore(t, dir, clock)
-	if got := a.dashboard(0, nil, nil).Transcription.Total.Attempts; got != 1 {
-		t.Fatalf("attempts after restart = %d, want only the post-reset one", got)
+	check(a, 3, 1)
+
+	clock.t = clock.t.AddDate(0, 0, 1)
+	a.TranscriptionAttempt(attempt)
+	check(a, 4, 2)
+	a.Close()
+	a = newTestStore(t, dir, clock)
+	check(a, 4, 2)
+
+	w = httptest.NewRecorder()
+	mux = http.NewServeMux()
+	a.RegisterDashboard(mux, "/private123456", nil, nil)
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/private123456?tx=since", nil))
+	if !strings.Contains(w.Body.String(), "Since reset") {
+		t.Fatal("since-reset view not rendered")
 	}
 }
-
 func assertOptionalFloat(t *testing.T, name string, got, want *float64) {
 	t.Helper()
 	if (got == nil) != (want == nil) {

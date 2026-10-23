@@ -172,6 +172,11 @@ type dashData struct {
 	GeoSource     string
 	Radio         radioData
 	Transcription transcriptionData
+	// Transcription is the lifetime view unless a handler swaps in TxSince.
+	TxLifetime, TxSince transcriptionData
+	TxHasReset          bool
+	TxShowSince         bool
+	TxResetAt           string
 }
 
 var dashRanges = []rangeOpt{{1, "Today", false}, {7, "7 days", false}, {30, "30 days", false}, {90, "90 days", false}, {365, "1 year", false}, {0, "All time", false}}
@@ -205,6 +210,10 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		data := a.dashboard(parseDays(r), live, inventory, transcription...)
 		data.BasePath = path
+		if data.TxHasReset && r.URL.Query().Get("tx") == "since" {
+			data.Transcription = data.TxSince
+			data.TxShowSince = true
+		}
 		if err := analyticsTemplate.Execute(w, data); err != nil {
 			a.logger.Printf("analytics: render dashboard: %v", err)
 		}
@@ -215,14 +224,13 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 			return
 		}
 		privateHeaders(w)
-		n, err := a.ResetTranscription()
-		if err != nil {
+		if err := a.ResetTranscription(); err != nil {
 			a.logger.Printf("analytics: reset transcription stats: %v", err)
 			http.Error(w, "reset failed", http.StatusInternalServerError)
 			return
 		}
-		a.logger.Printf("analytics: reset transcription stats (%d events removed)", n)
-		http.Redirect(w, r, path+"#transcription", http.StatusSeeOther)
+		a.logger.Printf("analytics: transcription statistics reset marker set")
+		http.Redirect(w, r, path+"?tx=since#transcription", http.StatusSeeOther)
 	})
 	mux.HandleFunc(path+"/events.csv", func(w http.ResponseWriter, r *http.Request) {
 		privateHeaders(w)
@@ -308,6 +316,23 @@ func (a *analyticsStore) dashboard(days int, live liveListenerFunc, inventory in
 		snapshot = transcription[0]()
 	}
 	data.Transcription = makeTranscriptionData(agg, snapshot)
+	data.TxLifetime = data.Transcription
+	a.mu.Lock()
+	resetAt := a.txResetAt
+	a.mu.Unlock()
+	if !resetAt.IsZero() {
+		resetDate := resetAt.In(a.now().Location()).Format(dateLayout)
+		since := make([]dayAgg, len(agg))
+		for i, d := range agg {
+			since[i] = dayAgg{Date: d.Date}
+			if d.Date >= resetDate {
+				since[i].Transcription = d.TranscriptionSince
+			}
+		}
+		data.TxHasReset = true
+		data.TxResetAt = resetAt.In(a.now().Location()).Format("2006-01-02 15:04:05 MST")
+		data.TxSince = makeTranscriptionData(since, snapshot)
+	}
 	data.From, data.To = a.rangeDates(days)
 	if data.From == "" && len(all) > 0 {
 		data.From = all[0].Date

@@ -35,7 +35,7 @@
 <body>
 <h1>Site statistics</h1>
 <div class="muted">{{if .From}}{{.From}} to {{end}}{{.To}} · generated {{.Generated}}</div>
-<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a> · <a href="#transcription">Transcription ↓</a> · <a href="/section.html?all=1">All streams</a></nav>
+<nav style="margin-top:8px">{{range .Ranges}}<a href="?days={{.Days}}{{if $.TxShowSince}}&amp;tx=since{{end}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}} · <a href="#radio">Radio activity ↓</a> · <a href="#transcription">Transcription ↓</a> · <a href="/section.html?all=1">All streams</a></nav>
 
 <div class="cards">
   <div class="card">Listening now<b>{{.LiveTotal}}</b></div>
@@ -118,6 +118,8 @@
 </details>
 
 <h2 id="transcription">Transcription</h2>
+<p>Showing: {{if .TxShowSince}}<a href="?days={{.Days}}#transcription">Lifetime</a> · <b>Since reset</b>{{else}}<b>Lifetime</b>{{if .TxHasReset}} · <a href="?days={{.Days}}&amp;tx=since#transcription">Since reset</a>{{end}}{{end}}
+{{if .TxHasReset}}<span class="muted"> — last reset {{.TxResetAt}}. Lifetime totals are never cleared; the date range still applies to both views.</span>{{else}}<span class="muted"> — no reset yet. A reset starts a separate "since reset" count; lifetime totals are kept.</span>{{end}}</p>
 {{with .Transcription}}
 <div class="cards">
   <div class="card">Hosts available now<b>{{.Available}} / {{.Configured}}</b><span class="muted">{{.Busy}} busy{{if not .Enabled}} · transcription disabled{{end}}</span></div>
@@ -151,8 +153,8 @@
 <p class="muted">Metadata is requested using Whisper's verbose JSON response; text-only JSON still works. Confidence is shown only for explicit 0–1 confidence fields. Token probabilities and average log probabilities are separate Whisper diagnostics, not measured transcription accuracy. Each diagnostic is averaged per clip, then across only the clips reporting it; sample counts are shown. Local models come from configuration; remote models come from responses when reported, or optional <code>whisper.remoteModels</code> labels. Missing metadata is not inferred.</p>
 {{end}}
 <form method="post" action="{{.BasePath}}/reset-transcription">
-  <label><input type="checkbox" required> Permanently delete all recorded transcription statistics (visitor and radio statistics are kept)</label>
-  <button type="submit">Reset transcription statistics</button>
+  <label><input type="checkbox" required> Start a new "since reset" count now (lifetime statistics are kept)</label>
+  <button type="submit">Reset "since reset" transcription statistics</button>
 </form>
 
 <h2>Locations</h2>
