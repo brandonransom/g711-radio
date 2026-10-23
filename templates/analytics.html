@@ -150,6 +150,10 @@
 </div>
 <p class="muted">Metadata is requested using Whisper's verbose JSON response; text-only JSON still works. Confidence is shown only for explicit 0–1 confidence fields. Token probabilities and average log probabilities are separate Whisper diagnostics, not measured transcription accuracy. Each diagnostic is averaged per clip, then across only the clips reporting it; sample counts are shown. Local models come from configuration; remote models come from responses when reported, or optional <code>whisper.remoteModels</code> labels. Missing metadata is not inferred.</p>
 {{end}}
+<form method="post" action="{{.BasePath}}/reset-transcription">
+  <label><input type="checkbox" required> Permanently delete all recorded transcription statistics (visitor and radio statistics are kept)</label>
+  <button type="submit">Reset transcription statistics</button>
+</form>
 
 <h2>Locations</h2>
 <p class="muted">Location source: {{.GeoSource}}. Raw networks: <a href="{{.BasePath}}/networks.csv?days={{.Days}}">networks.csv</a>.</p>

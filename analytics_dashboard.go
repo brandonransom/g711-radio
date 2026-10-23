@@ -209,6 +209,21 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 			a.logger.Printf("analytics: render dashboard: %v", err)
 		}
 	})
+	mux.HandleFunc(path+"/reset-transcription", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		privateHeaders(w)
+		n, err := a.ResetTranscription()
+		if err != nil {
+			a.logger.Printf("analytics: reset transcription stats: %v", err)
+			http.Error(w, "reset failed", http.StatusInternalServerError)
+			return
+		}
+		a.logger.Printf("analytics: reset transcription stats (%d events removed)", n)
+		http.Redirect(w, r, path+"#transcription", http.StatusSeeOther)
+	})
 	mux.HandleFunc(path+"/events.csv", func(w http.ResponseWriter, r *http.Request) {
 		privateHeaders(w)
 		a.exportEvents(w, parseDays(r))

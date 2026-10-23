@@ -46,6 +46,40 @@ func TestWhisperResultMetadata(t *testing.T) {
 
 func floatPtr(v float64) *float64 { return &v }
 
+func TestResetTranscriptionStats(t *testing.T) {
+	dir := t.TempDir()
+	clock := &fakeClock{t: time.Date(2026, 10, 1, 10, 0, 0, 0, time.Local)}
+	a := newTestStore(t, dir, clock)
+	a.TranscriptionAttempt(transcriptionAttempt{Host: "http://h", Outcome: "success", Ms: 1000, AudioMs: 10000})
+	clock.t = clock.t.AddDate(0, 0, 1)
+	a.TranscriptionAttempt(transcriptionAttempt{Host: "http://h", Outcome: "failed", Ms: 1000})
+	a.Close()
+	a = newTestStore(t, dir, clock)
+
+	mux := http.NewServeMux()
+	a.RegisterDashboard(mux, "/private123456", nil, nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/private123456/reset-transcription", nil))
+	if w.Code != http.StatusMethodNotAllowed || a.dashboard(0, nil, nil).Transcription.Total.Attempts != 2 {
+		t.Fatalf("GET must not reset: code %d", w.Code)
+	}
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/private123456/reset-transcription", nil))
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST code = %d", w.Code)
+	}
+	if got := a.dashboard(0, nil, nil).Transcription.Total.Attempts; got != 0 {
+		t.Fatalf("attempts after reset = %d", got)
+	}
+
+	a.TranscriptionAttempt(transcriptionAttempt{Host: "http://h", Outcome: "success", Ms: 1000})
+	a.Close()
+	a = newTestStore(t, dir, clock)
+	if got := a.dashboard(0, nil, nil).Transcription.Total.Attempts; got != 1 {
+		t.Fatalf("attempts after restart = %d, want only the post-reset one", got)
+	}
+}
+
 func assertOptionalFloat(t *testing.T, name string, got, want *float64) {
 	t.Helper()
 	if (got == nil) != (want == nil) {

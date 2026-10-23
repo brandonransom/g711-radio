@@ -403,6 +403,83 @@ func (a *analyticsStore) saveDay(d *dayAgg) {
 	}
 }
 
+// ResetTranscription discards all recorded transcription metrics: the
+// transcription events in the raw files and the per-day totals. Visitor and
+// radio statistics are untouched. It returns the number of events removed.
+func (a *analyticsStore) ResetTranscription() (int, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.file != nil {
+		_ = a.file.Close()
+		a.file, a.fileDate = nil, ""
+	}
+	removed := 0
+	for _, date := range a.rawDates() {
+		n, err := a.stripTranscriptionEvents(date)
+		removed += n
+		if err != nil {
+			return removed, err
+		}
+	}
+	for date, d := range a.days {
+		if len(d.Transcription) == 0 {
+			continue
+		}
+		d.Transcription = map[string]*transcriptionAgg{}
+		if date != a.today {
+			a.saveDay(d)
+		}
+	}
+	return removed, nil
+}
+
+// stripTranscriptionEvents rewrites one raw event file without its
+// transcription events.
+func (a *analyticsStore) stripTranscriptionEvents(date string) (int, error) {
+	path := filepath.Join(a.eventsDir, date+".jsonl")
+	in, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	tmp := path + ".tmp"
+	out, err := os.Create(tmp)
+	if err != nil {
+		in.Close()
+		return 0, err
+	}
+	removed := 0
+	w := bufio.NewWriter(out)
+	sc := bufio.NewScanner(in)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	for sc.Scan() {
+		var ev analyticsEvent
+		if json.Unmarshal(sc.Bytes(), &ev) == nil && ev.Type == evTranscription {
+			removed++
+			continue
+		}
+		w.Write(sc.Bytes())
+		w.WriteByte('\n')
+	}
+	err = sc.Err()
+	in.Close()
+	if err == nil {
+		err = w.Flush()
+	}
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && removed > 0 {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil || removed == 0 {
+		os.Remove(tmp)
+	}
+	return removed, err
+}
+
 type saltFile struct {
 	Date string `json:"date"`
 	Salt string `json:"salt"`
