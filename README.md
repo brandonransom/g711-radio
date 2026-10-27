@@ -344,6 +344,7 @@ All transcription settings live in the `whisper` block of `config.json` (decoded
 |---|---|---|---|
 | `remoteServers` | remote | `[]` | Base URLs of whisper-server instances, e.g. `["http://gpu-box:8080", "http://gpu-box:8081"]`. `http://` is assumed if omitted; a path prefix (whisper-server's `--request-path`) is kept. One worker per entry. |
 | `remoteModels` | remote | `{}` | Optional URL-to-model labels for servers that do not report a model, e.g. `{"http://gpu-box:8080": "ggml-medium.en.bin"}`. Keys must match configured `remoteServers` after URL normalization; labels are marked "configured", not detected. |
+| `remoteClipRanges` | remote | `{}` | Route clips to servers by length: `{"http://a:8080": {"minMs": 20000}, "http://fast:8080": {"minMs": 5000, "maxMs": 20000}}`. A server takes clips with `minMs <= length < maxMs` (`maxMs` 0 = no limit); unlisted servers take any length. If no ready server covers a clip, any server takes it. Clips shorter than `autoTranscribeMinClipMs` (set it to 5000 to skip anything under 5 s) are never queued automatically. |
 | `serverBinaryPath` | local | `whisper-server` (on PATH) | whisper.cpp `whisper-server` executable. |
 | `modelPath` | local | — | GGML model each local instance loads. |
 | `workers` | local | `2` | Number of local whisper-server instances (i.e. parallel transcriptions). Each holds its own copy of the model in RAM/VRAM. |

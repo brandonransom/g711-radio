@@ -147,6 +147,56 @@ func TestTranscriptBackfillWaitsForEmptyQueue(t *testing.T) {
 	pool.finishJob(job)
 }
 
+func TestWhisperPoolRoutesByClipLength(t *testing.T) {
+	p := newWhisperPool(whisperConfig{}, nil, log.New(io.Discard, "", 0))
+	long := &whisperEndpoint{ready: true, clips: &clipRange{MinMs: 20000}}
+	fast := &whisperEndpoint{ready: true, clips: &clipRange{MinMs: 5000, MaxMs: 20000}}
+	p.endpoints = []*whisperEndpoint{long, fast}
+	p.queue = []transcriptJob{
+		{clipID: "7s", durationMs: 7000, sizeBytes: 1},
+		{clipID: "30s", durationMs: 30000, sizeBytes: 2},
+		{clipID: "2s", durationMs: 2000, sizeBytes: 0},
+	}
+	take := func(ep *whisperEndpoint) string {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		job, ok := p.takeJobForLocked(ep)
+		if !ok {
+			return ""
+		}
+		return job.clipID
+	}
+	if got := take(long); got != "30s" {
+		t.Fatalf("long host took %q, want 30s", got)
+	}
+	if got := take(long); got != "2s" { // nobody covers 2s, so any server takes it
+		t.Fatalf("long host took %q, want 2s", got)
+	}
+	if got := take(long); got != "" {
+		t.Fatalf("long host took %q, want nothing (7s belongs to the fast host)", got)
+	}
+	if got := take(fast); got != "7s" {
+		t.Fatalf("fast host took %q, want 7s", got)
+	}
+
+	// If the covering host is down, another host picks the clip up.
+	fast.ready = false
+	p.queue = []transcriptJob{{clipID: "9s", durationMs: 9000}}
+	if got := take(long); got != "9s" {
+		t.Fatalf("fallback took %q, want 9s", got)
+	}
+}
+
+func TestClipTimingSummary(t *testing.T) {
+	got := clipTimingSummary(118800*time.Millisecond, 38200, 0)
+	if want := " (clip 38.2s, 3.11x real time, 80.6s slower than real time)"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got := clipTimingSummary(time.Second, 0, 0); got != "" {
+		t.Fatalf("unknown length = %q, want empty", got)
+	}
+}
+
 func TestWhisperPoolShortestLiveClipFirst(t *testing.T) {
 	p := newWhisperPool(whisperConfig{}, nil, log.New(io.Discard, "", 0))
 	now := time.Now()

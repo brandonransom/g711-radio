@@ -37,6 +37,10 @@ type transcriptJob struct {
 	// sizeBytes is the WAV size at submit time, used to run shorter clips
 	// first (see pickLiveJobLocked).
 	sizeBytes int64
+	// durationMs is the clip length read from the WAV at submit time, used
+	// to route it to a server (see whisperConfig.RemoteClipRanges). Zero
+	// means unknown.
+	durationMs int
 	// backfill marks jobs queued by the archive backfill (see backfill.go).
 	backfill bool
 }
@@ -77,6 +81,13 @@ type whisperConfig struct {
 	RemoteServers []string `json:"remoteServers"`
 	// RemoteModels labels models on hosts that do not report their model.
 	RemoteModels map[string]string `json:"remoteModels"`
+	// RemoteClipRanges restricts which clip lengths a remote server is sent,
+	// keyed by a URL listed in RemoteServers. A clip is sent to a server
+	// when minMs <= length < maxMs (maxMs 0 = no upper limit). Servers not
+	// listed accept every length. If no ready server covers a clip's
+	// length, any server takes it, so nothing is stranded. Clips shorter
+	// than autoTranscribeMinClipMs are never queued automatically.
+	RemoteClipRanges map[string]clipRange `json:"remoteClipRanges"`
 
 	// ServerBinaryPath is the whisper.cpp whisper-server executable (local mode).
 	ServerBinaryPath string `json:"serverBinaryPath"`
@@ -122,6 +133,16 @@ type whisperConfig struct {
 	// how to migrate instead of failing with a bare "unknown field" error.
 	LegacyBinaryPath string `json:"binaryPath"`
 	LegacyRemoteHost string `json:"remoteHost"`
+}
+
+// clipRange is a half-open clip length window in milliseconds.
+type clipRange struct {
+	MinMs int `json:"minMs"`
+	MaxMs int `json:"maxMs"` // 0 = no upper limit
+}
+
+func (r clipRange) covers(durationMs int) bool {
+	return durationMs >= r.MinMs && (r.MaxMs == 0 || durationMs < r.MaxMs)
 }
 
 // reservedServerArgs are flags g711-radio sets itself when launching a local
@@ -174,6 +195,20 @@ func (c *whisperConfig) validate() error {
 			return fmt.Errorf("remoteModels: duplicate normalized server URL %q", base)
 		}
 		modelLabels[base] = true
+	}
+	rangeHosts := map[string]bool{}
+	for raw, r := range c.RemoteClipRanges {
+		base, err := whisperServerURL(raw)
+		if err != nil || !modelHosts[base] {
+			return fmt.Errorf("remoteClipRanges: %q must name a configured remote server", raw)
+		}
+		if rangeHosts[base] {
+			return fmt.Errorf("remoteClipRanges: duplicate normalized server URL %q", base)
+		}
+		rangeHosts[base] = true
+		if r.MinMs < 0 || r.MaxMs < 0 || (r.MaxMs > 0 && r.MaxMs <= r.MinMs) {
+			return fmt.Errorf("remoteClipRanges: %q needs minMs >= 0 and maxMs 0 or greater than minMs", raw)
+		}
 	}
 	for _, arg := range c.ServerArgs {
 		flagName, _, _ := strings.Cut(arg, "=")
@@ -303,6 +338,15 @@ type whisperEndpoint struct {
 	busy    bool
 	model   string
 	checked time.Time
+
+	// clips, when non-nil, limits which clip lengths this endpoint is sent.
+	clips *clipRange
+}
+
+// covers reports whether the endpoint is configured to take a clip of this
+// length. Unknown lengths (0) are accepted by every endpoint.
+func (e *whisperEndpoint) covers(durationMs int) bool {
+	return e.clips == nil || durationMs <= 0 || e.clips.covers(durationMs)
 }
 
 func newWhisperEndpoint(label, baseURL string, managed bool) *whisperEndpoint {
@@ -384,7 +428,7 @@ func newWhisperPool(cfg whisperConfig, hub *transcriptHub, logger *log.Logger) *
 	}
 	p := &whisperPool{
 		cfg:        cfg,
-		ready:      make(chan struct{}, 1),
+		ready:      make(chan struct{}, 64),
 		hub:        hub,
 		logger:     logger,
 		done:       make(chan struct{}),
@@ -442,6 +486,13 @@ func (p *whisperPool) Start() error {
 					ep.model = strings.TrimSpace(model) + " (configured)"
 				}
 			}
+			for raw, r := range p.cfg.RemoteClipRanges {
+				base, _ := whisperServerURL(raw)
+				if base == ep.baseURL {
+					ep.clips = &clipRange{MinMs: r.MinMs, MaxMs: r.MaxMs}
+					p.logger.Printf("whisper: %s takes clips from %dms up to %s", ep.label, r.MinMs, maxLabel(r.MaxMs))
+				}
+			}
 			p.wg.Add(1)
 			go func() {
 				defer p.wg.Done()
@@ -461,6 +512,35 @@ func (p *whisperPool) Start() error {
 		}()
 	}
 	return nil
+}
+
+// clipTimingSummary describes how long transcription took relative to the
+// clip's own length, e.g. " (clip 38.2s, 3.1x real time, +80.6s slower than
+// real time)". It is empty when the clip length is unknown.
+func clipTimingSummary(took time.Duration, jobMs int, reportedMs int64) string {
+	clipMs := int64(jobMs)
+	if clipMs <= 0 {
+		clipMs = reportedMs
+	}
+	if clipMs <= 0 {
+		return ""
+	}
+	clip := time.Duration(clipMs) * time.Millisecond
+	diff := took - clip
+	verb := "slower"
+	if diff < 0 {
+		verb = "faster"
+		diff = -diff
+	}
+	return fmt.Sprintf(" (clip %.1fs, %.2fx real time, %.1fs %s than real time)",
+		clip.Seconds(), took.Seconds()/clip.Seconds(), diff.Seconds(), verb)
+}
+
+func maxLabel(maxMs int) string {
+	if maxMs == 0 {
+		return "any length"
+	}
+	return fmt.Sprintf("%dms", maxMs)
 }
 
 // checkRemoteReachability initializes readiness from each server's /health.
@@ -586,6 +666,11 @@ func prepareJob(job transcriptJob) transcriptJob {
 			job.sizeBytes = fi.Size()
 		}
 	}
+	if job.durationMs == 0 && job.wavPath != "" {
+		if d, err := wavDurationMs(job.wavPath); err == nil {
+			job.durationMs = d
+		}
+	}
 	return job
 }
 
@@ -663,35 +748,65 @@ func (p *whisperPool) requeueFront(job transcriptJob) {
 	p.signal()
 }
 
+// signal wakes every idle worker, not just one, because a worker woken for a
+// job its server's clip range excludes must not consume the wakeup meant for
+// the server that can take it. Spurious wakeups are harmless.
 func (p *whisperPool) signal() {
-	select {
-	case p.ready <- struct{}{}:
-	default:
+	for range max(1, len(p.endpoints)) {
+		select {
+		case p.ready <- struct{}{}:
+		default:
+			return
+		}
 	}
 }
 
-// pickLiveJobLocked chooses which normal-priority job runs next. Retried
-// jobs and any clip that has waited liveJobMaxReorderWait go first, in queue
-// order; otherwise the shortest clip runs first. Shortest-first lowers the
-// average wait during bursts (a 2s clip no longer sits behind a 60s one)
-// without changing how much work the servers do. Callers hold p.mu.
-func (p *whisperPool) pickLiveJobLocked(now time.Time) int {
-	best := 0
+// eligibleLocked reports whether ep may take job. A nil ep takes anything.
+// A server outside the clip's configured range still takes it when no ready
+// server covers that length. Callers hold p.mu.
+func (p *whisperPool) eligibleLocked(ep *whisperEndpoint, job transcriptJob) bool {
+	if ep == nil || ep.covers(job.durationMs) {
+		return true
+	}
+	for _, other := range p.endpoints {
+		if other != ep && other.covers(job.durationMs) && other.isReady() {
+			return false
+		}
+	}
+	return true
+}
+
+// pickLiveJobLocked chooses which normal-priority job ep runs next, or -1 if
+// none is eligible. Retried jobs and any clip that has waited
+// liveJobMaxReorderWait go first, in queue order; otherwise the shortest clip
+// runs first. Shortest-first lowers the average wait during bursts (a 2s clip
+// no longer sits behind a 60s one) without changing how much work the servers
+// do. Callers hold p.mu.
+func (p *whisperPool) pickLiveJobLocked(now time.Time, ep *whisperEndpoint) int {
+	best := -1
 	for i, job := range p.queue {
+		if !p.eligibleLocked(ep, job) {
+			continue
+		}
 		if job.retries > 0 || now.Sub(job.queuedAt) >= liveJobMaxReorderWait {
 			return i
 		}
-		if job.sizeBytes < p.queue[best].sizeBytes {
+		if best < 0 || job.sizeBytes < p.queue[best].sizeBytes {
 			best = i
 		}
 	}
 	return best
 }
 
-// takeJobLocked removes and returns the next runnable job. Callers hold p.mu.
+// takeJobLocked removes and returns the next runnable job for any server.
+// Callers hold p.mu.
 func (p *whisperPool) takeJobLocked() (transcriptJob, bool) {
-	if len(p.queue) > 0 {
-		i := p.pickLiveJobLocked(time.Now())
+	return p.takeJobForLocked(nil)
+}
+
+// takeJobForLocked is takeJobLocked restricted to jobs ep may run.
+func (p *whisperPool) takeJobForLocked(ep *whisperEndpoint) (transcriptJob, bool) {
+	if i := p.pickLiveJobLocked(time.Now(), ep); i >= 0 {
 		job := p.queue[i]
 		if i == 0 {
 			p.queue = p.queue[1:]
@@ -700,8 +815,16 @@ func (p *whisperPool) takeJobLocked() (transcriptJob, bool) {
 		}
 		return job, true
 	}
+	if len(p.queue) > 0 {
+		// Live jobs are waiting for other servers; leave bulk work alone so
+		// it does not jump ahead of them.
+		return transcriptJob{}, false
+	}
 	for i, job := range p.bulkQueue {
 		if job.backfill && p.backfillRunning >= p.backfillSlots() {
+			continue
+		}
+		if !p.eligibleLocked(ep, job) {
 			continue
 		}
 		if i == 0 {
@@ -734,6 +857,11 @@ func (p *whisperPool) finishJob(job transcriptJob) {
 // always go first; bulk jobs only run when nothing else is waiting. Every job
 // returned must be passed to finishJob once the attempt ends.
 func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
+	return p.nextJobFor(nil)
+}
+
+// nextJobFor is nextJob restricted to jobs ep may run.
+func (p *whisperPool) nextJobFor(ep *whisperEndpoint) (transcriptJob, int, bool) {
 	for {
 		select {
 		case <-p.done:
@@ -741,7 +869,7 @@ func (p *whisperPool) nextJob() (transcriptJob, int, bool) {
 		default:
 		}
 		p.mu.Lock()
-		job, found := p.takeJobLocked()
+		job, found := p.takeJobForLocked(ep)
 		if found {
 			delete(p.queued, job.wavPath)
 			if job.wavPath != "" {
@@ -823,7 +951,7 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		if !p.awaitEndpoint(ep) {
 			return
 		}
-		job, waiting, ok := p.nextJob()
+		job, waiting, ok := p.nextJobFor(ep)
 		if !ok {
 			return
 		}
@@ -915,14 +1043,16 @@ func (p *whisperPool) worker(ep *whisperEndpoint) {
 		if text == "" {
 			// No speech detected — a normal outcome (e.g. a keyed-up but
 			// silent transmission), published so the clip isn't left pending.
-			p.logger.Printf("whisper %s: clip %s from %s produced no speech in %s (queue depth: %d)",
-				ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond), p.queueDepth())
+			p.logger.Printf("whisper %s: clip %s from %s produced no speech in %s%s (queue depth: %d)",
+				ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond),
+				clipTimingSummary(time.Since(started), job.durationMs, result.AudioMs), p.queueDepth())
 			p.publish(job, noSpeechMarker)
 			continue
 		}
 		p.publish(job, text)
-		p.logger.Printf("whisper %s: clip %s from %s done in %s (queue depth: %d): %s",
-			ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond), p.queueDepth(), text)
+		p.logger.Printf("whisper %s: clip %s from %s done in %s%s (queue depth: %d): %s",
+			ep.label, job.clipID, job.info.StreamName, time.Since(started).Round(time.Millisecond),
+			clipTimingSummary(time.Since(started), job.durationMs, result.AudioMs), p.queueDepth(), text)
 	}
 }
 
