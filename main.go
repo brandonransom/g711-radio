@@ -199,6 +199,11 @@ type appConfig struct {
 	// dashboard; see analyticsConfig in analytics.go. Omit to disable.
 	Analytics *analyticsConfig `json:"analytics"`
 
+	// MulticastPing, when set, periodically sends a small datagram to every
+	// distinct multicast group in the streams config to keep mroutes alive;
+	// see multicast_ping.go. Read at startup only.
+	MulticastPing *multicastPingConfig `json:"multicastPing"`
+
 	CertFile       string            `json:"certFile"`
 	KeyFile        string            `json:"keyFile"`
 	PFXFile        string            `json:"pfxFile"`
@@ -1017,6 +1022,11 @@ func main() {
 		logger.Printf("stream config: reload disabled (streamsReloadSeconds < 0); restart to apply stream changes")
 	}
 
+	if config.MulticastPing != nil {
+		go runMulticastPing(ctx, *config.MulticastPing, server.stationList, logger)
+		go runMulticastPingPeers(ctx, *config.MulticastPing, server.stationList, logger)
+	}
+
 	if len(config.Uplinks) > 0 {
 		edgeHandler := server.edgeHandler(mux)
 		for _, u := range config.Uplinks {
@@ -1282,6 +1292,12 @@ func loadConfig(path string) (appConfig, error) {
 	if config.Analytics != nil {
 		if err := config.Analytics.normalize(); err != nil {
 			return appConfig{}, fmt.Errorf("%s: analytics: %w", path, err)
+		}
+	}
+
+	if config.MulticastPing != nil {
+		if err := config.MulticastPing.normalize(); err != nil {
+			return appConfig{}, fmt.Errorf("%s: multicastPing: %w", path, err)
 		}
 	}
 

@@ -243,6 +243,27 @@ Example:
 - **Dropout**: After 200 ms without valid audio on the active port, the next valid packet from any port can become active, including an older transmission still running.
 - **Packet-based detection**: Encoded silence counts as activity; no speech detection or PTT signaling is used. Gaps shorter than 200 ms do not identify a fresh burst on a previously active port. Precedence follows server-observed burst starts, not RTP timestamps or port order.
 
+### Multicast pings (keeping mroutes alive)
+
+Add an optional top-level `multicastPing` block to `config.json` and the server sends a small UDP datagram from the WebRTC host to every multicast group used by the streams, so routers keep the multicast state alive on quiet groups:
+
+```json
+"multicastPing": { "port": 9999, "intervalSeconds": 30, "ttl": 16 }
+```
+
+- `port` (required): destination UDP port of the pings. Use a port no stream listens on.
+- `intervalSeconds`: seconds between rounds (default 30). Each round sends one ping to every group back to back. A round is also sent at startup.
+- `ttl`: IP multicast TTL (default 16, max 255).
+
+Each group address is pinged once per round no matter how many streams or ports use it. The group list follows stream reloads; the `multicastPing` settings themselves are read at startup only. Pings leave via the OS default multicast interface.
+
+The server also listens on `port` for pings from other devices on each of those groups (pings from this host are ignored):
+
+- `peerLogFile` (default `mping-peers.log`): appended events — `NEW` peer, `SILENT` (no ping for `peerTimeoutSeconds`), `RESUMED`.
+- `peerStatusFile` (default `mping-peers.txt`): rewritten every 2s, listing groups and, within each, peers ordered by last time heard (most recent first), with ping counts and an `ok`/`STALE` flag.
+- `peerTimeoutSeconds` (default 300): silence after which a peer is marked `STALE`. Peers normally ping about every 2 minutes.
+- `peerWindow` (default `true` on Windows, `false` elsewhere): open a separate console window that continuously shows the status file. On other platforms, `watch -n2 cat mping-peers.txt` does the same.
+
 ### Backward Compatibility
 
 Existing configs with single `udpPort` continue to work unchanged. Multicast is purely opt-in.
