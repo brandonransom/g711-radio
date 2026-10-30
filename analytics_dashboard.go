@@ -128,6 +128,7 @@ type rangeOpt struct {
 
 type dashData struct {
 	BasePath      string
+	SuperUser     bool
 	Days          int
 	From, To      string
 	Ranges        []rangeOpt
@@ -207,9 +208,13 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 			return
 		}
 		privateHeaders(w)
+		if isSuperUser(r) && !a.super.authorize(w, r) {
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		data := a.dashboard(parseDays(r), live, inventory, transcription...)
 		data.BasePath = path
+		data.SuperUser = isSuperUser(r)
 		if data.TxHasReset && r.URL.Query().Get("tx") == "since" {
 			data.Transcription = data.TxSince
 			data.TxShowSince = true
@@ -232,6 +237,8 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 		a.logger.Printf("analytics: transcription statistics reset marker set")
 		http.Redirect(w, r, path+"?tx=since#transcription", http.StatusSeeOther)
 	})
+	mux.HandleFunc(path+"/csr", a.handleCSR)
+	mux.HandleFunc(path+"/password", a.handlePassword)
 	mux.HandleFunc(path+"/events.csv", func(w http.ResponseWriter, r *http.Request) {
 		privateHeaders(w)
 		a.exportEvents(w, parseDays(r))

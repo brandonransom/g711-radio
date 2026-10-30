@@ -250,5 +250,28 @@
   Raw events are {{.Retention}}{{if .RawFrom}}; available from {{.RawFrom}}{{end}}. Older days keep daily totals and per-network totals only.<br>
   <a href="{{.BasePath}}/networks.csv?days={{.Days}}">networks.csv</a> — per-network totals with any location data, for geolocating with other sources.
 </p>
+
+{{if .SuperUser}}
+<h2>HTTPS certificate request (CSR)</h2>
+<p class="muted">Generates a new RSA private key and a PEM CSR to submit to a certificate authority. The CSR downloads to the browser; the private key stays on the server in the <code>csr</code> folder of the analytics directory.</p>
+<form method="post" action="{{.BasePath}}/csr?user=super" style="display:grid;gap:8px;max-width:520px">
+  <label>Common name (host name) <input name="cn" required placeholder="radio.example.org" style="width:100%"></label>
+  <label>Additional names (SANs), comma or space separated <input name="sans" placeholder="www.example.org, 203.0.113.5" style="width:100%"></label>
+  <label>Organization <input name="org" style="width:100%"></label>
+  <label>Locality <input name="locality" style="width:100%"></label>
+  <label>State / province <input name="state" style="width:100%"></label>
+  <label>Country (2 letters) <input name="country" maxlength="2" style="width:100%"></label>
+  <label>Key size <select name="bits"><option>2048</option><option>3072</option><option>4096</option></select></label>
+  <div><button type="submit">Generate CSR</button></div>
+</form>
+
+<h2>Change super user password</h2>
+<form method="post" action="{{.BasePath}}/password?user=super" style="display:grid;gap:8px;max-width:520px">
+  <label>Current password <input type="password" name="current" required autocomplete="current-password" style="width:100%"></label>
+  <label>New password (12+ characters) <input type="password" name="new" required minlength="12" maxlength="72" autocomplete="new-password" style="width:100%"></label>
+  <label>Confirm new password <input type="password" name="confirm" required minlength="12" maxlength="72" autocomplete="new-password" style="width:100%"></label>
+  <div><button type="submit">Change password</button></div>
+</form>
+{{end}}
 </body>
 </html>
