@@ -996,6 +996,7 @@ func main() {
 			events = []transcriptEvent{}
 		}
 		feedback.ApplyToHistory(events)
+		annotateTranscriptionStatus(events, server.whisperPool, st.cfg.DisableAutoTranscribe)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(events)
 	})

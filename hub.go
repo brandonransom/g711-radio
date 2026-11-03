@@ -33,7 +33,7 @@ type transcriptEvent struct {
 	ClipID     string    `json:"clipId"`
 	StreamID   string    `json:"streamId"`
 	StreamName string    `json:"streamName"`
-	StateName string    `json:"stateName"`
+	StateName  string    `json:"stateName"`
 	GroupName  string    `json:"groupName"`
 	Text       string    `json:"text,omitempty"`
 	AudioURL   string    `json:"audioUrl,omitempty"`
@@ -49,6 +49,34 @@ type transcriptEvent struct {
 	// never persisted to the transcript logs; transcript-feedback.csv is its
 	// source of truth (see feedbackStore).
 	Corrected string `json:"corrected,omitempty"`
+	// Transcription is the status of a clip that has no text yet: "manual"
+	// (the stream has automatic transcription off), "queued" (QueuePosition
+	// is its estimated place in line) or "running". Computed per request,
+	// never persisted.
+	Transcription string `json:"transcription,omitempty"`
+	QueuePosition int    `json:"queuePosition,omitempty"`
+	QueueLength   int    `json:"queueLength,omitempty"`
+}
+
+// annotateTranscriptionStatus fills in the status fields on recordings that
+// have no transcript yet.
+func annotateTranscriptionStatus(events []transcriptEvent, pool *whisperPool, autoDisabled bool) {
+	positions, total := pool.clipPositions()
+	for i := range events {
+		ev := &events[i]
+		if ev.Text != "" || ev.AudioURL == "" {
+			continue
+		}
+		pos, inPool := positions[ev.WAVFilename]
+		switch {
+		case inPool && pos == 0:
+			ev.Transcription = "running"
+		case inPool:
+			ev.Transcription, ev.QueuePosition, ev.QueueLength = "queued", pos, total
+		case autoDisabled:
+			ev.Transcription = "manual"
+		}
+	}
 }
 
 // wavBaseName returns the filename portion of a clip's WAV path, or "" when
@@ -420,7 +448,7 @@ func scanStreamRecordings(audioLogDir string, info streamInfo, since, until time
 			ClipID:      entry.Name(),
 			StreamID:    info.ID,
 			StreamName:  info.StreamName,
-			StateName:  info.StateName,
+			StateName:   info.StateName,
 			GroupName:   info.GroupName,
 			AudioURL:    audioURL,
 			DurationMs:  durationMs,

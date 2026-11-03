@@ -338,17 +338,22 @@ func (s *webrtcServer) startStation(stateName, groupName string, cfg streamConfi
 						clipID = nextClipID()
 					}
 					// Publish clip event immediately so the UI shows the recording.
+					clipStatus := ""
+					if !autoTranscribe {
+						clipStatus = "manual"
+					}
 					hub.Publish(transcriptEvent{
-						Type:        "clip",
-						ClipID:      clipID,
-						StreamID:    info.ID,
-						StreamName:  info.StreamName,
-						StateName:   info.StateName,
-						GroupName:   info.GroupName,
-						AudioURL:    audioURL,
-						DurationMs:  durationMs,
-						Timestamp:   start,
-						WAVFilename: wavBaseName(requestWavPath),
+						Type:          "clip",
+						Transcription: clipStatus,
+						ClipID:        clipID,
+						StreamID:      info.ID,
+						StreamName:    info.StreamName,
+						StateName:     info.StateName,
+						GroupName:     info.GroupName,
+						AudioURL:      audioURL,
+						DurationMs:    durationMs,
+						Timestamp:     start,
+						WAVFilename:   wavBaseName(requestWavPath),
 					})
 					s.storeClip(clipRecord{
 						clipID:     clipID,

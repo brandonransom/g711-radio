@@ -446,6 +446,41 @@ func TestConfigLegacyRegionsKey(t *testing.T) {
 	}
 }
 
+func TestAnnotateTranscriptionStatus(t *testing.T) {
+	p := newWhisperPool(whisperConfig{}, nil, log.New(io.Discard, "", 0))
+	job := func(name string, size int64) transcriptJob {
+		return transcriptJob{clipID: name, wavPath: filepath.Join("audio", name+".wav"), sizeBytes: size, durationMs: 1}
+	}
+	p.Submit(job("long", 900))
+	p.Submit(job("short", 100))
+	p.SubmitBulk(job("bulk", 50))
+	p.Submit(job("run", 10))
+	if _, _, ok := p.nextJob(); !ok { // takes "run" (shortest)
+		t.Fatal("nextJob failed")
+	}
+	events := []transcriptEvent{
+		{WAVFilename: "run.wav", AudioURL: "/a"},
+		{WAVFilename: "short.wav", AudioURL: "/a"},
+		{WAVFilename: "long.wav", AudioURL: "/a"},
+		{WAVFilename: "bulk.wav", AudioURL: "/a"},
+		{WAVFilename: "idle.wav", AudioURL: "/a"},
+		{WAVFilename: "done.wav", AudioURL: "/a", Text: "hi"},
+	}
+	annotateTranscriptionStatus(events, p, true)
+	want := []struct {
+		state string
+		pos   int
+	}{{"running", 0}, {"queued", 1}, {"queued", 2}, {"queued", 3}, {"manual", 0}, {"", 0}}
+	for i, w := range want {
+		if events[i].Transcription != w.state || events[i].QueuePosition != w.pos {
+			t.Fatalf("event %d = %q/%d, want %q/%d", i, events[i].Transcription, events[i].QueuePosition, w.state, w.pos)
+		}
+	}
+	if events[1].QueueLength != 3 {
+		t.Fatalf("QueueLength = %d, want 3", events[1].QueueLength)
+	}
+}
+
 func TestWhisperPoolBulkPriorityAndDedupe(t *testing.T) {
 	p := newWhisperPool(whisperConfig{}, nil, log.New(io.Discard, "", 0))
 	job := func(name string) transcriptJob {

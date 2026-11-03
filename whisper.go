@@ -681,6 +681,43 @@ func (p *whisperPool) queueDepth() int {
 	return len(p.queue) + len(p.bulkQueue)
 }
 
+// clipPositions maps each waiting or running clip's WAV file name to its
+// place in line: 0 while a server is transcribing it, otherwise 1 for the
+// next clip to start. The order follows pickLiveJobLocked (retried or aged
+// clips first, then shortest first) followed by the bulk queue, so it is an
+// estimate that shifts as new clips arrive. It also returns the queue length.
+func (p *whisperPool) clipPositions() (map[string]int, int) {
+	if p == nil {
+		return nil, 0
+	}
+	now := time.Now()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	positions := make(map[string]int, len(p.inFlight)+len(p.queue)+len(p.bulkQueue))
+	for wav := range p.inFlight {
+		positions[filepath.Base(wav)] = 0
+	}
+	var urgent, normal []transcriptJob
+	for _, job := range p.queue {
+		if job.retries > 0 || now.Sub(job.queuedAt) >= liveJobMaxReorderWait {
+			urgent = append(urgent, job)
+		} else {
+			normal = append(normal, job)
+		}
+	}
+	sort.SliceStable(normal, func(i, j int) bool { return normal[i].sizeBytes < normal[j].sizeBytes })
+	n := 0
+	for _, jobs := range [][]transcriptJob{urgent, normal, p.bulkQueue} {
+		for _, job := range jobs {
+			n++
+			if job.wavPath != "" {
+				positions[filepath.Base(job.wavPath)] = n
+			}
+		}
+	}
+	return positions, n
+}
+
 // isBusy reports whether any transcription jobs are queued or actively
 // running. Archive backfill work alone does not count: it only runs while the
 // pool is otherwise idle.

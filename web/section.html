@@ -1789,7 +1789,20 @@
       // 8-day retention window a busy state can have thousands of rows and
       // doing two DOM passes (and a forced layout per row) is what caused
       // the page to lag/hang while history loaded.
-      function buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text, wav) {
+      // Placeholder shown while a recording has no transcript. status is
+      // {state, pos, len} from the server (see transcriptEvent.Transcription).
+      function pendingStatusText(status, queuedByUser) {
+        const state = status && status.state;
+        if (state === "running") return "Transcribing...";
+        if (state === "queued") {
+          return status.pos > 0 && status.len > 0 ? `Queued (#${status.pos} of ${status.len})` : "Queued";
+        }
+        if (queuedByUser) return "Queued";
+        if (state === "manual") return "Not auto-transcribed (use Transcribe)";
+        return "Recording received.";
+      }
+
+      function buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, text, wav, status) {
         const entry = document.createElement("div");
         entry.className = "transcript-entry";
         entry.dataset.clipKey = key;
@@ -1818,7 +1831,7 @@
           contentEl.textContent = text;
         } else {
           contentEl.className = "transcript-text transcript-pending";
-          contentEl.textContent = audioUrl ? "Recording received." : "";
+          contentEl.textContent = audioUrl ? pendingStatusText(status, isTranscriptionPending([key, wav])) : "";
         }
         const fix = lookupCorrection([key, wav]);
         if (fix) showCorrection(contentEl, text || fix.original, fix.corrected);
@@ -1849,6 +1862,9 @@
           const hadText = transcribeBtn.textContent !== "Transcribe";
           setTranscriptionPending([key, wav], true);
           setTranscribeButtonState(transcribeBtn, true, hadText);
+          const pendingEl = entry.querySelector(".transcript-text.transcript-pending");
+          const previousText = pendingEl ? pendingEl.textContent : "";
+          if (pendingEl) pendingEl.textContent = "Queued";
           try {
             const res = await fetch("/transcripts/request", {
               method: "POST",
@@ -1859,6 +1875,7 @@
           } catch (_) {
             setTranscriptionPending([key, wav], false);
             setTranscribeButtonState(transcribeBtn, false, hadText);
+            if (pendingEl) pendingEl.textContent = previousText;
           }
         });
         entry.appendChild(transcribeBtn);
@@ -2107,12 +2124,12 @@
         if (!transcriptLog.querySelector(".transcript-empty")) applyHistoryFiltersAndRender(false);
       }
 
-      function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, wav) {
+      function appendClip(key, streamName, isoTimestamp, audioUrl, durationMs, wav, status) {
         // Keep excluded clips in history so changing the selection reveals them.
         const streamId = key.slice(0, key.indexOf(":"));
-        historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text: "", wav });
+        historyEntries.push({ key, streamId, streamName, timestamp: isoTimestamp, audioUrl, durationMs, text: "", wav, status });
         if (passesStreamFilter(streamId)) {
-          insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, "", wav));
+          insertLiveEntry(buildTranscriptEntry(key, streamName, isoTimestamp, audioUrl, durationMs, "", wav, status));
         }
       }
 
@@ -2198,7 +2215,8 @@
             const key = clipKey(payload.streamId, payload.clipId, payload.timestamp);
             const wav = wavKey(payload.streamId, payload.wavFilename);
             if (payload.type === "clip") {
-              appendClip(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs, wav);
+              appendClip(key, payload.streamName, payload.timestamp, payload.audioUrl, payload.durationMs, wav,
+                payload.transcription ? { state: payload.transcription } : undefined);
             } else if (payload.type === "transcribing") {
               markTranscribing(key, wav);
             } else if (payload.type === "transcript") {
@@ -2378,7 +2396,7 @@
         // large states).
         const fragment = document.createDocumentFragment();
         for (const ev of toRender) {
-          fragment.append(buildTranscriptEntry(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || "", ev.wav));
+          fragment.append(buildTranscriptEntry(ev.key, ev.streamName, ev.timestamp, ev.audioUrl, ev.durationMs, ev.text || "", ev.wav, ev.status));
         }
         transcriptLog.append(fragment);
         if (notice && historyNewestFirst) transcriptLog.append(notice);
@@ -2469,6 +2487,9 @@
               entry.timestamp = ev.timestamp;
               entry.audioUrl = ev.audioUrl;
               if (ev.durationMs) entry.durationMs = ev.durationMs;
+              if (ev.transcription) {
+                entry.status = { state: ev.transcription, pos: ev.queuePosition, len: ev.queueLength };
+              }
             }
             if (ev.type === "transcript" || !ev.type) {
               if (ev.text) entry.text = ev.text;
