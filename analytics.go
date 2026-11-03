@@ -327,7 +327,7 @@ func openAnalyticsStoreAt(cfg analyticsConfig, logger *log.Logger, now func() ti
 		return nil, err
 	}
 	a.loadSalt()
-	a.super = newSuperAuth(cfg.Dir, now)
+	a.super = newSuperAuth(cfg.Dir, now, logger)
 	a.mu.Lock()
 	a.appendLocked(analyticsEvent{Time: now(), Type: evServerStart})
 	a.mu.Unlock()

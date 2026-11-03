@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/subtle"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -36,14 +37,19 @@ type superAuth struct {
 	lockUntil time.Time
 }
 
-func newSuperAuth(dir string, now func() time.Time) *superAuth {
+func newSuperAuth(dir string, now func() time.Time, logger *log.Logger) *superAuth {
 	s := &superAuth{path: filepath.Join(dir, superPassFile), now: now}
 	if b, err := os.ReadFile(s.path); err == nil {
 		s.hash = []byte(strings.TrimSpace(string(b)))
 	} else if pw := os.Getenv(superPassEnv); pw != "" {
 		if err := s.setPassword(pw); err != nil {
 			s.hash = nil
+			if logger != nil {
+				logger.Printf("analytics: super user seed from %s failed: %v", superPassEnv, err)
+			}
 		}
+	} else if logger != nil {
+		logger.Printf("analytics: super user not configured: %s missing and %s is not set", s.path, superPassEnv)
 	}
 	return s
 }
