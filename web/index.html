@@ -2621,7 +2621,7 @@
             sectionPagePath(state.stateName),
             state.stateName,
             `${formatStreamCount(stateStreams.length)} · ${state.unitSummary}`,
-            "Open state page →",
+            state.aggregate ? "Open aggregate page →" : "Open state page →",
             state.subGroups.map((group) =>
               buildDirectoryLink(sectionPagePath(state.stateName, group.groupName), group.groupName, `${formatStreamCount(group.streams.length)} · ${group.unitType}`,
                 group.streams.map((stream) => stream.id), group.streams)),

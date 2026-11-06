@@ -183,6 +183,12 @@
         line-height: 1.25;
       }
 
+      .stream-source {
+        margin: -4px 0 6px;
+        font-size: 0.8rem;
+        color: #5b6b66;
+      }
+
       .stream-title-row {
         display: flex;
         align-items: flex-start;
@@ -1389,6 +1395,8 @@
         }
       }
 
+      let showStreamSource = false;
+
       function buildCard(stream) {
         const el = document.createElement("section");
         el.className = "stream";
@@ -1398,6 +1406,12 @@
         const title = document.createElement("h3");
         title.append(buildActivityDot([stream.id]), buildLink(streamPagePath(stream), stream.streamName, "Open this stream's own page"));
         titleRow.append(title, buildFavoriteToggle(stream));
+
+        const sourceEl = showStreamSource ? document.createElement("div") : null;
+        if (sourceEl) {
+          sourceEl.className = "stream-source";
+          sourceEl.textContent = `${stream.groupName} · ${stream.stateName}`;
+        }
 
         const statusEl = document.createElement("div");
         statusEl.className = "stream-status";
@@ -1424,7 +1438,9 @@
         audioEl.autoplay = true;
         audioEl.playsInline = true;
 
-        el.append(titleRow, statusEl, vu, button, audioEl);
+        el.append(titleRow);
+        if (sourceEl) el.append(sourceEl);
+        el.append(statusEl, vu, button, audioEl);
 
         const card = {
           stream,
@@ -2640,6 +2656,7 @@
             pageSubtitle.append(`${forest.unitType} in `, buildLink(sectionPagePath(state.stateName), state.stateName, "Open this state's page"));
             document.title = `${forest.groupName} / ${state.stateName} - Radio Streams`;
             connectAllBtn.parentElement.append(buildGroupFavoriteToggle(forest.streams, "forest", forest.groupName, true, forest.unitType));
+            showStreamSource = !!state.aggregate;
             content.append(renderStreamsGrid(forest.streams));
           } else if (state.aggregate) {
             // A stream can match several sub-pages but each card needs a
@@ -2663,6 +2680,7 @@
             });
             document.title = `${state.stateName} - Radio Streams`;
             connectAllBtn.parentElement.append(buildGroupFavoriteToggle(unique, "state", state.stateName, true));
+            showStreamSource = true;
             content.append(renderStreamsGrid(unique));
           } else {
             pageTitle.textContent = state.stateName;
