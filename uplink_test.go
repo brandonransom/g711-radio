@@ -111,7 +111,8 @@ func TestEdgeExampleConfigLoads(t *testing.T) {
 		t.Fatalf("unexpected edge config: %+v", cfg)
 	}
 
-	os.WriteFile(configPath, []byte(`{"httpPort":443,"states":{"S":{"G":[{"streamName":"A","udpPort":5000}]}}}`), 0o600)
+	os.WriteFile("streams.json", []byte(`{"states":{"S":{"G":[{"streamName":"A","udpPort":5000}]}}}`), 0o600)
+	os.WriteFile(configPath, []byte(`{"httpPort":443,"streamsFile":"streams.json"}`), 0o600)
 	os.WriteFile(secretsPath, []byte(`{"uplinks":[{"url":"https://edge.example.gov","token":"`+testUplinkToken+`"}]}`), 0o600)
 	cfg, err = loadConfig(configPath)
 	if err != nil {

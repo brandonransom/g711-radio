@@ -51,7 +51,9 @@
       "Plumas NF": [
         { "streamName": "Admin Net", "udpPort": 51110, "timeZone": "America/Los_Angeles" },
         { "streamName": "Forest Net", "udpPort": 51160, "timeZone": "America/Los_Angeles" },
-        { "streamName": "Forest Net (Repeater)", "udpPort": 51161, "disableAutoTranscribe": true, "timeZone": "America/Los_Angeles" }
+        { "streamName": "Forest Net (Repeater)", "udpPort": 51161, "disableAutoTranscribe": true, "timeZone": "America/Los_Angeles" },
+        { "streamName": "Flight Follow", "udpPort": 51180, "tags": ["FF"], "timeZone": "America/Los_Angeles" },
+        { "streamName": "Air Guard", "udpPort": 51190, "tags": ["AG", "FF"], "timeZone": "America/Los_Angeles" }
       ],
       "Tahoe NF": [
         { "streamName": "Redundant Ports", "udpPorts": [51740, 51741], "timeZone": "America/Los_Angeles" },
@@ -71,6 +73,12 @@
       "Hawaii Experimental Tropical Forest": [
         { "streamName": "Hilo Net", "udpPort": 52015, "timeZone": "Pacific/Honolulu" }
       ]
+    }
+  },
+  "aggregates": {
+    "Aviation": {
+      "All Flight Follow": { "tags": ["FF"] },
+      "All Air Guard": { "tags": ["AG"] }
     }
   }
 }

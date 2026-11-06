@@ -16,21 +16,37 @@ import (
 const defaultStreamsReloadInterval = 2 * time.Second
 
 // streamsFileConfig is the layout of a separate streams file (see
-// appConfig.StreamsFile): the same "states" object config.json can hold
-// inline, with the legacy "regions" spelling still accepted.
+// appConfig.StreamsFile): the "states" object (the legacy "regions" spelling
+// is still accepted) and the optional "aggregates" pages built from tags.
 type streamsFileConfig struct {
-	States        map[string]map[string][]streamConfig `json:"states"`
-	LegacyRegions map[string]map[string][]streamConfig `json:"regions"`
+	States        map[string]map[string][]streamConfig  `json:"states"`
+	LegacyRegions map[string]map[string][]streamConfig  `json:"regions"`
+	Aggregates    map[string]map[string]aggregateFilter `json:"aggregates"`
 }
 
-func (f streamsFileConfig) normalize(path string) ([]configuredState, int, error) {
+// streamSet is everything a streams file defines.
+type streamSet struct {
+	States     []configuredState
+	Total      int
+	Aggregates []aggregate
+}
+
+func (f streamsFileConfig) normalize(path string) (streamSet, error) {
 	if len(f.LegacyRegions) > 0 {
 		if len(f.States) > 0 {
-			return nil, 0, fmt.Errorf("%s sets both \"states\" and the legacy \"regions\"; use only \"states\"", path)
+			return streamSet{}, fmt.Errorf("%s sets both \"states\" and the legacy \"regions\"; use only \"states\"", path)
 		}
 		f.States = f.LegacyRegions
 	}
-	return normalizeStates(path, f.States)
+	states, total, err := normalizeStates(path, f.States)
+	if err != nil {
+		return streamSet{}, err
+	}
+	aggs, err := normalizeAggregates(path, f.Aggregates, states)
+	if err != nil {
+		return streamSet{}, err
+	}
+	return streamSet{States: states, Total: total, Aggregates: aggs}, nil
 }
 
 // resolveStreamsPath resolves a relative streamsFile against the folder of
@@ -43,28 +59,14 @@ func resolveStreamsPath(configFile, streamsFile string) string {
 	return filepath.Join(filepath.Dir(configFile), streamsFile)
 }
 
-func loadStreamsFile(path string) ([]configuredState, int, error) {
+func loadStreamsFile(path string) (streamSet, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, 0, fmt.Errorf("read streams file: %w", err)
+		return streamSet{}, fmt.Errorf("read streams file: %w", err)
 	}
 	var f streamsFileConfig
 	if err := decodeJSONFile(path, data, &f, true, true); err != nil {
-		return nil, 0, err
-	}
-	return f.normalize(path)
-}
-
-// loadInlineStreams reads only the stream definitions from a config file
-// that keeps them inline; the other settings are not re-applied on reload.
-func loadInlineStreams(path string) ([]configuredState, int, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, 0, fmt.Errorf("read %s: %w", path, err)
-	}
-	var f streamsFileConfig
-	if err := decodeJSONFile(path, data, &f, false, true); err != nil {
-		return nil, 0, err
+		return streamSet{}, err
 	}
 	return f.normalize(path)
 }
@@ -72,7 +74,7 @@ func loadInlineStreams(path string) ([]configuredState, int, error) {
 // streamSource says where the stream definitions live, for reloads.
 type streamSource struct {
 	configFile  string
-	streamsPath string // empty: inline in configFile
+	streamsPath string
 }
 
 func (c appConfig) streamSource() streamSource {
@@ -94,26 +96,14 @@ func (c appConfig) streamsReloadInterval() time.Duration {
 	}
 }
 
-func (src streamSource) inline() bool { return src.streamsPath == "" }
-
 // streamsFile is the file whose changes add, remove or update streams.
-func (src streamSource) streamsFile() string {
-	if src.inline() {
-		return src.configFile
-	}
-	return src.streamsPath
-}
+func (src streamSource) streamsFile() string { return src.streamsPath }
 
-func (src streamSource) load() ([]configuredState, int, error) {
-	if src.inline() {
-		return loadInlineStreams(src.configFile)
-	}
-	return loadStreamsFile(src.streamsPath)
-}
+func (src streamSource) load() (streamSet, error) { return loadStreamsFile(src.streamsPath) }
 
-// settingsFingerprint hashes everything in the config file except inline
-// stream definitions, so a reload can tell when settings that only take
-// effect on restart were edited. Formatting-only edits do not count.
+// settingsFingerprint hashes the config file's settings, so a reload can
+// tell when settings that only take effect on restart were edited.
+// Formatting-only edits do not count.
 func (src streamSource) settingsFingerprint() (string, error) {
 	data, err := os.ReadFile(src.configFile)
 	if err != nil {
@@ -122,10 +112,6 @@ func (src streamSource) settingsFingerprint() (string, error) {
 	var raw map[string]json.RawMessage
 	if err := decodeJSONFile(src.configFile, data, &raw, false, true); err != nil {
 		return "", err
-	}
-	if src.inline() {
-		delete(raw, "states")
-		delete(raw, "regions")
 	}
 	keys := make([]string, 0, len(raw))
 	for k := range raw {

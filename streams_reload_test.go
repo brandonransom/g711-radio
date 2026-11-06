@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -26,27 +25,20 @@ func copyFile(t *testing.T, src, dst string) {
 	}
 }
 
-func TestSplitConfigExampleMatchesInline(t *testing.T) {
+func TestConfigExampleStreamsLoad(t *testing.T) {
 	dir := t.TempDir()
-	copyFile(t, "config.split.example.json", filepath.Join(dir, "config.json"))
+	copyFile(t, "config.example.json", filepath.Join(dir, "config.json"))
 	copyFile(t, "streams.example.json", filepath.Join(dir, "streams.json"))
 
-	split, err := loadConfig(filepath.Join(dir, "config.json"))
+	cfg, err := loadConfig(filepath.Join(dir, "config.json"))
 	if err != nil {
-		t.Fatalf("split example: %v", err)
+		t.Fatalf("example config: %v", err)
 	}
-	inline, err := loadConfig("config.example.json")
-	if err != nil {
-		t.Fatalf("inline example: %v", err)
+	if cfg.totalStreams == 0 || len(cfg.aggregates) != 1 || cfg.aggregates[0].Name != "Aviation" {
+		t.Fatalf("streams=%d aggregates=%+v", cfg.totalStreams, cfg.aggregates)
 	}
-	if !reflect.DeepEqual(split.streamGroups, inline.streamGroups) || split.totalStreams != inline.totalStreams {
-		t.Fatal("split example streams differ from the inline example")
-	}
-	if split.streamSource().streamsFile() != filepath.Join(dir, "streams.json") {
-		t.Fatalf("streams file resolved to %q", split.streamSource().streamsFile())
-	}
-	if inline.streamSource().streamsFile() != "config.example.json" {
-		t.Fatalf("inline source = %q", inline.streamSource().streamsFile())
+	if cfg.streamSource().streamsFile() != filepath.Join(dir, "streams.json") {
+		t.Fatalf("streams file resolved to %q", cfg.streamSource().streamsFile())
 	}
 }
 
@@ -62,8 +54,11 @@ func TestStreamsConfigValidation(t *testing.T) {
 	}
 	write("streams.json", `{"states": `+streams+`}`)
 
-	if _, err := loadConfig(write("both.json", `{"httpPort": 8080, "streamsFile": "streams.json", "states": `+streams+`}`)); err == nil {
-		t.Error("expected an error when both streamsFile and states are set")
+	if _, err := loadConfig(write("inline.json", `{"httpPort": 8080, "states": `+streams+`}`)); err == nil || !strings.Contains(err.Error(), "streamsFile") {
+		t.Errorf("inline states: err = %v", err)
+	}
+	if _, err := loadConfig(write("nofile.json", `{"httpPort": 8080}`)); err == nil || !strings.Contains(err.Error(), "streamsFile") {
+		t.Errorf("missing streamsFile: err = %v", err)
 	}
 	write("bad-streams.json", `{"states": `+streams+`, "httpPort": 1}`)
 	if _, err := loadConfig(write("bad.json", `{"httpPort": 8080, "streamsFile": "bad-streams.json"}`)); err == nil {
@@ -72,14 +67,18 @@ func TestStreamsConfigValidation(t *testing.T) {
 	if _, err := loadConfig(write("missing.json", `{"httpPort": 8080, "streamsFile": "nope.json"}`)); err == nil {
 		t.Error("expected a missing streams file to be an error")
 	}
-	dup := `{"Oregon": {"Umatilla NF": [{"streamName": "Pomeroy", "udpPort": 5004}, {"streamName": " Pomeroy ", "udpPort": 5005}]}}`
-	if _, err := loadConfig(write("dup.json", `{"httpPort": 8080, "states": `+dup+`}`)); err == nil || !strings.Contains(err.Error(), "duplicate streamName") {
+	write("dup-streams.json", `{"states": {"Oregon": {"Umatilla NF": [{"streamName": "Pomeroy", "udpPort": 5004}, {"streamName": " Pomeroy ", "udpPort": 5005}]}}}`)
+	if _, err := loadConfig(write("dup.json", `{"httpPort": 8080, "streamsFile": "dup-streams.json"}`)); err == nil || !strings.Contains(err.Error(), "duplicate streamName") {
 		t.Errorf("duplicate stream names: err = %v", err)
 	}
 	write("legacy-streams.json", `{"regions": `+streams+`}`)
 	cfg, err := loadConfig(write("legacy.json", `{"httpPort": 8080, "streamsFile": "legacy-streams.json"}`))
 	if err != nil || cfg.totalStreams != 1 {
 		t.Errorf("legacy regions in streams file: %v (streams=%d)", err, cfg.totalStreams)
+	}
+	write("both-streams.json", `{"states": `+streams+`, "regions": `+streams+`}`)
+	if _, err := loadConfig(write("both.json", `{"httpPort": 8080, "streamsFile": "both-streams.json"}`)); err == nil {
+		t.Error("expected an error when both states and regions are set")
 	}
 }
 
@@ -90,24 +89,17 @@ func TestSettingsFingerprint(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	src := streamSource{configFile: path}
-	write(`{"httpPort": 8080, "states": {"A": {}}}`)
+	src := streamSource{configFile: path, streamsPath: "streams.json"}
+	write(`{"httpPort": 8080, "streamsFile": "streams.json"}`)
 	a, _ := src.settingsFingerprint()
-	write(`{ "states": {"B": {"G": []}},   "httpPort": 8080 }`)
+	write(`{ "streamsFile": "streams.json",   "httpPort": 8080 }`)
 	b, _ := src.settingsFingerprint()
 	if a == "" || a != b {
-		t.Error("inline stream or formatting edits should not count as a settings change")
+		t.Error("formatting-only edits should not count as a settings change")
 	}
-	write(`{"httpPort": 8443, "states": {"B": {}}}`)
+	write(`{"httpPort": 8443, "streamsFile": "streams.json"}`)
 	if c, _ := src.settingsFingerprint(); c == b {
 		t.Error("httpPort change not detected")
-	}
-	split := streamSource{configFile: path, streamsPath: "streams.json"}
-	write(`{"httpPort": 8443, "states": {"A": {}}}`)
-	d, _ := split.settingsFingerprint()
-	write(`{"httpPort": 8443, "states": {"Z": {}}}`)
-	if e, _ := split.settingsFingerprint(); d == e {
-		t.Error("with a streams file, any config.json edit is a settings change")
 	}
 }
 

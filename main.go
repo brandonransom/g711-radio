@@ -130,22 +130,18 @@ type appConfig struct {
 	HTTPRedirectPort int                                  `json:"httpRedirectPort"`
 	EnableHTTP       bool                                 `json:"enableHttp"`
 	DebugMulticast   bool                                 `json:"debugMulticast"`
-	States           map[string]map[string][]streamConfig `json:"states"`
-	// LegacyRegions is the pre-rename spelling of States, still accepted so
-	// existing config files keep working. Setting both is an error.
+	// States and LegacyRegions are no longer accepted in config.json; they
+	// are kept only so loadConfig can report the move to a streams file.
+	States        map[string]map[string][]streamConfig `json:"states"`
 	LegacyRegions map[string]map[string][]streamConfig `json:"regions"`
-	// StreamsFile, when set, names a separate JSON file (relative paths are
-	// resolved against this config file's folder) holding the "states"
-	// object, so stream edits never touch the server settings. Setting it
-	// together with "states" is an error.
+	// StreamsFile names the JSON file (relative paths are resolved against
+	// this config file's folder) holding "states" and the optional
+	// "aggregates", so stream edits never touch the server settings. Origin
+	// servers require it.
 	StreamsFile string `json:"streamsFile"`
-	// Aggregates defines extra state-level pages built from tagged
-	// streams: aggregate name -> sub-page name -> {"tags": [...]}. Applied
-	// at startup; changing it needs a restart.
-	Aggregates map[string]map[string]aggregateFilter `json:"aggregates"`
-	// StreamsReloadSeconds is how often the stream definitions (StreamsFile,
-	// or "states" in this file) are checked for changes, which are applied
-	// without a restart. 0 means the default (2s); negative disables it.
+	// StreamsReloadSeconds is how often StreamsFile is checked for changes,
+	// which are applied without a restart. 0 means the default (2s);
+	// negative disables it.
 	StreamsReloadSeconds int            `json:"streamsReloadSeconds"`
 	Whisper              *whisperConfig `json:"whisper"` // all transcription settings (local and remote); see whisperConfig in whisper.go
 
@@ -243,7 +239,7 @@ type appConfig struct {
 
 	streamGroups []configuredState
 	totalStreams int
-	streamsPath  string // resolved StreamsFile; empty when streams are inline
+	streamsPath  string // resolved StreamsFile
 	configFile   string // path this config was loaded from
 	aggregates   []aggregate
 }
@@ -1391,38 +1387,21 @@ func loadConfig(path string) (appConfig, error) {
 		}
 	}
 
-	if len(config.LegacyRegions) > 0 {
-		if len(config.States) > 0 {
-			return appConfig{}, fmt.Errorf("%s sets both \"states\" and the legacy \"regions\"; use only \"states\"", path)
-		}
-		config.States = config.LegacyRegions
-		config.LegacyRegions = nil
+	if len(config.States) > 0 || len(config.LegacyRegions) > 0 {
+		return appConfig{}, fmt.Errorf("%s defines streams inline; move \"states\" (and any \"aggregates\") into a separate streams file and set \"streamsFile\" (see config.split.example.json and streams.example.json)", path)
 	}
-
-	var (
-		states       []configuredState
-		totalStreams int
-	)
-	if strings.TrimSpace(config.StreamsFile) != "" {
-		if len(config.States) > 0 {
-			return appConfig{}, fmt.Errorf("%s sets both \"streamsFile\" and \"states\"; keep the streams in only one place", path)
-		}
-		config.streamsPath = resolveStreamsPath(path, config.StreamsFile)
-		states, totalStreams, err = loadStreamsFile(config.streamsPath)
-	} else {
-		states, totalStreams, err = normalizeStates(path, config.States)
+	if strings.TrimSpace(config.StreamsFile) == "" {
+		return appConfig{}, fmt.Errorf("%s needs \"streamsFile\", the path to the JSON file holding the streams (see config.split.example.json and streams.example.json)", path)
 	}
+	config.streamsPath = resolveStreamsPath(path, config.StreamsFile)
+	set, err := loadStreamsFile(config.streamsPath)
 	if err != nil {
 		return appConfig{}, err
 	}
 
-	config.aggregates, err = normalizeAggregates(path, config.Aggregates, states)
-	if err != nil {
-		return appConfig{}, err
-	}
-
-	config.streamGroups = states
-	config.totalStreams = totalStreams
+	config.streamGroups = set.States
+	config.totalStreams = set.Total
+	config.aggregates = set.Aggregates
 	config.configFile = path
 
 	return config, nil
@@ -2252,7 +2231,7 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
 	states := describeOrganizationalUnits(s.stateGroupList())
-	states = append(states, buildAggregateStates(s.aggregates, states)...)
+	states = append(states, buildAggregateStates(s.aggregateList(), states)...)
 	if err := json.NewEncoder(w).Encode(states); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}

@@ -18,7 +18,7 @@ Edit `config.json`, send your UDP audio to the configured ports, then open `http
 
 ## Config
 
-`config.json` contains the HTTP port, an optional whisper block, optional analytics, and a hierarchical `states` map (state → forest/group → streams; the older `regions` key is still accepted as an alias). It is read at startup by `loadConfig` in `main.go`. Every setting in this README, including all transcription settings for both local and remote mode, lives in this one file, except that the streams can optionally move to a separate file (see [Changing streams without a restart](#changing-streams-without-a-restart)). The only other file read is the optional `config.secrets.json` (see `config.secrets.json.example`), which overlays `pfxPassword`, `pfxKeyPassword`, `certFile`, `keyFile`, and `iceServers`. Stream changes apply while the server runs; all other changes take effect on restart.
+`config.json` contains the HTTP port, an optional whisper block, optional analytics, and `streamsFile`, which points to the streams file holding the hierarchical `states` map (state → forest/group → streams; the older `regions` key is still accepted as an alias) and optional `aggregates`. It is read at startup by `loadConfig` in `main.go`. Every setting in this README, including all transcription settings for both local and remote mode, lives in this one file, except the streams, which live in the streams file (see [Changing streams without a restart](#changing-streams-without-a-restart)). The only other file read is the optional `config.secrets.json` (see `config.secrets.json.example`), which overlays `pfxPassword`, `pfxKeyPassword`, `certFile`, `keyFile`, and `iceServers`. Stream changes apply while the server runs; all other changes take effect on restart.
 
 It is **not tracked in git** — each deployment keeps its own ports, certificate paths, and stream list. Copy a template to create one — either everything in one file:
 
@@ -26,10 +26,9 @@ It is **not tracked in git** — each deployment keeps its own ports, certificat
 cp config.example.json config.json
 ```
 
-or the server settings and the stream list in separate files:
+and the stream list, which always lives in a separate file:
 
 ```sh
-cp config.split.example.json config.json
 cp streams.example.json streams.json
 ```
 
@@ -78,12 +77,12 @@ Runtime output (`config.json`, `streams.json`, `config.secrets.json`, `g711-radi
 - `usageLogFile`: Obsolete and ignored. Still accepted so older configs keep loading; safe to delete.
 - `analytics` block: Optional anonymized visitor statistics and a private dashboard — see [Analytics](#analytics).
 - `whisper` block: Optional transcription configuration — see [Transcription settings](#transcription-settings). Omit it entirely to run without transcription.
-- `streamsFile`: Optional. Path to a separate JSON file holding the `states` object (relative paths are resolved against `config.json`'s folder), e.g. `"streamsFile": "streams.json"`. Do not also set `states` in `config.json`. See `config.split.example.json` and `streams.example.json`.
+- `streamsFile`: Required (except on edges). Path to the JSON file holding the `states` object and optional `aggregates` (relative paths are resolved against `config.json`'s folder), e.g. `"streamsFile": "streams.json"`. Inline `states`/`regions` in `config.json` are rejected. See `streams.example.json`.
 - `streamsReloadSeconds`: Optional. How often the stream list is checked for changes (default 2; negative disables reloading).
 
 ### Changing streams without a restart
 
-The server watches the stream list — `streamsFile` if set, otherwise `states` in `config.json` — and applies edits while running:
+The server watches the streams file (`streamsFile`) and applies edits while running:
 
 - **Added** streams start listening; **removed** streams stop, finishing and saving any clip in progress first; **changed** streams (ports, multicast addresses, `timeZone`, `disableAutoTranscribe`, `debugMulticast`) restart under the same stream ID. Unchanged streams are not touched, so their listeners stay connected. A stream is identified by state, forest/group and `streamName`, so renaming one counts as removing it and adding a new one.
 - The transcription queue, connected whisper servers and clips already queued are unaffected, including clips from streams that were just removed.
@@ -94,7 +93,7 @@ The server watches the stream list — `streamsFile` if set, otherwise `states` 
 
 ### Aggregate pages (tags)
 
-Streams can carry optional `tags`, and a top-level `aggregates` block builds extra state-level pages from every stream with a matching tag. Stream IDs, folders and recordings are unchanged; the aggregate pages only reference existing streams.
+Streams can carry optional `tags`, and a top-level `aggregates` block in the streams file builds extra state-level pages from every stream with a matching tag. Stream IDs, folders and recordings are unchanged; the aggregate pages only reference existing streams.
 
 ```json
 "states": { "Oregon": { "Umatilla NF": [
@@ -109,7 +108,7 @@ Streams can carry optional `tags`, and a top-level `aggregates` block builds ext
 }
 ```
 
-`Aviation` appears beside the states. Its page shows every matching stream once, with links to each sub-page; `All Flight Follow` and `All Air Guard` list their own matches. A stream matching several sub-pages appears on each. Tags match case-insensitively, an aggregate name must not equal a state name, and aggregates are not included in "All Configured Streams" or favorites (the real streams are). Changing a stream's tags restarts that stream; changing `aggregates` needs a server restart.
+`Aviation` appears beside the states. Its page shows every matching stream once, with links to each sub-page; `All Flight Follow` and `All Air Guard` list their own matches. A stream matching several sub-pages appears on each. Tags match case-insensitively, an aggregate name must not equal a state name, and aggregates are not included in "All Configured Streams" or favorites (the real streams are). Changing a stream's tags restarts that stream; changes to `aggregates` hot-reload with the rest of the streams file.
 
 ### Organizational units and acronym reference
 

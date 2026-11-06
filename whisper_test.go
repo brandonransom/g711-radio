@@ -403,7 +403,10 @@ func TestLocalModeLaunchesSupervisedWhisperServers(t *testing.T) {
 }
 
 func TestConfigExampleLoads(t *testing.T) {
-	cfg, err := loadConfig("config.example.json")
+	dir := t.TempDir()
+	copyFile(t, "config.example.json", filepath.Join(dir, "config.json"))
+	copyFile(t, "streams.example.json", filepath.Join(dir, "streams.json"))
+	cfg, err := loadConfig(filepath.Join(dir, "config.json"))
 	if err != nil {
 		t.Fatalf("loadConfig(config.example.json): %v", err)
 	}
@@ -425,15 +428,19 @@ func TestConfigExampleLoads(t *testing.T) {
 
 func TestConfigLegacyRegionsKey(t *testing.T) {
 	const streams = `{"Oregon": {"Umatilla NF": [{"streamName": "Pomeroy", "udpPort": 5004}]}}`
-	write := func(body string) string {
-		path := filepath.Join(t.TempDir(), "config.json")
-		if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+	write := func(streamsBody string) string {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "streams.json"), []byte(streamsBody), 0644); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "config.json")
+		if err := os.WriteFile(path, []byte(`{"httpPort": 8080, "streamsFile": "streams.json"}`), 0644); err != nil {
 			t.Fatal(err)
 		}
 		return path
 	}
 
-	cfg, err := loadConfig(write(`{"httpPort": 8080, "regions": ` + streams + `}`))
+	cfg, err := loadConfig(write(`{"regions": ` + streams + `}`))
 	if err != nil {
 		t.Fatalf("legacy regions key: %v", err)
 	}
@@ -441,7 +448,7 @@ func TestConfigLegacyRegionsKey(t *testing.T) {
 		t.Fatalf("legacy regions key not loaded as states: %+v", cfg.streamGroups)
 	}
 
-	if _, err := loadConfig(write(`{"httpPort": 8080, "states": ` + streams + `, "regions": ` + streams + `}`)); err == nil {
+	if _, err := loadConfig(write(`{"states": ` + streams + `, "regions": ` + streams + `}`)); err == nil {
 		t.Fatal("expected an error when both states and regions are set")
 	}
 }

@@ -81,6 +81,18 @@ func (s *webrtcServer) stateGroupList() []stateGroup {
 	return s.stateGroups
 }
 
+func (s *webrtcServer) aggregateList() []aggregate {
+	s.streamsMu.RLock()
+	defer s.streamsMu.RUnlock()
+	return s.aggregates
+}
+
+func (s *webrtcServer) setAggregates(aggs []aggregate) {
+	s.streamsMu.Lock()
+	s.aggregates = aggs
+	s.streamsMu.Unlock()
+}
+
 // applyStreams makes the running stations match states. Streams whose
 // definition is unchanged keep running untouched (listeners stay connected);
 // changed streams restart under the same ID; removed streams stop after
@@ -500,12 +512,13 @@ func (s *webrtcServer) watchStreamConfig(ctx context.Context, src streamSource, 
 		applied = h
 		retryAt = time.Time{}
 
-		states, _, err := src.load()
+		set, err := src.load()
 		if err != nil {
 			s.logger.Printf("stream config: rejected %s, keeping current streams: %v", path, err)
 			continue
 		}
-		if failed := s.applyStreams(states, false); failed > 0 {
+		s.setAggregates(set.Aggregates)
+		if failed := s.applyStreams(set.States, false); failed > 0 {
 			retryAt = time.Now().Add(streamRetryDelay)
 		}
 	}
