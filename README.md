@@ -92,6 +92,25 @@ The server watches the stream list — `streamsFile` if set, otherwise `states` 
 - Open pages pick up added or removed streams when reloaded. Listeners of a changed or removed stream are disconnected.
 - Edits to any other setting are not applied; the log notes that a restart is needed. With `streamsFile`, every edit to `config.json` is such a setting change, which keeps routine stream edits away from the server settings.
 
+### Aggregate pages (tags)
+
+Streams can carry optional `tags`, and a top-level `aggregates` block builds extra state-level pages from every stream with a matching tag. Stream IDs, folders and recordings are unchanged; the aggregate pages only reference existing streams.
+
+```json
+"states": { "Oregon": { "Umatilla NF": [
+  { "streamName": "Flight Follow", "udpPort": 51180, "tags": ["FF"] },
+  { "streamName": "Guard Air", "udpPort": 51190, "tags": ["AG", "FF"] }
+] } },
+"aggregates": {
+  "Aviation": {
+    "All Flight Follow": { "tags": ["FF"] },
+    "All Air Guard": { "tags": ["AG"] }
+  }
+}
+```
+
+`Aviation` appears beside the states. Its page shows every matching stream once, with links to each sub-page; `All Flight Follow` and `All Air Guard` list their own matches. A stream matching several sub-pages appears on each. Tags match case-insensitively, an aggregate name must not equal a state name, and aggregates are not included in "All Configured Streams" or favorites (the real streams are). Changing a stream's tags restarts that stream; changing `aggregates` needs a server restart.
+
 ### Organizational units and acronym reference
 
 The hierarchy is **state -> named organizational unit -> streams**. `states` is

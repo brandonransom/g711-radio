@@ -233,6 +233,7 @@ func (s *webrtcServer) startStation(stateName, groupName string, cfg streamConfi
 		StreamName: cfg.StreamName,
 		UDPPort:    cfg.UDPPort,
 		TimeZone:   cfg.TimeZone,
+		Tags:       cfg.Tags,
 	}
 
 	ports, addresses, err := getListenerConfig(cfg)

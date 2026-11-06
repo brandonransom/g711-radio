@@ -139,6 +139,10 @@ type appConfig struct {
 	// object, so stream edits never touch the server settings. Setting it
 	// together with "states" is an error.
 	StreamsFile string `json:"streamsFile"`
+	// Aggregates defines extra state-level pages built from tagged
+	// streams: aggregate name -> sub-page name -> {"tags": [...]}. Applied
+	// at startup; changing it needs a restart.
+	Aggregates map[string]map[string]aggregateFilter `json:"aggregates"`
 	// StreamsReloadSeconds is how often the stream definitions (StreamsFile,
 	// or "states" in this file) are checked for changes, which are applied
 	// without a restart. 0 means the default (2s); negative disables it.
@@ -241,6 +245,7 @@ type appConfig struct {
 	totalStreams int
 	streamsPath  string // resolved StreamsFile; empty when streams are inline
 	configFile   string // path this config was loaded from
+	aggregates   []aggregate
 }
 
 // iceServerConfig mirrors webrtc.ICEServer for JSON configuration. Without at
@@ -291,9 +296,13 @@ type streamConfig struct {
 	// "America/Anchorage"), used for the analytics time-of-day stats.
 	// Empty means the server's local time zone.
 	TimeZone string `json:"timeZone"`
+	// Tags label the stream (e.g. "FF", "AG") so "aggregates" pages can
+	// collect it. They have no effect on its ID, folder or recordings.
+	Tags []string `json:"tags"`
 }
 
 type streamInfo struct {
+	Tags       []string `json:"tags,omitempty"`
 	StateName  string `json:"stateName"`
 	GroupName  string `json:"groupName"`
 	ForestName string `json:"forestName"`
@@ -314,6 +323,7 @@ type subGroup struct {
 }
 
 type stateGroup struct {
+	Aggregate   bool       `json:"aggregate,omitempty"`
 	StateName   string     `json:"stateName"`
 	UnitSummary string     `json:"unitSummary"`
 	SubGroups   []subGroup `json:"subGroups"`
@@ -452,6 +462,7 @@ type webrtcServer struct {
 	feedback    *feedbackStore
 	audioLogDir string
 	iceServers  []webrtc.ICEServer
+	aggregates  []aggregate
 
 	// leaveTokens maps the random token handed to each listener in the
 	// X-Listen-Token response header to its subscriber, so the page can say
@@ -917,6 +928,7 @@ func main() {
 		feedback:     feedback,
 		audioLogDir:  config.AudioLogDir,
 		iceServers:   config.webrtcICEServers(),
+		aggregates:   config.aggregates,
 		clipJobs:     make(chan func(), 256),
 	}
 	server.startClipWorkers(4)
@@ -1404,6 +1416,11 @@ func loadConfig(path string) (appConfig, error) {
 		return appConfig{}, err
 	}
 
+	config.aggregates, err = normalizeAggregates(path, config.Aggregates, states)
+	if err != nil {
+		return appConfig{}, err
+	}
+
 	config.streamGroups = states
 	config.totalStreams = totalStreams
 	config.configFile = path
@@ -1489,6 +1506,8 @@ func normalizeStates(path string, rawStates map[string]map[string][]streamConfig
 				}
 				seenStreamNames[streamName] = struct{}{}
 				stream.StreamName = streamName
+
+				stream.Tags = normalizeTags(stream.Tags)
 
 				// Validate ports: UDPPorts (plural) takes precedence
 				stream.TimeZone = strings.TrimSpace(stream.TimeZone)
@@ -2232,7 +2251,9 @@ func (s *webrtcServer) handleStreams(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(describeOrganizationalUnits(s.stateGroupList())); err != nil {
+	states := describeOrganizationalUnits(s.stateGroupList())
+	states = append(states, buildAggregateStates(s.aggregates, states)...)
+	if err := json.NewEncoder(w).Encode(states); err != nil {
 		http.Error(w, "failed to encode streams", http.StatusInternalServerError)
 	}
 }

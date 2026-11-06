@@ -2161,7 +2161,7 @@
       }
 
       function flattenStreamGroups(stateGroups) {
-        return stateGroups.flatMap((state) =>
+        return stateGroups.filter((state) => !state.aggregate).flatMap((state) =>
           state.subGroups.flatMap((group) => group.streams)
         );
       }
@@ -2615,7 +2615,8 @@
         }
 
         for (const state of streamGroups) {
-          const stateStreams = state.subGroups.flatMap((group) => group.streams);
+          const stateStreams = state.subGroups.flatMap((group) => group.streams)
+            .filter((stream, i, all) => all.findIndex((s) => s.id === stream.id) === i);
           streamsRoot.append(buildDirectoryCard(
             sectionPagePath(state.stateName),
             state.stateName,

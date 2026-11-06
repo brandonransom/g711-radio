@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -459,7 +460,7 @@ func (e *edgeServer) applyOriginStreams(groups []stateGroup) {
 	s.streamsMu.Lock()
 	var removed []*station
 	for id, st := range s.streams {
-		if info, ok := desired[id]; !ok || info != st.info {
+		if info, ok := desired[id]; !ok || !reflect.DeepEqual(info, st.info) {
 			removed = append(removed, st)
 			delete(s.streams, id)
 			delete(s.streamsByKey, id)

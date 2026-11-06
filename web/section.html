@@ -2567,6 +2567,7 @@
           const favorites = loadFavorites();
           const streams = [];
           for (const state of stateGroups || []) {
+            if (state.aggregate) continue;
             for (const group of state.subGroups) {
               for (const stream of group.streams) {
                 if (favorites.some((f) => isSameStream(f, stream))) streams.push(stream);
@@ -2594,6 +2595,7 @@
           document.title = "All Configured Streams - Radio Streams";
 
           for (const state of stateGroups || []) {
+            if (state.aggregate) continue;
             const stateSection = document.createElement("section");
             stateSection.className = "state-group";
             const stateHeading = document.createElement("h2");
@@ -2639,6 +2641,29 @@
             document.title = `${forest.groupName} / ${state.stateName} - Radio Streams`;
             connectAllBtn.parentElement.append(buildGroupFavoriteToggle(forest.streams, "forest", forest.groupName, true, forest.unitType));
             content.append(renderStreamsGrid(forest.streams));
+          } else if (state.aggregate) {
+            // A stream can match several sub-pages but each card needs a
+            // unique stream ID, so the parent page shows every match once.
+            const unique = [];
+            const seenIds = new Set();
+            for (const group of state.subGroups) {
+              for (const stream of group.streams) {
+                if (!seenIds.has(stream.id)) {
+                  seenIds.add(stream.id);
+                  unique.push(stream);
+                }
+              }
+            }
+            pageTitle.textContent = state.stateName;
+            pageSubtitle.textContent = "";
+            pageSubtitle.append(`${unique.length} ${unique.length === 1 ? "stream" : "streams"} · `);
+            state.subGroups.forEach((group, i) => {
+              if (i > 0) pageSubtitle.append(" · ");
+              pageSubtitle.append(buildLink(sectionPagePath(state.stateName, group.groupName), `${group.groupName} (${group.streams.length})`, `Open the ${group.groupName} page`));
+            });
+            document.title = `${state.stateName} - Radio Streams`;
+            connectAllBtn.parentElement.append(buildGroupFavoriteToggle(unique, "state", state.stateName, true));
+            content.append(renderStreamsGrid(unique));
           } else {
             pageTitle.textContent = state.stateName;
             const streamCount = state.subGroups.reduce((count, group) => count + group.streams.length, 0);
