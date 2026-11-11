@@ -2773,35 +2773,25 @@
         return codes.map((code) => {
           const info = code ? window.gaccInfo(code) : { code: "Unassigned", name: "Streams without a GACC tag" };
           const gaccStreams = uniqueStreams(byGacc.get(code));
-          const byState = new Map();
+          const byCenter = new Map();
           for (const stream of gaccStreams) {
-            if (!byState.has(stream.stateName)) byState.set(stream.stateName, []);
-            byState.get(stream.stateName).push(stream);
+            const key = stream.dispatchCenter || "";
+            if (!byCenter.has(key)) byCenter.set(key, []);
+            byCenter.get(key).push(stream);
           }
-          const stateNodes = [...byState.keys()].sort().map((stateName) => {
-            const stateStreams = byState.get(stateName);
-            const byCenter = new Map();
-            for (const stream of stateStreams) {
-              const key = stream.dispatchCenter || "";
-              if (!byCenter.has(key)) byCenter.set(key, []);
-              byCenter.get(key).push(stream);
-            }
-            const links = [...byCenter.keys()].sort().map((center) => {
-              const centerStreams = byCenter.get(center);
-              const name = center ? (centerStreams[0].dispatchCenterName || "") : "No dispatch center tag";
-              const href = center ? gaccPagePath(code, center) : sectionPagePath(stateName);
-              return buildDirectoryLink(
-                href, center || "Unassigned", [name, formatStreamCount(centerStreams.length)].filter(Boolean).join(" · "),
-                centerStreams.map((s) => s.id), centerStreams);
-            });
-            const forestsList = document.createElement("div");
-            forestsList.className = "forest-links";
-            forestsList.append(...links);
-            return buildOrgNode(`${code}/${stateName}`, stateName, "", formatStreamCount(stateStreams.length),
-              [buildOrgPageLink(sectionPagePath(stateName), "Open state page →"), forestsList], true);
+          const links = [...byCenter.keys()].sort((a, b) => (a === "") - (b === "") || a.localeCompare(b)).map((center) => {
+            const centerStreams = byCenter.get(center);
+            const name = center ? (centerStreams[0].dispatchCenterName || "") : "No dispatch center tag";
+            const href = center ? gaccPagePath(code, center) : gaccPagePath(code);
+            return buildDirectoryLink(
+              href, center || "Unassigned", [name, formatStreamCount(centerStreams.length)].filter(Boolean).join(" · "),
+              centerStreams.map((s) => s.id), centerStreams);
           });
-          const body = code ? [buildOrgPageLink(gaccPagePath(code), "Open GACC page →"), ...stateNodes] : stateNodes;
-          return buildOrgNode(code, info.code, info.name, `${formatStreamCount(gaccStreams.length)} · ${byState.size} ${byState.size === 1 ? "state" : "states"}`, body, false);
+          const forestsList = document.createElement("div");
+          forestsList.className = "forest-links";
+          forestsList.append(...links);
+          const body = code ? [buildOrgPageLink(gaccPagePath(code), "Open GACC page →"), forestsList] : [forestsList];
+          return buildOrgNode(code, info.code, info.name, `${formatStreamCount(gaccStreams.length)} · ${byCenter.size} ${byCenter.size === 1 ? "dispatch center" : "dispatch centers"}`, body, false);
         });
       }
 
