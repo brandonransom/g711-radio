@@ -49,7 +49,7 @@
     },
     "California": {
       "Plumas NF": [
-        { "streamName": "Admin Net", "udpPort": 51110, "timeZone": "America/Los_Angeles" },
+        { "streamName": "Admin Net", "udpPort": 51110, "gacc": "ONC", "dispatchCenter": "PLU", "timeZone": "America/Los_Angeles" },
         { "streamName": "Forest Net", "udpPort": 51160, "timeZone": "America/Los_Angeles" },
         { "streamName": "Forest Net (Repeater)", "udpPort": 51161, "disableAutoTranscribe": true, "timeZone": "America/Los_Angeles" },
         { "streamName": "Flight Follow", "udpPort": 51180, "tags": ["FF"], "timeZone": "America/Los_Angeles" },
@@ -75,6 +75,13 @@
       ]
     }
   },
+  "dispatchCenters": {
+    "PLU": "Plumas NF Dispatch Center",
+    "VDC": "Vernal Dispatch Center"
+  },
+  "streams": [
+    { "state": "Utah", "group": "Ashley NF", "streamName": "Vernal Net", "udpPort": 52020, "gacc": "GBCC", "dispatchCenter": "VDC", "timeZone": "America/Denver" }
+  ],
   "aggregates": {
     "Aviation": {
       "All Flight Follow": { "tags": ["FF"] },

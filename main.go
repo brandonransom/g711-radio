@@ -126,10 +126,10 @@ var wireFrameSizes = []struct {
 var webFiles embed.FS
 
 type appConfig struct {
-	HTTPPort         int                                  `json:"httpPort"`
-	HTTPRedirectPort int                                  `json:"httpRedirectPort"`
-	EnableHTTP       bool                                 `json:"enableHttp"`
-	DebugMulticast   bool                                 `json:"debugMulticast"`
+	HTTPPort         int  `json:"httpPort"`
+	HTTPRedirectPort int  `json:"httpRedirectPort"`
+	EnableHTTP       bool `json:"enableHttp"`
+	DebugMulticast   bool `json:"debugMulticast"`
 	// States and LegacyRegions are no longer accepted in config.json; they
 	// are kept only so loadConfig can report the move to a streams file.
 	States        map[string]map[string][]streamConfig `json:"states"`
@@ -295,17 +295,28 @@ type streamConfig struct {
 	// Tags label the stream (e.g. "FF", "AG") so "aggregates" pages can
 	// collect it. They have no effect on its ID, folder or recordings.
 	Tags []string `json:"tags"`
+	// GACC and DispatchCenter are codes (e.g. "AICC", "CGDC") the landing
+	// page groups by. Dispatch center names come from the streams file's
+	// "dispatchCenters" table. Neither affects the ID, folder or recordings.
+	GACC           string `json:"gacc"`
+	DispatchCenter string `json:"dispatchCenter"`
+	// DispatchCenterName is filled in from the table when the streams file
+	// loads.
+	DispatchCenterName string `json:"-"`
 }
 
 type streamInfo struct {
-	Tags       []string `json:"tags,omitempty"`
-	StateName  string `json:"stateName"`
-	GroupName  string `json:"groupName"`
-	ForestName string `json:"forestName"`
-	ID         string `json:"id"`
-	StreamName string `json:"streamName"`
-	UDPPort    int    `json:"udpPort"`
-	TimeZone   string `json:"timeZone,omitempty"`
+	GACC               string   `json:"gacc,omitempty"`
+	DispatchCenter     string   `json:"dispatchCenter,omitempty"`
+	DispatchCenterName string   `json:"dispatchCenterName,omitempty"`
+	Tags               []string `json:"tags,omitempty"`
+	StateName          string   `json:"stateName"`
+	GroupName          string   `json:"groupName"`
+	ForestName         string   `json:"forestName"`
+	ID                 string   `json:"id"`
+	StreamName         string   `json:"streamName"`
+	UDPPort            int      `json:"udpPort"`
+	TimeZone           string   `json:"timeZone,omitempty"`
 }
 
 func (s streamInfo) displayName() string {

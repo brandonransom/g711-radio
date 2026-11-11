@@ -905,6 +905,7 @@
     </main>
 
     <script src="/activity.js"></script>
+    <script src="/org.js"></script>
     <script src="/nav-guard.js"></script>
     <script>
       const pageTitle = document.getElementById("pageTitle");
@@ -2552,11 +2553,14 @@
       configureBulkAudioControls();
 
       async function init() {
+        const uniqueById = (list) => list.filter((s, i, all) => all.findIndex((o) => o.id === s.id) === i);
         const params = new URL(window.location.href).searchParams;
         const stateParam = params.get("state") || params.get("region") || "";
         const forestParam = params.get("forest") || "";
         const allStreams = params.get("all") === "1";
         const favoritesPage = params.get("favorites") === "1";
+        const gaccParam = params.get("gacc") || "";
+        const dispatchParam = params.get("dispatch") || "";
         const embedded = document.documentElement.classList.contains("embedded");
         if (embedded) {
           // The home page frames this view; follow star changes made there.
@@ -2637,6 +2641,27 @@
             }
             content.append(stateSection);
           }
+        } else if (gaccParam) {
+          const matches = uniqueById((stateGroups || []).filter((s) => !s.aggregate)
+            .flatMap((s) => s.subGroups.flatMap((g) => g.streams))
+            .filter((s) => s.gacc === gaccParam && (!dispatchParam || s.dispatchCenter === dispatchParam)));
+          if (!matches.length) {
+            showError(`No streams are tagged ${dispatchParam ? `${dispatchParam} in ` : ""}${gaccParam}.`);
+            return;
+          }
+          const gacc = window.gaccInfo(gaccParam);
+          const centerName = dispatchParam ? matches[0].dispatchCenterName : "";
+          const title = dispatchParam || gacc.code;
+          pageTitle.textContent = title;
+          pageSubtitle.textContent = "";
+          pageSubtitle.append(`${centerName || gacc.name} · ${matches.length} ${matches.length === 1 ? "stream" : "streams"}`);
+          if (dispatchParam) {
+            pageSubtitle.append(" · in ", buildLink(`/section.html?gacc=${encodeURIComponent(gaccParam)}`, gacc.code, "Open this GACC's page"));
+          }
+          document.title = `${title} - Radio Streams`;
+          connectAllBtn.parentElement.append(buildGroupFavoriteToggle(matches, "dispatch center", title, true));
+          showStreamSource = true;
+          content.append(renderStreamsGrid(matches));
         } else {
           const state = (stateGroups || []).find((r) => r.stateName === stateParam);
           if (!state) {

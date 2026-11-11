@@ -22,6 +22,64 @@ type streamsFileConfig struct {
 	States        map[string]map[string][]streamConfig  `json:"states"`
 	LegacyRegions map[string]map[string][]streamConfig  `json:"regions"`
 	Aggregates    map[string]map[string]aggregateFilter `json:"aggregates"`
+	// Streams is an optional flat list, merged with "states". Each entry
+	// names its own state and organizational unit.
+	Streams []flatStream `json:"streams"`
+	// DispatchCenters maps a dispatch center code to its full name.
+	DispatchCenters map[string]string `json:"dispatchCenters"`
+}
+
+// flatStream is a stream entry in the flat "streams" list.
+type flatStream struct {
+	streamConfig
+	State string `json:"state"`
+	Group string `json:"group"`
+}
+
+// mergeFlatStreams folds the flat list into the nested state/group map, so
+// everything downstream (IDs, folders, favorites) sees one layout.
+func mergeFlatStreams(states map[string]map[string][]streamConfig, flat []flatStream, path string) (map[string]map[string][]streamConfig, error) {
+	if len(flat) == 0 {
+		return states, nil
+	}
+	if states == nil {
+		states = make(map[string]map[string][]streamConfig)
+	}
+	for i, fs := range flat {
+		state, group := strings.TrimSpace(fs.State), strings.TrimSpace(fs.Group)
+		if state == "" || group == "" {
+			return nil, fmt.Errorf("%s streams[%d] needs both \"state\" and \"group\"", path, i)
+		}
+		if states[state] == nil {
+			states[state] = make(map[string][]streamConfig)
+		}
+		states[state][group] = append(states[state][group], fs.streamConfig)
+	}
+	return states, nil
+}
+
+// applyDispatchCenters validates stream tags against the dispatchCenters
+// table and fills in each stream's dispatch center name.
+func applyDispatchCenters(path string, states []configuredState, table map[string]string) error {
+	for si := range states {
+		for gi := range states[si].SubGroups {
+			streams := states[si].SubGroups[gi].Streams
+			for i := range streams {
+				s := &streams[i]
+				s.GACC = strings.ToUpper(strings.TrimSpace(s.GACC))
+				s.DispatchCenter = strings.TrimSpace(s.DispatchCenter)
+				if s.DispatchCenter == "" {
+					continue
+				}
+				name, ok := table[s.DispatchCenter]
+				if !ok {
+					return fmt.Errorf("%s stream %q uses dispatchCenter %q, which is not in \"dispatchCenters\"", path, s.StreamName, s.DispatchCenter)
+				}
+				s.DispatchCenterName = name
+			}
+		}
+	}
+	return nil
 }
 
 // streamSet is everything a streams file defines.
@@ -38,8 +96,15 @@ func (f streamsFileConfig) normalize(path string) (streamSet, error) {
 		}
 		f.States = f.LegacyRegions
 	}
-	states, total, err := normalizeStates(path, f.States)
+	merged, err := mergeFlatStreams(f.States, f.Streams, path)
 	if err != nil {
+		return streamSet{}, err
+	}
+	states, total, err := normalizeStates(path, merged)
+	if err != nil {
+		return streamSet{}, err
+	}
+	if err := applyDispatchCenters(path, states, f.DispatchCenters); err != nil {
 		return streamSet{}, err
 	}
 	aggs, err := normalizeAggregates(path, f.Aggregates, states)

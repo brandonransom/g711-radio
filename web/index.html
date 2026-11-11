@@ -203,6 +203,105 @@
         overflow-wrap: anywhere;
       }
 
+      .view-toggle {
+        display: inline-flex;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        justify-self: start;
+      }
+
+      .view-toggle button {
+        border: 0;
+        border-radius: 999px;
+        padding: 6px 16px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .view-toggle button[aria-pressed="true"] {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      details.org-node {
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        overflow: hidden;
+      }
+
+      details.org-node.org-child {
+        border-radius: 14px;
+        margin: 0 14px 10px;
+      }
+
+      details.org-node > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 20px;
+        cursor: pointer;
+        list-style: none;
+        background: linear-gradient(135deg, rgba(55, 99, 148, 0.08), rgba(0, 114, 7, 0.08));
+      }
+
+      details.org-node > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      details.org-node > summary::after {
+        content: "▸";
+        color: var(--accent);
+        font-size: 1.1rem;
+      }
+
+      details.org-node[open] > summary::after {
+        content: "▾";
+      }
+
+      .org-acronym {
+        font-size: 1.32rem;
+        font-weight: 700;
+      }
+
+      .org-child .org-acronym {
+        font-size: 1.1rem;
+      }
+
+      .org-expansion {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .org-meta {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-left: auto;
+        padding-right: 8px;
+        text-align: right;
+      }
+
+      .org-body {
+        padding: 12px 0 4px;
+      }
+
+      .org-body > .org-page-link {
+        display: block;
+        padding: 0 20px 10px;
+        font-weight: 700;
+      }
+
+      .org-body > .forest-links {
+        padding-top: 0;
+      }
+
       .forest-links {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
@@ -946,6 +1045,7 @@
     </main>
 
     <script src="/activity.js"></script>
+    <script src="/org.js"></script>
     <script src="/nav-guard.js"></script>
     <script>
       // Stream connection logic
@@ -2578,9 +2678,133 @@
         }
       }
 
-      // The landing page is a directory: every state links to its state
-      // page, with its forests listed beneath, and the listener's favorites
-      // (if any) come first.
+      // The landing page is a directory, organized either GACC > state >
+      // dispatch center or by state (see homeView), and the listener's
+      // favorites (if any) come first.
+      const HOME_VIEW_KEY = "homeView";
+      let homeView = localStorage.getItem(HOME_VIEW_KEY) === "state" ? "state" : "gacc";
+
+      function buildViewToggle() {
+        const wrap = document.createElement("div");
+        wrap.className = "view-toggle";
+        for (const [value, label] of [["gacc", "By GACC"], ["state", "By state"]]) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = label;
+          button.setAttribute("aria-pressed", String(homeView === value));
+          button.addEventListener("click", () => {
+            homeView = value;
+            localStorage.setItem(HOME_VIEW_KEY, value);
+            renderStreams();
+          });
+          wrap.append(button);
+        }
+        return wrap;
+      }
+
+      function uniqueStreams(list) {
+        return list.filter((stream, i, all) => all.findIndex((s) => s.id === stream.id) === i);
+      }
+
+      function gaccPagePath(gacc, dispatchCenter) {
+        const params = new URLSearchParams({ gacc });
+        if (dispatchCenter) params.set("dispatch", dispatchCenter);
+        return `/section.html?${params}`;
+      }
+
+      // Acronym large, its expansion smaller beneath.
+      function buildOrgSummary(code, name, meta) {
+        const summary = document.createElement("summary");
+        const label = document.createElement("div");
+        const acronym = document.createElement("div");
+        acronym.className = "org-acronym";
+        acronym.textContent = code;
+        label.append(acronym);
+        if (name) {
+          const expansion = document.createElement("div");
+          expansion.className = "org-expansion";
+          expansion.textContent = name;
+          label.append(expansion);
+        }
+        const metaEl = document.createElement("div");
+        metaEl.className = "org-meta";
+        metaEl.textContent = meta;
+        summary.append(label, metaEl);
+        return summary;
+      }
+
+      const openOrgNodes = new Set();
+
+      function buildOrgNode(key, code, name, meta, bodyChildren, child) {
+        const node = document.createElement("details");
+        node.className = child ? "org-node org-child" : "org-node";
+        node.open = openOrgNodes.has(key);
+        node.addEventListener("toggle", () => {
+          if (node.open) openOrgNodes.add(key); else openOrgNodes.delete(key);
+        });
+        const body = document.createElement("div");
+        body.className = "org-body";
+        body.append(...bodyChildren);
+        node.append(buildOrgSummary(code, name, meta), body);
+        return node;
+      }
+
+      function buildOrgPageLink(href, text) {
+        const link = document.createElement("a");
+        link.className = "org-page-link";
+        link.href = href;
+        link.textContent = text;
+        return link;
+      }
+
+      // GACC > state > dispatch center, built from the streams' tags.
+      // Streams missing a tag land under "Unassigned".
+      function buildGaccTree() {
+        const byGacc = new Map();
+        for (const stream of streams) {
+          const code = stream.gacc || "";
+          if (!byGacc.has(code)) byGacc.set(code, []);
+          byGacc.get(code).push(stream);
+        }
+        const codes = window.GACCS.map((g) => g.code).filter((c) => byGacc.has(c));
+        for (const code of byGacc.keys()) if (code && !codes.includes(code)) codes.push(code);
+        if (byGacc.has("")) codes.push("");
+
+        return codes.map((code) => {
+          const info = code ? window.gaccInfo(code) : { code: "Unassigned", name: "Streams without a GACC tag" };
+          const gaccStreams = uniqueStreams(byGacc.get(code));
+          const byState = new Map();
+          for (const stream of gaccStreams) {
+            if (!byState.has(stream.stateName)) byState.set(stream.stateName, []);
+            byState.get(stream.stateName).push(stream);
+          }
+          const stateNodes = [...byState.keys()].sort().map((stateName) => {
+            const stateStreams = byState.get(stateName);
+            const byCenter = new Map();
+            for (const stream of stateStreams) {
+              const key = stream.dispatchCenter || "";
+              if (!byCenter.has(key)) byCenter.set(key, []);
+              byCenter.get(key).push(stream);
+            }
+            const links = [...byCenter.keys()].sort().map((center) => {
+              const centerStreams = byCenter.get(center);
+              const name = center ? (centerStreams[0].dispatchCenterName || "") : "No dispatch center tag";
+              const href = center ? gaccPagePath(code, center) : sectionPagePath(stateName);
+              return buildDirectoryLink(
+                href, center || "Unassigned", [name, formatStreamCount(centerStreams.length)].filter(Boolean).join(" · "),
+                centerStreams.map((s) => s.id), centerStreams);
+            });
+            const forestsList = document.createElement("div");
+            forestsList.className = "forest-links";
+            forestsList.append(...links);
+            return buildOrgNode(`${code}/${stateName}`, stateName, "", formatStreamCount(stateStreams.length),
+              [buildOrgPageLink(sectionPagePath(stateName), "Open state page →"), forestsList], true);
+          });
+          const body = code ? [buildOrgPageLink(gaccPagePath(code), "Open GACC page →"), ...stateNodes] : stateNodes;
+          return buildOrgNode(code, info.code, info.name, `${formatStreamCount(gaccStreams.length)} · ${byState.size} ${byState.size === 1 ? "state" : "states"}`, body, false);
+        });
+      }
+
       function renderStreams() {
         streamsRoot.hidden = isDedicatedStreamPage();
         streamsRoot.innerHTML = "";
@@ -2597,8 +2821,8 @@
 
         const intro = document.createElement("p");
         intro.className = "directory-intro";
-        intro.textContent = "Choose a state or organizational unit to listen live and browse recordings and transcripts. Tap ☆ on any stream, organizational unit, or state to add it to your favorites for one-tap access from this page.";
-        streamsRoot.append(intro);
+        intro.textContent = "Choose a GACC, state, or organizational unit to listen live and browse recordings and transcripts. Tap ☆ on any stream, dispatch center, organizational unit, or state to add it to your favorites for one-tap access from this page.";
+        streamsRoot.append(intro, buildViewToggle());
 
         const favoriteStreams = streams.filter(isFavorite);
         if (favoriteStreams.length) {
@@ -2614,7 +2838,10 @@
           ));
         }
 
+        if (homeView === "gacc") streamsRoot.append(...buildGaccTree());
+
         for (const state of streamGroups) {
+          if (homeView === "gacc" && !state.aggregate) continue;
           const stateStreams = state.subGroups.flatMap((group) => group.streams)
             .filter((stream, i, all) => all.findIndex((s) => s.id === stream.id) === i);
           streamsRoot.append(buildDirectoryCard(
