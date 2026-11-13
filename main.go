@@ -767,28 +767,24 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 }
 
 func main() {
-	// Determine log file path (same directory as the executable).
-	logFilePath, logFileErr := resolveLogFilePath()
-
+	// Server log: one file per day (g711-radio-YYYY-MM-DD.log, every line
+	// timestamped) in the working directory; once the config is loaded the
+	// same lines are also written under each audio archive directory.
+	// Logs are never deleted or truncated.
+	logDir, logDirErr := os.Getwd()
+	dailyLog := newDailyLogWriter()
 	var logWriter io.Writer = os.Stdout
-	var logFile *os.File
-	if logFileErr == nil {
-		f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err == nil {
-			logFile = f
-			logWriter = io.MultiWriter(os.Stdout, f)
-		} else {
-			logFileErr = err
-		}
+	if logDirErr == nil {
+		dailyLog.AddDir(logDir)
+		logWriter = io.MultiWriter(os.Stdout, dailyLog)
 	}
+	defer dailyLog.Close()
 	logger := log.New(logWriter, "", log.LstdFlags)
-	if logFileErr != nil {
-		logger.Printf("WARNING: could not open log file: %v", logFileErr)
+	if logDirErr != nil {
+		logger.Printf("WARNING: could not determine log directory: %v", logDirErr)
 	} else {
-		logger.Printf("logging to file: %s", logFilePath)
-		defer logFile.Close()
+		logger.Printf("logging to file: %s (new file each day)", filepath.Join(logDir, dailyLogName(time.Now())))
 	}
-
 	config, err := loadConfig(configPath)
 	if err != nil {
 		logger.Fatal(err)
@@ -798,6 +794,12 @@ func main() {
 		logger.Printf("NOTE: usageLogFile is obsolete and ignored; remove it from %s", configPath)
 	}
 
+	// Mirror the server log into every audio archive directory so each drive
+	// carries its own copy; the archive sync keeps them identical.
+	for _, dir := range audioArchiveDirs(&config) {
+		dailyLog.AddDir(filepath.Join(dir, archiveLogsSubdir))
+		logger.Printf("logging to file (mirror): %s", filepath.Join(dir, archiveLogsSubdir, dailyLogName(time.Now())))
+	}
 	var analytics *analyticsStore
 	if config.Analytics != nil {
 		analytics, err = openAnalyticsStore(*config.Analytics, logger)
@@ -825,26 +827,6 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	// Background cleanup: prune only the server's own diagnostic log file
-	// (entries older than 90 days). Audio clips and transcripts (both the
-	// per-stream JSON logs and the permanent whisper CSV archive) are kept
-	// indefinitely — nothing in this codebase ever deletes them.
-	const logRetentionPeriod = 90 * 24 * time.Hour
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if logFileErr == nil {
-					pruneLogFile(logFilePath, logRetentionPeriod, logger)
-				}
-			}
-		}
-	}()
 
 	if config.Edge != nil {
 		runEdge(ctx, config, api, codec, frameDuration, analytics, logger)
@@ -1055,6 +1037,7 @@ func main() {
 	}
 
 	archiveDirs := audioArchiveDirs(&config)
+	startTranscriptLogReplication(ctx.Done(), hub.logDir, archiveDirs, time.Duration(config.ArchiveSyncIdleSeconds)*time.Second, logger)
 	if len(archiveDirs) >= 2 && config.ArchiveSyncIdleSeconds >= 0 {
 		idleInterval := time.Duration(config.ArchiveSyncIdleSeconds) * time.Second
 		busyInterval := time.Duration(config.ArchiveSyncBusySeconds) * time.Second
@@ -1941,51 +1924,6 @@ func getClientIP(r *http.Request) string {
 		return host
 	}
 	return r.RemoteAddr
-}
-
-// resolveLogFilePath returns the path to the server log file (g711-radio.log)
-// in the current working directory, so it works consistently with both
-// "go run ." and running the compiled binary.
-func resolveLogFilePath() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "g711-radio.log"), nil
-}
-
-// pruneLogFile removes lines from the plain-text log file that are older than maxAge.
-// Log lines are expected to start with the standard log prefix: "YYYY/MM/DD HH:MM:SS ".
-func pruneLogFile(path string, maxAge time.Duration, logger *log.Logger) {
-	f, err := os.OpenFile(path, os.O_RDWR, 0644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	cutoff := time.Now().Add(-maxAge)
-	var kept []byte
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		// Standard log prefix is "2006/01/02 15:04:05 " (20 chars).
-		if len(line) >= 20 {
-			t, err := time.ParseInLocation("2006/01/02 15:04:05", string(line[:19]), time.Local)
-			if err == nil && t.Before(cutoff) {
-				continue // drop old line
-			}
-		}
-		kept = append(kept, line...)
-		kept = append(kept, '\n')
-	}
-
-	if err := f.Truncate(0); err != nil {
-		logger.Printf("pruning log file %s (truncate): %v", path, err)
-		return
-	}
-	if _, err := f.WriteAt(kept, 0); err != nil {
-		logger.Printf("pruning log file %s (write): %v", path, err)
-	}
 }
 
 func (s *station) addSubscriber(pc *webrtc.PeerConnection) (string, error) {

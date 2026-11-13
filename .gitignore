@@ -13,6 +13,7 @@ transcripts/
 analytics/
 usage.csv
 g711-radio.log
+g711-radio-*.log
 *.pem
 *.pfx
 edge/
