@@ -768,10 +768,17 @@ func (s *station) ingestMulticast(ctx context.Context) error {
 
 func main() {
 	// Server log: one file per day (g711-radio-YYYY-MM-DD.log, every line
-	// timestamped) in the working directory; once the config is loaded the
-	// same lines are also written under each audio archive directory.
-	// Logs are never deleted or truncated.
+	// timestamped) in the logs folder under the working directory; once the
+	// config is loaded the same lines are also written under each audio
+	// archive directory. Logs are never deleted or truncated. Logs that older
+	// versions left directly in the working directory are moved into the
+	// logs folder first, before anything is written there.
 	logDir, logDirErr := os.Getwd()
+	var migrationReport []string
+	if logDirErr == nil {
+		migrationReport = migrateRootLogs(logDir)
+		logDir = filepath.Join(logDir, serverLogSubdir)
+	}
 	dailyLog := newDailyLogWriter()
 	consoleLog := newLogBuffer()
 	var logWriter io.Writer = io.MultiWriter(os.Stdout, consoleLog)
@@ -785,6 +792,9 @@ func main() {
 		logger.Printf("WARNING: could not determine log directory: %v", logDirErr)
 	} else {
 		logger.Printf("logging to file: %s (new file each day)", filepath.Join(logDir, dailyLogName(time.Now())))
+	}
+	for _, line := range migrationReport {
+		logger.Print(line)
 	}
 	config, err := loadConfig(configPath)
 	if err != nil {

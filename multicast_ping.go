@@ -27,7 +27,7 @@ type multicastPingConfig struct {
 	TTL             int `json:"ttl"`             // IP multicast TTL; 0 means the default (16)
 
 	// Peer tracking: pings from other devices on Port are logged and listed.
-	PeerLogFile        string `json:"peerLogFile"`        // event log; default mping-peers.log
+	PeerLogFile        string `json:"peerLogFile"`        // event log; default logs/mping-peers.log
 	PeerStatusFile     string `json:"peerStatusFile"`     // peers by group, newest first, rewritten every 2s; default mping-peers.txt
 	PeerTimeoutSeconds int    `json:"peerTimeoutSeconds"` // silence after which a peer is marked stale; 0 means 300
 	PeerWindow         *bool  `json:"peerWindow"`         // open a console window showing PeerStatusFile; default true on Windows only

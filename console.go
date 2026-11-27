@@ -15,7 +15,11 @@ import (
 const (
 	consoleBufferLines  = 2000
 	consoleMaxLineBytes = 8 << 10
-	consoleKeepAlive    = 20 * time.Second
+	// consoleTick is how often an open console page is sent a fresh issue
+	// list (which also keeps the connection from idling out).
+	consoleTick = 5 * time.Second
+	// consoleIssueGap limits how often a burst of problems re-sends it.
+	consoleIssueGap = time.Second
 )
 
 //go:embed templates/console.html
@@ -35,15 +39,18 @@ type logBuffer struct {
 	partial []byte
 	signal  chan struct{}
 
+	analyzer *logAnalyzer
+
 	done     chan struct{}
 	doneOnce sync.Once
 }
 
 func newLogBuffer() *logBuffer {
 	return &logBuffer{
-		lines:  make([]string, consoleBufferLines),
-		signal: make(chan struct{}),
-		done:   make(chan struct{}),
+		lines:    make([]string, consoleBufferLines),
+		signal:   make(chan struct{}),
+		done:     make(chan struct{}),
+		analyzer: newLogAnalyzer(),
 	}
 }
 
@@ -84,6 +91,7 @@ func (b *logBuffer) add(line string) {
 	if b.count < len(b.lines) {
 		b.count++
 	}
+	b.analyzer.Observe(line)
 }
 
 // Close ends every stream following the buffer so a server shutdown is not
@@ -169,7 +177,9 @@ func (a *analyticsStore) registerConsole(mux *http.ServeMux, path string) {
 
 // serveConsoleStream sends the buffered lines after "after", then every new
 // line as it is logged, as Server-Sent Events until the client leaves or the
-// buffer is closed.
+// buffer is closed. The analyzer's issue list rides along as "issues" events:
+// on connect, when it changes (at most once per consoleIssueGap), and every
+// consoleTick so the "last seen" ages stay current.
 func serveConsoleStream(w http.ResponseWriter, r *http.Request, buf *logBuffer, after uint64) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -182,28 +192,67 @@ func serveConsoleStream(w http.ResponseWriter, r *http.Request, buf *logBuffer, 
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	keepAlive := time.NewTicker(consoleKeepAlive)
-	defer keepAlive.Stop()
+	send := func(event string, v any) bool {
+		data, err := json.Marshal(v)
+		if err != nil {
+			return false
+		}
+		prefix := ""
+		if event != "" {
+			prefix = "event: " + event + "\n"
+		}
+		if _, err := fmt.Fprintf(w, "%sdata: %s\n\n", prefix, data); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	tick := time.NewTicker(consoleTick)
+	defer tick.Stop()
+	var (
+		issuesVersion uint64
+		issuesSent    time.Time
+		sentIssues    bool
+	)
+	sendIssues := func() bool {
+		issuesVersion = buf.analyzer.Version()
+		issuesSent = time.Now()
+		sentIssues = true
+		return send("issues", buf.analyzer.Snapshot())
+	}
 	for {
 		signal := buf.wait()
 		if u := buf.Since(after); len(u.Lines) > 0 || u.Reset || u.Missed {
-			data, err := json.Marshal(u)
-			if err != nil {
+			if !send("", u) {
 				return
 			}
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				return
-			}
-			flusher.Flush()
 			after = u.Next
+		}
+		var settle <-chan time.Time
+		if !sentIssues {
+			if !sendIssues() {
+				return
+			}
+		} else if buf.analyzer.Version() != issuesVersion {
+			if wait := consoleIssueGap - time.Since(issuesSent); wait <= 0 {
+				if !sendIssues() {
+					return
+				}
+			} else {
+				settle = time.After(wait)
+			}
 		}
 		select {
 		case <-signal:
-		case <-keepAlive.C:
-			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
+		case <-settle:
+			if !sendIssues() {
 				return
 			}
-			flusher.Flush()
+		case <-tick.C:
+			if !sendIssues() {
+				return
+			}
 		case <-buf.done:
 			return
 		case <-r.Context().Done():

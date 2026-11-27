@@ -18,11 +18,15 @@ import (
 )
 
 const (
-	defaultMpingPeerLog        = "mping-peers.log"
+	// legacyMpingPeerLog is where older versions wrote the peer log, directly
+	// in the working directory.
+	legacyMpingPeerLog         = "mping-peers.log"
 	defaultMpingPeerStatus     = "mping-peers.txt"
 	defaultMpingPeerTimeoutSec = 300
 	mpingPeerTick              = 2 * time.Second
 )
+
+var defaultMpingPeerLog = filepath.Join(serverLogSubdir, legacyMpingPeerLog)
 
 // mpingPeer is one remote device heard pinging a multicast group.
 type mpingPeer struct {
@@ -179,6 +183,17 @@ func openMpingListener(ctx context.Context, group string, port int) (net.PacketC
 // peer log and a periodically rewritten status file, and optionally opens a
 // console window showing that status file.
 func runMulticastPingPeers(ctx context.Context, cfg multicastPingConfig, stations func() []*station, logger *log.Logger) {
+	if filepath.Clean(cfg.PeerLogFile) == defaultMpingPeerLog {
+		if _, err := moveFileNoClobber(legacyMpingPeerLog, cfg.PeerLogFile); err == nil {
+			logger.Printf("multicast ping: moved %s to %s", legacyMpingPeerLog, cfg.PeerLogFile)
+		} else if !os.IsNotExist(err) {
+			logger.Printf("multicast ping: could not move %s to %s: %v", legacyMpingPeerLog, cfg.PeerLogFile, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(cfg.PeerLogFile), 0o755); err != nil {
+		logger.Printf("multicast ping: peer tracking disabled, cannot create folder for %s: %v", cfg.PeerLogFile, err)
+		return
+	}
 	logFile, err := os.OpenFile(cfg.PeerLogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		logger.Printf("multicast ping: peer tracking disabled, cannot open %s: %v", cfg.PeerLogFile, err)

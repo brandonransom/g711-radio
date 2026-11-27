@@ -11,9 +11,12 @@ g711-radio.exe
 audio/
 transcripts/
 analytics/
+logs/
 usage.csv
 g711-radio.log
 g711-radio-*.log
+service-out*.log
+service-err*.log
 *.pem
 *.pfx
 edge/

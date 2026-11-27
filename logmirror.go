@@ -6,18 +6,93 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
 	serverLogPrefix = "g711-radio-"
+	// serverLogSubdir is the folder, under the working directory, that holds
+	// the server's own log files (daily server logs, mping-peers.log).
+	serverLogSubdir = "logs"
 	// archiveLogsSubdir and archiveTranscriptLogsSubdir are where the server
 	// logs and the per-stream transcript logs are replicated inside every
 	// audio archive directory (the archive sync then keeps them identical).
 	archiveLogsSubdir           = "logs"
 	archiveTranscriptLogsSubdir = "transcript-logs"
 )
+
+// legacyRootLogPattern matches the log files older versions (or the service
+// wrapper's output redirection) left directly in the working directory:
+// g711-radio.log, g711-radio-YYYY-MM-DD.log, and NSSM-style
+// service-out*.log / service-err*.log including timestamped rotations.
+var legacyRootLogPattern = regexp.MustCompile(`^(g711-radio|service-out|service-err)([-_.].*)?\.log$`)
+
+func isLegacyRootLog(name string) bool {
+	return legacyRootLogPattern.MatchString(name)
+}
+
+// moveFileNoClobber moves src to dst, creating dst's folder. An existing dst
+// is never overwritten: the file is moved to "<name>.moved-N<ext>" instead.
+// It returns the path the file ended up at.
+func moveFileNoClobber(src, dst string) (string, error) {
+	if _, err := os.Lstat(src); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return "", err
+	}
+	ext := filepath.Ext(dst)
+	stem := strings.TrimSuffix(dst, ext)
+	target := dst
+	for n := 1; ; n++ {
+		_, err := os.Lstat(target)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		target = fmt.Sprintf("%s.moved-%d%s", stem, n, ext)
+	}
+	if err := os.Rename(src, target); err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+// migrateRootLogs moves the log files that older versions left in dir
+// (g711-radio*.log and the service wrapper's service-out*/service-err*.log)
+// into dir/logs. A file that
+// cannot be moved (for example one held open by another running copy of the
+// server) is left in place. It returns lines for the caller to log, since
+// this runs before the logger exists.
+func migrateRootLogs(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return []string{fmt.Sprintf("log migration: cannot read %s: %v", dir, err)}
+	}
+	dst := filepath.Join(dir, serverLogSubdir)
+	var failures []string
+	moved := 0
+	for _, e := range entries {
+		if !e.Type().IsRegular() || !isLegacyRootLog(e.Name()) {
+			continue
+		}
+		if _, err := moveFileNoClobber(filepath.Join(dir, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+			failures = append(failures, fmt.Sprintf("log migration: could not move %s: %v", e.Name(), err))
+			continue
+		}
+		moved++
+	}
+	var report []string
+	if moved > 0 {
+		report = append(report, fmt.Sprintf("log migration: moved %d log file(s) from %s to %s", moved, dir, dst))
+	}
+	return append(report, failures...)
+}
 
 // dailyLogWriter writes every log line to a per-day file
 // (g711-radio-YYYY-MM-DD.log, local date) in each configured directory,

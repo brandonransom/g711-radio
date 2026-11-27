@@ -84,19 +84,36 @@ func TestConsoleRequiresSuperLoginAndStreams(t *testing.T) {
 		t.Fatalf("stream content type %q", ct)
 	}
 	sc := bufio.NewScanner(resp.Body)
-	next := func() consoleUpdate {
+	// nextEvent reads one complete server-sent event: its name ("" for the
+	// default event) and data.
+	nextEvent := func() (name, data string) {
 		t.Helper()
 		for sc.Scan() {
-			if data, ok := strings.CutPrefix(sc.Text(), "data: "); ok {
-				var u consoleUpdate
-				if err := json.Unmarshal([]byte(data), &u); err != nil {
-					t.Fatal(err)
-				}
-				return u
+			switch line := sc.Text(); {
+			case strings.HasPrefix(line, "event: "):
+				name = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				data = strings.TrimPrefix(line, "data: ")
+			case line == "" && data != "":
+				return name, data
 			}
 		}
 		t.Fatalf("stream ended: %v", sc.Err())
-		return consoleUpdate{}
+		return "", ""
+	}
+	next := func() consoleUpdate {
+		t.Helper()
+		for {
+			name, data := nextEvent()
+			if name != "" {
+				continue
+			}
+			var u consoleUpdate
+			if err := json.Unmarshal([]byte(data), &u); err != nil {
+				t.Fatal(err)
+			}
+			return u
+		}
 	}
 	if u := next(); len(u.Lines) != 1 || u.Lines[0] != "first line" {
 		t.Fatalf("backlog: %+v", u)
@@ -104,6 +121,27 @@ func TestConsoleRequiresSuperLoginAndStreams(t *testing.T) {
 	fmt.Fprint(a.console, "second line\n")
 	if u := next(); len(u.Lines) != 1 || u.Lines[0] != "second line" || u.Next != 2 {
 		t.Fatalf("live line: %+v", u)
+	}
+
+	fmt.Fprint(a.console, "2026/11/27 12:52:50 archive sync: error: mkdir B:\\audio: The system cannot find the path specified.\n")
+	deadline := time.After(10 * time.Second)
+	for found := false; !found; {
+		select {
+		case <-deadline:
+			t.Fatal("no issues event mentioning the archive problem")
+		default:
+		}
+		name, data := nextEvent()
+		if name != "issues" {
+			continue
+		}
+		var list []issueView
+		if err := json.Unmarshal([]byte(data), &list); err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range list {
+			found = found || v.ID == "archive-unreachable|B:"
+		}
 	}
 
 	a.console.Close()

@@ -15,6 +15,7 @@ audio/
 transcripts/
 analytics/
 *.log
+logs/
 usage.csv
 *.pcapng
 g711-radio
