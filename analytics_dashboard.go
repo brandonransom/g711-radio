@@ -129,6 +129,7 @@ type rangeOpt struct {
 type dashData struct {
 	BasePath      string
 	SuperUser     bool
+	HasConsole    bool
 	Days          int
 	From, To      string
 	Ranges        []rangeOpt
@@ -215,6 +216,7 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 		data := a.dashboard(parseDays(r), live, inventory, transcription...)
 		data.BasePath = path
 		data.SuperUser = isSuperUser(r)
+		data.HasConsole = a.console != nil
 		if data.TxHasReset && r.URL.Query().Get("tx") == "since" {
 			data.Transcription = data.TxSince
 			data.TxShowSince = true
@@ -239,6 +241,9 @@ func (a *analyticsStore) RegisterDashboard(mux *http.ServeMux, path string, live
 	})
 	mux.HandleFunc(path+"/csr", a.handleCSR)
 	mux.HandleFunc(path+"/password", a.handlePassword)
+	if a.console != nil {
+		a.registerConsole(mux, path)
+	}
 	mux.HandleFunc(path+"/events.csv", func(w http.ResponseWriter, r *http.Request) {
 		privateHeaders(w)
 		a.exportEvents(w, parseDays(r))

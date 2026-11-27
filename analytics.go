@@ -270,6 +270,9 @@ type analyticsStore struct {
 	dailyDir  string
 	saltPath  string
 	super     *superAuth
+	// console, when set, enables the live server console page under the
+	// dashboard path (see console.go).
+	console *logBuffer
 	// txResetAt marks the last transcription-statistics reset; the zero
 	// value means never reset. It is persisted in txResetPath.
 	txResetAt   time.Time

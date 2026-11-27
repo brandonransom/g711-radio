@@ -773,10 +773,11 @@ func main() {
 	// Logs are never deleted or truncated.
 	logDir, logDirErr := os.Getwd()
 	dailyLog := newDailyLogWriter()
-	var logWriter io.Writer = os.Stdout
+	consoleLog := newLogBuffer()
+	var logWriter io.Writer = io.MultiWriter(os.Stdout, consoleLog)
 	if logDirErr == nil {
 		dailyLog.AddDir(logDir)
-		logWriter = io.MultiWriter(os.Stdout, dailyLog)
+		logWriter = io.MultiWriter(os.Stdout, dailyLog, consoleLog)
 	}
 	defer dailyLog.Close()
 	logger := log.New(logWriter, "", log.LstdFlags)
@@ -809,6 +810,7 @@ func main() {
 		} else {
 			logger.Printf("analytics: recording to %s (raw events kept %d days; negative = forever)", config.Analytics.Dir, config.Analytics.RetentionDays)
 			defer analytics.Close()
+			analytics.console = consoleLog
 		}
 	}
 
@@ -827,6 +829,10 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go func() {
+		<-ctx.Done()
+		consoleLog.Close()
+	}()
 
 	if config.Edge != nil {
 		runEdge(ctx, config, api, codec, frameDuration, analytics, logger)
@@ -1010,7 +1016,7 @@ func main() {
 		go analytics.Run(ctx)
 		if p := config.Analytics.DashboardPath; p != "" {
 			analytics.RegisterDashboard(mux, p, server.liveListenerCounts, server.streamInventory, pool.transcriptionSnapshot)
-			logger.Printf("analytics: dashboard enabled at the dashboardPath set in %s", configPath)
+			logger.Printf("analytics: dashboard enabled at the dashboardPath set in %s (live server console at <dashboardPath>/console, super user login)", configPath)
 		} else {
 			logger.Printf("analytics: dashboard disabled; set analytics.dashboardPath in %s, e.g. \"/%s\"", configPath, randomToken())
 		}

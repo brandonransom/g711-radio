@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Server console</title>
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: #0c0c0c; color: #ccc; font: 13px/1.4 Consolas, Menlo, monospace; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 6px 12px; background: #1b1b1b; border-bottom: 1px solid #333; font-family: system-ui, sans-serif; }
+  header strong { color: #fff; }
+  #status { color: #e6b800; }
+  #status.ok { color: #3fb950; }
+  input[type=search] { width: 220px; }
+  #out { flex: 1; margin: 0; padding: 6px 12px; overflow: auto; }
+  #out div { white-space: pre-wrap; word-break: break-all; }
+  #out .err { color: #ff6b6b; }
+  #out .warn { color: #e6b800; }
+  #out .note { color: #58a6ff; font-style: italic; }
+</style>
+</head>
+<body data-stream="{{.StreamURL}}">
+<header>
+  <strong>Server console</strong>
+  <span id="status">connecting&hellip;</span>
+  <input id="filter" type="search" placeholder="Filter (case-insensitive)">
+  <label><input id="follow" type="checkbox" checked> Follow</label>
+  <button id="pause" type="button">Pause</button>
+  <button id="clear" type="button">Clear</button>
+</header>
+<div id="out" role="log" aria-live="off"></div>
+<script nonce="{{.Nonce}}">
+(function () {
+  var MAX_LINES = 5000, RETRY_MS = 2000;
+  var out = document.getElementById('out');
+  var status = document.getElementById('status');
+  var filter = document.getElementById('filter');
+  var follow = document.getElementById('follow');
+  var pauseBtn = document.getElementById('pause');
+  var base = document.body.dataset.stream;
+  var last = 0, paused = false, held = [];
+
+  function matches(text) {
+    var f = filter.value.trim().toLowerCase();
+    return !f || text.toLowerCase().indexOf(f) !== -1;
+  }
+
+  function addLine(frag, text, cls) {
+    var d = document.createElement('div');
+    d.textContent = text;
+    if (!cls) {
+      if (/error|fatal|panic|fail/i.test(text)) cls = 'err';
+      else if (/warn/i.test(text)) cls = 'warn';
+    }
+    if (cls) d.className = cls;
+    d.hidden = !matches(text);
+    frag.appendChild(d);
+  }
+
+  function show(items) {
+    var frag = document.createDocumentFragment();
+    items.forEach(function (it) { addLine(frag, it.text, it.cls); });
+    out.appendChild(frag);
+    while (out.childNodes.length > MAX_LINES) out.removeChild(out.firstChild);
+    if (follow.checked) out.scrollTop = out.scrollHeight;
+  }
+
+  function receive(m) {
+    if (m.reset) { out.textContent = ''; held = []; }
+    var items = [];
+    if (m.missed) items.push({ text: '-- some lines were missed while disconnected --', cls: 'note' });
+    m.lines.forEach(function (t) { items.push({ text: t }); });
+    if (paused) held = held.concat(items).slice(-MAX_LINES);
+    else show(items);
+    last = m.next;
+  }
+
+  function connect() {
+    var es = new EventSource(base + '?after=' + last);
+    es.onopen = function () { status.textContent = 'live'; status.className = 'ok'; };
+    es.onmessage = function (e) { receive(JSON.parse(e.data)); };
+    es.onerror = function () {
+      es.close();
+      status.textContent = 'disconnected, retrying\u2026';
+      status.className = '';
+      setTimeout(connect, RETRY_MS);
+    };
+  }
+
+  filter.addEventListener('input', function () {
+    Array.prototype.forEach.call(out.children, function (d) { d.hidden = !matches(d.textContent); });
+  });
+  out.addEventListener('scroll', function () {
+    follow.checked = out.scrollHeight - out.scrollTop - out.clientHeight < 40;
+  });
+  pauseBtn.addEventListener('click', function () {
+    paused = !paused;
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    if (!paused) { show(held); held = []; }
+  });
+  document.getElementById('clear').addEventListener('click', function () {
+    out.textContent = '';
+    held = [];
+  });
+
+  connect();
+})();
+</script>
+</body>
+</html>

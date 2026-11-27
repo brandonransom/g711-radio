@@ -252,6 +252,11 @@
 </p>
 
 {{if .SuperUser}}
+{{if .HasConsole}}
+<h2>Server console</h2>
+<p class="muted">Live view of the server log (the same lines the program prints to its console). Requires the super user login.</p>
+<p><a href="{{.BasePath}}/console">Open server console</a></p>
+{{end}}
 <h2>HTTPS certificate request (CSR)</h2>
 <p class="muted">Generates a new RSA private key and a PEM CSR to submit to a certificate authority. The CSR downloads to the browser; the private key stays on the server in the <code>csr</code> folder of the analytics directory.</p>
 <form method="post" action="{{.BasePath}}/csr?user=super" style="display:grid;gap:8px;max-width:520px">
